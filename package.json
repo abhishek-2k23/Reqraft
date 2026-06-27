@@ -3,7 +3,9 @@
   "private": true,
   "scripts": {
     "build": "dotenv -- turbo build",
-    "dev": "dotenv -- turbo dev",
+    "dev": "dotenv -- concurrently --names \"turbo,ngrok\" --prefix-colors \"cyan,yellow\" \"turbo dev\" \"ngrok http --domain=granular-motocross-grimace.ngrok-free.dev 3000\"",
+    "dev:app": "dotenv -- turbo dev",
+    "dev:tunnel": "dotenv -- ngrok http --domain=granular-motocross-grimace.ngrok-free.dev 3000",
     "db:generate": "dotenv -- turbo db:generate",
     "db:migrate": "dotenv -- turbo db:migrate",
     "test": "turbo run test",
@@ -12,6 +14,7 @@
     "check-types": "turbo run check-types"
   },
   "devDependencies": {
+    "concurrently": "^9.1.2",
     "prettier": "^3.7.4",
     "turbo": "^2.7.2",
     "typescript": "5.9.2"

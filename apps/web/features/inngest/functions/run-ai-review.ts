@@ -14,10 +14,7 @@ import { getGithubApp } from "@/lib/github/app";
 import { inngest } from "../client";
 
 export const reviewPullRequestFunction = inngest.createFunction(
-  {
-    id: "review-pull-request",
-    triggers: { event: "github/pull_request.review_requested" },
-  },
+  { id: "review-pull-request", triggers: [{ event: "github/pull_request.review_requested" }] },
   async ({ event, step }) => {
     const { pullRequestId } = event.data as {
       pullRequestId?: string;

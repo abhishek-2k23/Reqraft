@@ -10,7 +10,7 @@ import { generatePrd } from "@/features/ai/prd-generator";
 import { inngest } from "../client";
 
 export const generatePrdFunction = inngest.createFunction(
-  { id: "generate-prd", triggers: { event: "feature/clarification-complete" } },
+  { id: "generate-prd", triggers: [{ event: "feature/clarification-complete" }] },
   async ({ event, step }) => {
     const { featureId } = event.data as { featureId: string };
 
