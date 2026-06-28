@@ -6,7 +6,8 @@ export function getGithubApp() {
   if (app) return app;
   
   const appId = process.env.GITHUB_APP_ID;
-  const privateKey = process.env.GITHUB_APP_PRIVATE_KEY;
+  // Normalize escaped \n (from .env file) to real newlines (from Vercel env vars)
+  const privateKey = (process.env.GITHUB_APP_PRIVATE_KEY ?? "").replace(/\\n/g, "\n");
   const webhookSecret = process.env.GITHUB_WEBHOOK_SECRET;
 
   if (!appId || !privateKey) {
