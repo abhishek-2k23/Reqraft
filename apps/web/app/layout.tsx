@@ -17,6 +17,19 @@ export const metadata: Metadata = {
   title: "Reqraft",
   description:
     "AI product ops for turning feature ideas into reviewed, approved, shipped software.",
+  icons: {
+    icon: [
+      { url: "/icons/reqraft-favicon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/icons/reqraft-icon-transparent-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: "/icons/reqraft-icon-transparent-512.png",
+  },
+  openGraph: {
+    title: "Reqraft",
+    description:
+      "AI product ops for turning feature ideas into reviewed, approved, shipped software.",
+    images: ["/icons/reqraft-icon-transparent-512.png"],
+  },
 };
 
 export default function RootLayout({

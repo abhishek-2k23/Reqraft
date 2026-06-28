@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
+import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2, CheckCircle2, XCircle, Mail } from "lucide-react";
 
@@ -81,7 +82,10 @@ function InvitePageContent() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#090b10] px-4">
       <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#0d1118] p-10 text-center shadow-2xl">
-        <span className="mb-8 block text-xl font-bold tracking-tight text-cyan-300">Reqraft</span>
+        <div className="mb-8 flex items-center justify-center gap-2">
+          <Image src="/icons/reqraft-icon-transparent-512.png" alt="Reqraft" width={32} height={32} className="size-8" priority />
+          <span className="text-xl font-bold tracking-tight text-cyan-300">Reqraft</span>
+        </div>
 
         {(state.status === "loading" || state.status === "accepting") && (
           <div className="flex flex-col items-center gap-4">

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { motion, type Variants } from "framer-motion";
 import {
@@ -9,7 +10,6 @@ import {
   Clock3,
   GitPullRequestArrow,
   MessageSquareText,
-  Rocket,
   ShieldCheck,
   Sparkles,
   TriangleAlert,
@@ -107,9 +107,14 @@ export default function Home() {
     <main className="relative flex min-h-screen flex-col items-center overflow-x-hidden pt-8">
       <nav className="fixed left-1/2 top-6 z-50 flex w-[calc(100%-2rem)] max-w-7xl -translate-x-1/2 items-center justify-between rounded-2xl border border-white/10 bg-zinc-950/40 px-6 py-4 shadow-2xl backdrop-blur-xl supports-[backdrop-filter]:bg-zinc-950/20">
         <Link href="/" className="flex items-center gap-3 transition-opacity hover:opacity-80">
-          <div className="grid size-9 place-items-center rounded-xl bg-gradient-to-br from-zinc-800 to-zinc-900 border border-white/10 text-white shadow-inner">
-            <Rocket className="size-4" />
-          </div>
+          <Image
+            src="/icons/reqraft-icon-transparent-512.png"
+            alt="Reqraft"
+            width={36}
+            height={36}
+            className="size-9"
+            priority
+          />
           <span className="font-semibold tracking-tight text-white">Reqraft</span>
         </Link>
         <div className="hidden items-center gap-8 text-sm font-medium text-zinc-400 md:flex">

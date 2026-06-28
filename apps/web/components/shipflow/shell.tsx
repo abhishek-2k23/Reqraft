@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import {
   BadgeIndianRupee,
@@ -6,7 +7,6 @@ import {
   GitBranch,
   LayoutDashboard,
   ListChecks,
-  Rocket,
   ScrollText,
   Settings,
   ShieldCheck,
@@ -45,9 +45,14 @@ export function ShipFlowShell({
       <div className="grid min-h-screen lg:grid-cols-[260px_1fr]">
         <aside className="flex flex-col border-r border-white/10 bg-[#0d1118] px-4 py-5">
           <Link href="/" className="flex items-center gap-3 rounded-lg px-2 py-2">
-            <div className="grid size-9 place-items-center rounded-lg bg-cyan-300 text-slate-950">
-              <Rocket className="size-5" />
-            </div>
+            <Image
+              src="/icons/reqraft-icon-transparent-512.png"
+              alt="Reqraft"
+              width={36}
+              height={36}
+              className="size-9"
+              priority
+            />
             <div>
               <p className="text-sm font-semibold text-white">Reqraft</p>
               <p className="text-xs text-slate-400">Product delivery OS</p>
