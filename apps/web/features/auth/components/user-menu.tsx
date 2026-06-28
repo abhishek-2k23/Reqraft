@@ -1,6 +1,7 @@
 "use client";
 
-import { LogOut, UserRound } from "lucide-react";
+import { LogOut, User, UserRound } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -85,6 +86,13 @@ export function UserMenu({
             </Badge>
           </span>
         </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link href="/profile">
+            <User className="size-4" />
+            My profile
+          </Link>
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem variant="destructive" onClick={handleSignOut}>
           <LogOut />

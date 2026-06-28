@@ -8,6 +8,7 @@ import { healthRouter } from "./routes/health/route";
 import { memberRouter } from "./routes/member/route";
 import { orgRouter } from "./routes/org/route";
 import { prdRouter } from "./routes/prd/route";
+import { profileRouter } from "./routes/profile/route";
 import { projectRouter } from "./routes/project/route";
 import { reviewRouter } from "./routes/review/route";
 import { shipflowRouter } from "./routes/shipflow/route";
@@ -22,6 +23,7 @@ export const serverRouter = router({
   member: memberRouter,
   org: orgRouter,
   prd: prdRouter,
+  profile: profileRouter,
   project: projectRouter,
   review: reviewRouter,
   shipflow: shipflowRouter,
