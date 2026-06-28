@@ -15,6 +15,34 @@
       "when": 1782293948274,
       "tag": "0001_blushing_boom_boom",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1782583980068,
+      "tag": "0002_ordinary_tiger_shark",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1782597187740,
+      "tag": "0003_supreme_christian_walker",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1782600400036,
+      "tag": "0004_fast_gunslinger",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1782602494729,
+      "tag": "0005_tidy_la_nuit",
+      "breakpoints": true
     }
   ]
 }

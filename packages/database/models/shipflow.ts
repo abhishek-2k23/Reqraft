@@ -12,6 +12,16 @@ import {
 
 import { usersTable } from "./user";
 
+// Roles ordered from most to least privileged.
+// "developer" is the default for new members invited without an explicit role.
+export const MEMBER_ROLES = ["owner", "admin", "manager", "developer", "viewer"] as const;
+export type MemberRole = (typeof MEMBER_ROLES)[number];
+
+// Minimum role required for a given action — usage: hasRole(memberRole, "manager")
+export function hasRole(memberRole: MemberRole, minimum: MemberRole): boolean {
+  return MEMBER_ROLES.indexOf(memberRole) <= MEMBER_ROLES.indexOf(minimum);
+}
+
 export const organizations = pgTable("organization", {
   id: text("id").primaryKey().$defaultFn(randomUUID),
   name: text("name").notNull(),
@@ -151,6 +161,11 @@ export const prds = pgTable("prd", {
   acceptanceCriteria: text("acceptance_criteria").notNull(),
   edgeCases: text("edge_cases").notNull(),
   successMetrics: text("success_metrics").notNull(),
+  technicalRequirements: text("technical_requirements").notNull().default("[]"),
+  dependencies: text("dependencies").notNull().default("[]"),
+  risks: text("risks").notNull().default("[]"),
+  estimatedTotalHours: integer("estimated_total_hours"),
+  targetDeadline: timestamp("target_deadline"),
   rawMarkdown: text("raw_markdown").notNull(),
   version: integer("version").notNull().default(1),
   approvedBy: text("approved_by").references(() => usersTable.id, {
@@ -174,6 +189,7 @@ export const tasks = pgTable("task", {
   type: text("type").notNull(),
   priority: text("priority").notNull().default("p1"),
   status: text("status").notNull().default("todo"),
+  blockedReason: text("blocked_reason"),
   assignedTo: text("assigned_to").references(() => usersTable.id, {
     onDelete: "set null",
   }),
@@ -184,9 +200,10 @@ export const tasks = pgTable("task", {
 
 export const pullRequests = pgTable("pull_request", {
   id: text("id").primaryKey().$defaultFn(randomUUID),
-  featureId: text("feature_id")
-    .notNull()
-    .references(() => featureRequests.id, { onDelete: "cascade" }),
+  // Nullable: we cache every PR for connected repos, even ones not tied to a feature branch
+  featureId: text("feature_id").references(() => featureRequests.id, {
+    onDelete: "cascade",
+  }),
   repositoryId: text("repository_id").references(() => repositories.id, {
     onDelete: "set null",
   }),
@@ -235,6 +252,7 @@ export const reviewIssues = pgTable("review_issue", {
   suggestion: text("suggestion").notNull(),
   filePath: text("file_path"),
   lineNumber: integer("line_number"),
+  assignedTo: text("assigned_to").references(() => usersTable.id, { onDelete: "set null" }),
   resolved: boolean("resolved").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
