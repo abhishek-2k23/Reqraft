@@ -50,5 +50,9 @@ export const auth = betterAuth({
       clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
     },
   },
+  accountLinking: {
+    enabled: true,
+    trustedProviders: ["github", "google"],
+  },
   plugins: [organization(), nextCookies()],
 });
