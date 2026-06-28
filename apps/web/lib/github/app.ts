@@ -2,7 +2,7 @@ import { App } from "octokit";
 
 let app: App | null = null;
 
-export function getGithubApp() {
+export function getGithubApp(): App {
   if (app) return app;
   
   const appId = process.env.GITHUB_APP_ID;

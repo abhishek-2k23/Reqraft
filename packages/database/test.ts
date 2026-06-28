@@ -7,7 +7,7 @@ import { pullRequests } from './models/shipflow';
 const req = JSON.parse(fs.readFileSync('../../req500.json', 'utf8'));
 const payloadStr = Buffer.from(req.request.raw, 'base64').toString('utf8');
 const lines = payloadStr.split('\n');
-const jsonStr = lines[lines.length - 1];
+const jsonStr = lines[lines.length - 1] ?? '';
 const event = JSON.parse(jsonStr);
 
 async function test() {
@@ -16,9 +16,9 @@ async function test() {
   const db = drizzle(client);
 
   try {
-    const branchName = event.pull_request.head.ref;
+    const branchName = event.pull_request.head.ref as string;
     const match = branchName.match(/^feature\/(.+)$/);
-    const featureId = match ? match[1] : null;
+    const featureId = match ? match[1] as string : null;
 
     const [pr] = await db.insert(pullRequests).values({
       id: `pr_${event.pull_request.id}`,
@@ -44,7 +44,7 @@ async function test() {
         body: event.pull_request.body,
       }
     }).returning();
-    console.log('SUCCESS:', pr.id);
+    if (pr) console.log('SUCCESS:', pr.id);
   } catch(e) {
     console.error('ERROR:', e);
   } finally {

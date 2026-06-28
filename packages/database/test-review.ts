@@ -5,21 +5,24 @@ import { getGithubApp } from "../../apps/web/lib/github/app";
 
 async function run() {
   const pullRequestId = "pr_3926469669";
-  
+
   console.log("Fetching PR...");
   const [pullRequest] = await db.select().from(pullRequests).where(eq(pullRequests.id, pullRequestId));
   if (!pullRequest) throw new Error("PR not found");
-  
+  if (!pullRequest.featureId) throw new Error("PR has no linked feature");
+
   console.log("Fetching Context...");
   const [prd] = await db.select().from(prds).where(eq(prds.featureId, pullRequest.featureId));
   if (!prd) throw new Error("PRD not found");
 
   console.log("Fetching Diff...");
   const app = getGithubApp();
-  const [owner, repo] = pullRequest.repoFullName.split("/");
+  const parts = pullRequest.repoFullName.split("/");
+  const owner = parts[0] ?? "";
+  const repo = parts[1] ?? "";
   const { data: installation } = await app.octokit.rest.apps.getRepoInstallation({ owner, repo });
   const octokit = await app.getInstallationOctokit(installation.id);
-  
+
   const { data: diffData } = await octokit.rest.pulls.get({
     owner, repo, pull_number: pullRequest.number, mediaType: { format: "diff" },
   });
@@ -29,14 +32,14 @@ async function run() {
   console.log("AI Review...");
   const review = await reviewPullRequestAgainstPrd({
     repoFullName: pullRequest.repoFullName,
-    pullRequestTitle: pullRequest.title,
+    pullRequestTitle: pullRequest.title ?? "",
     prdTitle: prd.problem,
-    acceptanceCriteria: JSON.parse(prd.acceptanceCriteria),
+    acceptanceCriteria: JSON.parse(prd.acceptanceCriteria) as string[],
     files,
   });
 
   console.log("Review Status:", review.status);
-  
+
   let markdownBody = `### Reqraft Review 🚢\n\n`;
   markdownBody += `**Verdict:** ${review.status === "passed" ? "✅ Approved" : "❌ Changes Requested"}\n\n`;
   markdownBody += `${review.summary}\n\n`;
