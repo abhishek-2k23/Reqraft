@@ -15,6 +15,13 @@ export const generatePrdFunction = inngest.createFunction(
     const { featureId } = event.data as { featureId: string };
 
     const context = await step.run("fetch-context", async () => {
+      // Idempotency guard: skip entirely if a PRD already exists (handles Inngest replays)
+      const [existingPrd] = await db
+        .select({ id: prds.id })
+        .from(prds)
+        .where(eq(prds.featureId, featureId));
+      if (existingPrd) return null;
+
       const [feature] = await db
         .select()
         .from(featureRequests)
@@ -24,17 +31,18 @@ export const generatePrdFunction = inngest.createFunction(
         .from(clarificationMessages)
         .where(eq(clarificationMessages.featureId, featureId));
 
-      if (!feature) {
-        throw new Error(`Feature ${featureId} not found`);
-      }
+      if (!feature) throw new Error(`Feature ${featureId} not found`);
 
       return { feature, messages };
     });
 
+    // PRD already existed — nothing to do
+    if (context === null) return { featureId, status: "skipped" };
+
     await step.run("set-generating", async () => {
       await db
         .update(featureRequests)
-        .set({ status: "clarifying", updatedAt: new Date() })
+        .set({ status: "prd_generating", updatedAt: new Date() })
         .where(eq(featureRequests.id, featureId));
     });
 
@@ -50,6 +58,16 @@ export const generatePrdFunction = inngest.createFunction(
     );
 
     await step.run("save-prd", async () => {
+      // Guard: abort if the user cancelled generation (status reverted to clarifying)
+      const [current] = await db
+        .select({ status: featureRequests.status })
+        .from(featureRequests)
+        .where(eq(featureRequests.id, featureId));
+
+      if (!current || current.status !== "prd_generating") {
+        return { skipped: true };
+      }
+
       await db.insert(prds).values({
         id: crypto.randomUUID(),
         featureId,
@@ -60,6 +78,10 @@ export const generatePrdFunction = inngest.createFunction(
         acceptanceCriteria: JSON.stringify(prdContent.acceptanceCriteria),
         edgeCases: JSON.stringify(prdContent.edgeCases),
         successMetrics: JSON.stringify(prdContent.successMetrics),
+        technicalRequirements: JSON.stringify(prdContent.technicalRequirements),
+        dependencies: JSON.stringify(prdContent.dependencies),
+        risks: JSON.stringify(prdContent.risks),
+        estimatedTotalHours: prdContent.estimatedTotalHours,
         rawMarkdown: prdContent.rawMarkdown,
       });
       await db

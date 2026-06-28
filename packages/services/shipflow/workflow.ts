@@ -1,6 +1,7 @@
 export const featureStatuses = [
   "intake",
   "clarifying",
+  "prd_generating",
   "prd_ready",
   "tasks_ready",
   "in_progress",
@@ -45,6 +46,7 @@ export type FeatureProgressSummary = FeatureProgressInput & {
 const lifecyclePath: FeatureStatus[] = [
   "intake",
   "clarifying",
+  "prd_generating",
   "prd_ready",
   "tasks_ready",
   "in_progress",
