@@ -34,16 +34,56 @@ export const taskRouter = router({
       z.object({
         taskId: z.string(),
         status: z.enum(["todo", "in_progress", "done", "blocked"]),
+        blockedReason: z.string().nullish(),
+        order: z.number().int().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
       const [updated] = await ctx.db
         .update(tasks)
-        .set({ status: input.status, updatedAt: new Date() })
+        .set({
+          status: input.status,
+          // Clear the blocked reason whenever a task leaves the blocked column
+          blockedReason: input.status === "blocked" ? input.blockedReason ?? null : null,
+          ...(input.order !== undefined ? { order: input.order } : {}),
+          updatedAt: new Date(),
+        })
         .where(eq(tasks.id, input.taskId))
         .returning();
 
       return updated;
+    }),
+
+  // Persist the full board (status + order + blocked reason) after drag-and-drop
+  reorder: orgProcedure
+    .input(
+      z.object({
+        items: z.array(
+          z.object({
+            taskId: z.string(),
+            status: z.enum(["todo", "in_progress", "done", "blocked"]),
+            order: z.number().int(),
+            blockedReason: z.string().nullish(),
+          }),
+        ),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      await Promise.all(
+        input.items.map((item) =>
+          ctx.db
+            .update(tasks)
+            .set({
+              status: item.status,
+              order: item.order,
+              // Reason only persists while a task is in the blocked column
+              blockedReason: item.status === "blocked" ? item.blockedReason ?? null : null,
+              updatedAt: new Date(),
+            })
+            .where(eq(tasks.id, item.taskId)),
+        ),
+      );
+      return { success: true };
     }),
 
   assignTo: orgProcedure

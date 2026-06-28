@@ -8,6 +8,7 @@ import { publicProcedure, router } from "../../trpc";
 const featureStatusSchema = z.enum([
   "intake",
   "clarifying",
+  "prd_generating",
   "prd_ready",
   "tasks_ready",
   "in_progress",

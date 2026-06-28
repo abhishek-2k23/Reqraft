@@ -5,6 +5,7 @@ import { billingRouter } from "./routes/billing/route";
 import { featureRouter } from "./routes/feature/route";
 import { githubRouter } from "./routes/github/route";
 import { healthRouter } from "./routes/health/route";
+import { memberRouter } from "./routes/member/route";
 import { orgRouter } from "./routes/org/route";
 import { prdRouter } from "./routes/prd/route";
 import { projectRouter } from "./routes/project/route";
@@ -18,6 +19,7 @@ export const serverRouter = router({
   feature: featureRouter,
   github: githubRouter,
   health: healthRouter,
+  member: memberRouter,
   org: orgRouter,
   prd: prdRouter,
   project: projectRouter,

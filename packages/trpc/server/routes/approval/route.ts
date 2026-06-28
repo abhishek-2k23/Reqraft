@@ -2,11 +2,11 @@ import { TRPCError } from "@trpc/server";
 import { eq } from "@repo/database";
 import { featureRequests } from "@repo/database/schema";
 
-import { orgProcedure, router } from "../../trpc";
+import { managerProcedure, router } from "../../trpc";
 import { z } from "../../schema";
 
 export const approvalRouter = router({
-  approve: orgProcedure
+  approve: managerProcedure
     .input(z.object({ featureId: z.string(), notes: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
       const [feature] = await ctx.db
@@ -34,7 +34,7 @@ export const approvalRouter = router({
       return updated;
     }),
 
-  reject: orgProcedure
+  reject: managerProcedure
     .input(z.object({ featureId: z.string(), reason: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
       const [updated] = await ctx.db
@@ -46,7 +46,7 @@ export const approvalRouter = router({
       return updated;
     }),
 
-  ship: orgProcedure
+  ship: managerProcedure
     .input(z.object({ featureId: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const [feature] = await ctx.db
