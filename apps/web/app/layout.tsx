@@ -14,7 +14,7 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "ShipFlow AI",
+  title: "Reqraft",
   description:
     "AI product ops for turning feature ideas into reviewed, approved, shipped software.",
 };

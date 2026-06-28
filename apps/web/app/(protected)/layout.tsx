@@ -1,4 +1,5 @@
-import { requireAuth } from "@/features/auth/actions";
+import { requireAuth } from "@/features/auth/session";
+import { ProjectProvider } from "~/components/shipflow/project-context";
 
 export default async function ProtectedLayout({
   children,
@@ -7,5 +8,5 @@ export default async function ProtectedLayout({
 }) {
   await requireAuth();
 
-  return children;
+  return <ProjectProvider>{children}</ProjectProvider>;
 }

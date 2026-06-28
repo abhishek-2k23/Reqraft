@@ -1,7 +1,8 @@
 import Image from "next/image";
 
-import { getServerSession } from "@/features/auth/actions";
+import { getServerSession } from "@/features/auth/session";
 import { CreateOrgForm } from "~/components/shipflow/create-org-form";
+import { ProjectsSection } from "~/components/shipflow/projects-section";
 import { ShipFlowShell } from "~/components/shipflow/shell";
 import { api } from "~/trpc/server";
 
@@ -18,6 +19,7 @@ export default async function SettingsPage() {
       description="Manage your account and organizations."
     >
       <div className="max-w-2xl space-y-6">
+        <ProjectsSection />
         <div className="rounded-lg border border-white/10 bg-white/[0.045] p-5">
           <h2 className="mb-4 text-sm font-semibold text-white">Account</h2>
           <div className="flex items-center gap-3">
@@ -29,7 +31,7 @@ export default async function SettingsPage() {
               </div>
             )}
             <div>
-              <p className="text-sm font-medium text-white">{session?.user.name ?? "ShipFlow user"}</p>
+              <p className="text-sm font-medium text-white">{session?.user.name ?? "Reqraft user"}</p>
               <p className="text-xs text-slate-500">{session?.user.email ?? "No email connected"}</p>
             </div>
           </div>

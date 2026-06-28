@@ -33,7 +33,7 @@ export function ReviewLab() {
         <div>
           <p className="text-lg font-semibold text-white">tRPC PR review lab</p>
           <p className="text-sm text-cyan-50/75">
-            Runs the ShipFlow PRD-aware reviewer through `shipflow.reviewPullRequest`.
+            Runs the Reqraft PRD-aware reviewer through `shipflow.reviewPullRequest`.
           </p>
         </div>
         <button

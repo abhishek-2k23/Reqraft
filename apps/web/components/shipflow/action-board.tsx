@@ -50,7 +50,7 @@ export function ActionBoard() {
       <div className="flex items-center justify-between gap-4">
         <div>
           <p className="text-lg font-semibold text-white">Interactive workflow demo</p>
-          <p className="text-sm text-cyan-50/75">Click actions to see how ShipFlow gates release quality.</p>
+          <p className="text-sm text-cyan-50/75">Click actions to see how Reqraft gates release quality.</p>
         </div>
         <button
           className="rounded-md bg-white px-3 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-100"

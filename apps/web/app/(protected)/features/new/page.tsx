@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, SendHorizontal } from "lucide-react";
 import { toast } from "sonner";
@@ -17,16 +17,23 @@ import {
 } from "~/components/ui/select";
 import { Textarea } from "~/components/ui/textarea";
 import { ShipFlowShell } from "~/components/shipflow/shell";
+import { useActiveProject } from "~/components/shipflow/project-context";
 import { trpc } from "~/trpc/client";
 
 type Priority = "low" | "medium" | "high" | "urgent";
 
 export default function NewFeaturePage() {
   const router = useRouter();
+  const { projects, activeProjectId, isLoading: loadingProjects } = useActiveProject();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [projectId, setProjectId] = useState("demo-project");
+  const [projectId, setProjectId] = useState("");
   const [priority, setPriority] = useState<Priority>("medium");
+
+  // Default the form to the currently-active project once it resolves
+  useEffect(() => {
+    if (!projectId && activeProjectId) setProjectId(activeProjectId);
+  }, [activeProjectId, projectId]);
 
   const createFeature = trpc.feature.create.useMutation({
     onSuccess: (feature) => {
@@ -46,7 +53,7 @@ export default function NewFeaturePage() {
     <ShipFlowShell
       active="/features"
       title="New feature request"
-      description="Start with the messy real-world ask. ShipFlow will turn it into a structured delivery workflow."
+      description="Start with the messy real-world ask. Reqraft will turn it into a structured delivery workflow."
     >
       <div className="max-w-3xl rounded-lg border border-white/10 bg-white/[0.045] p-5">
         <div className="grid gap-5">
@@ -74,15 +81,26 @@ export default function NewFeaturePage() {
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
-              <Label htmlFor="project-id" className="text-slate-300">Project ID</Label>
-              <Input
-                id="project-id"
+              <Label className="text-slate-300">Project</Label>
+              <Select
                 value={projectId}
-                onChange={(event) => setProjectId(event.target.value)}
-                placeholder="demo-project"
-                className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-600"
-              />
-              <p className="text-xs text-slate-500">Use the project id that belongs to your active organization.</p>
+                onValueChange={setProjectId}
+                disabled={loadingProjects}
+              >
+                <SelectTrigger className="w-full border-white/10 bg-white/5 text-slate-100">
+                  <SelectValue placeholder={loadingProjects ? "Loading…" : "Select project"} />
+                </SelectTrigger>
+                <SelectContent className="border-white/10 bg-[#0d1118]">
+                  {projects.map((p) => (
+                    <SelectItem key={p.id} value={p.id} className="text-slate-300 focus:bg-white/10 focus:text-white">
+                      {p.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {projects.length === 0 && !loadingProjects && (
+                <p className="text-xs text-amber-400">No projects yet — create one in Settings first.</p>
+              )}
             </div>
 
             <div className="grid gap-2">

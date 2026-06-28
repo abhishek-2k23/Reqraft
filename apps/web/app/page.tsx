@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { motion, type Variants } from "framer-motion";
 import {
   ArrowRight,
   Bot,
@@ -31,7 +31,7 @@ const workflow = [
   "Human approves and ships",
 ];
 
-const FADE_UP_ANIMATION_VARIANTS = {
+const FADE_UP_ANIMATION_VARIANTS: Variants = {
   hidden: { opacity: 0, y: 30 },
   show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } },
 };
@@ -110,7 +110,7 @@ export default function Home() {
           <div className="grid size-9 place-items-center rounded-xl bg-gradient-to-br from-zinc-800 to-zinc-900 border border-white/10 text-white shadow-inner">
             <Rocket className="size-4" />
           </div>
-          <span className="font-semibold tracking-tight text-white">ShipFlow AI</span>
+          <span className="font-semibold tracking-tight text-white">Reqraft</span>
         </Link>
         <div className="hidden items-center gap-8 text-sm font-medium text-zinc-400 md:flex">
           <Link href="/features" className="transition-colors hover:text-white">Features</Link>
@@ -118,11 +118,11 @@ export default function Home() {
           <Link href="/reviews" className="transition-colors hover:text-white">Reviews</Link>
           <Link href="/billing" className="transition-colors hover:text-white">Pricing</Link>
         </div>
-        <Link href="/dashboard" className="group relative inline-flex items-center gap-2 overflow-hidden rounded-xl bg-white px-5 py-2.5 text-sm font-semibold text-zinc-950 transition-all hover:scale-105 active:scale-95">
+        <Link href="/sign-in" className="group relative inline-flex items-center gap-2 overflow-hidden rounded-xl bg-white px-5 py-2.5 text-sm font-semibold text-zinc-950 transition-all hover:scale-105 active:scale-95">
           <div className="absolute inset-0 flex h-full w-full justify-center [transform:skew(-12deg)_translateX(-100%)] group-hover:duration-1000 group-hover:[transform:skew(-12deg)_translateX(100%)]">
             <div className="relative h-full w-8 bg-white/20" />
           </div>
-          Open Cockpit
+          Sign In
           <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
         </Link>
       </nav>
@@ -138,14 +138,14 @@ export default function Home() {
               Turn feature ideas into <span className="text-zinc-500">shipped code.</span>
             </motion.h1>
             <motion.p variants={FADE_UP_ANIMATION_VARIANTS} className="mt-6 max-w-2xl text-lg leading-relaxed text-zinc-400 sm:text-xl">
-              ShipFlow captures messy client asks, clarifies requirements, writes PRDs, watches GitHub PRs, and blocks releases when code misses the mark.
+              Reqraft captures messy client asks, clarifies requirements, writes PRDs, watches GitHub PRs, and blocks releases when code misses the mark.
             </motion.p>
             <motion.div variants={FADE_UP_ANIMATION_VARIANTS} className="mt-10 flex flex-wrap items-center gap-4">
-              <Link href="/features/new" className="group relative inline-flex items-center gap-2 overflow-hidden rounded-xl bg-orange-500 px-6 py-3.5 text-sm font-semibold text-white shadow-[0_0_40px_rgba(249,115,22,0.3)] transition-all hover:scale-105 hover:bg-orange-400 active:scale-95">
+              <Link href="/sign-in?callbackUrl=/features/new" className="group relative inline-flex items-center gap-2 overflow-hidden rounded-xl bg-orange-500 px-6 py-3.5 text-sm font-semibold text-white shadow-[0_0_40px_rgba(249,115,22,0.3)] transition-all hover:scale-105 hover:bg-orange-400 active:scale-95">
                 Generate First PRD
                 <MessageSquareText className="size-4" />
               </Link>
-              <Link href="/reviews" className="group inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-6 py-3.5 text-sm font-semibold text-white backdrop-blur-sm transition-all hover:bg-white/10 active:scale-95">
+              <Link href="/sign-in?callbackUrl=/reviews" className="group inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-6 py-3.5 text-sm font-semibold text-white backdrop-blur-sm transition-all hover:bg-white/10 active:scale-95">
                 Watch PR Review
                 <GitPullRequestArrow className="size-4" />
               </Link>
@@ -183,7 +183,7 @@ export default function Home() {
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-orange-400">Built for Teams</p>
             <h2 className="mt-4 text-4xl font-semibold tracking-tight text-white">A PRD-first code review loop.</h2>
             <p className="mt-6 text-lg leading-relaxed text-zinc-400">
-              Instead of checking only syntax and style, ShipFlow reviews whether the pull request actually delivers the approved requirement, edge cases, success metrics, and release promise.
+              Instead of checking only syntax and style, Reqraft reviews whether the pull request actually delivers the approved requirement, edge cases, success metrics, and release promise.
             </p>
           </div>
         </div>
