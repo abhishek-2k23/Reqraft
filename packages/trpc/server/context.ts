@@ -41,6 +41,15 @@ export type PrdContent = {
 
 export type EditPrdResult = PrdContent & { rawMarkdown: string };
 
+export type SendInviteInput = {
+  to: string;
+  inviterName: string;
+  orgName: string;
+  role: string;
+  invitationId: string;
+  expiresAt: Date;
+};
+
 export type CreateContextOptions = {
   request?: Request;
   session?: AuthSession;
@@ -49,6 +58,7 @@ export type CreateContextOptions = {
     clarify: (input: ClarifyInput) => Promise<ClarifyResult>;
     editPrd: (input: { currentPrd: PrdContent; editPrompt: string }) => Promise<EditPrdResult>;
   };
+  sendInvite?: (input: SendInviteInput) => Promise<unknown>;
 };
 
 export type ContextValue = {
@@ -60,6 +70,7 @@ export type ContextValue = {
     clarify: (input: ClarifyInput) => Promise<ClarifyResult>;
     editPrd: (input: { currentPrd: PrdContent; editPrompt: string }) => Promise<EditPrdResult>;
   };
+  sendInvite: (input: SendInviteInput) => Promise<unknown>;
 };
 
 const noopEmit = async () => {};
@@ -72,6 +83,7 @@ const noopEditPrd = async ({ currentPrd }: { currentPrd: PrdContent }): Promise<
   estimatedTotalHours: currentPrd.estimatedTotalHours ?? null,
   rawMarkdown: "",
 });
+const noopSendInvite = async () => {};
 
 export async function createContext(
   options: CreateContextOptions = {},
@@ -82,6 +94,7 @@ export async function createContext(
     session: options.session ?? null,
     emit: options.emit ?? noopEmit,
     ai: options.ai ?? { clarify: noopClarify, editPrd: noopEditPrd },
+    sendInvite: options.sendInvite ?? noopSendInvite,
   };
 }
 

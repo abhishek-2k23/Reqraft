@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth";
 import { inngest } from "@/features/inngest/client";
 import { runClarificationAgent } from "@/features/ai/clarification-agent";
 import { editPrdWithAI } from "@/features/ai/prd-generator";
+import { sendInviteEmail } from "@/lib/email";
 
 async function handler(request: Request) {
   const session = await auth.api.getSession({
@@ -22,6 +23,7 @@ async function handler(request: Request) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         emit: (event) => inngest.send(event as any),
         ai: { clarify: runClarificationAgent, editPrd: editPrdWithAI },
+        sendInvite: sendInviteEmail,
       }),
   });
 }

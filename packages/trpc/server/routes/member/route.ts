@@ -1,9 +1,9 @@
 import { TRPCError } from "@trpc/server";
-import { and, eq } from "@repo/database";
-import { invitations, members, usersTable } from "@repo/database/schema";
+import { and, count, eq } from "@repo/database";
+import { invitations, members, organizations, subscriptions, usersTable } from "@repo/database/schema";
 import { MEMBER_ROLES, MEMBER_SPECIALTIES, type MemberRole } from "@repo/database/schema";
 
-import { adminProcedure, orgProcedure, router } from "../../trpc";
+import { adminProcedure, orgProcedure, publicProcedure, router } from "../../trpc";
 import { z } from "../../schema";
 
 export const memberRouter = router({
@@ -177,7 +177,7 @@ export const memberRouter = router({
       return { ...member!, ...user! };
     }),
 
-  // Invite by email — admin+ only
+  // Invite by email — admin+ only (premium feature with plan-based limits)
   invite: adminProcedure
     .input(
       z.object({
@@ -186,6 +186,32 @@ export const memberRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      // Enforce plan-based member limits: free=5, pro=10, higher=unlimited
+      const [subscription] = await ctx.db
+        .select({ plan: subscriptions.plan })
+        .from(subscriptions)
+        .where(eq(subscriptions.organizationId, ctx.org.id));
+
+      const plan = subscription?.plan ?? "free";
+      const MEMBER_LIMITS: Record<string, number> = { free: 5, pro: 10 };
+      const limit = MEMBER_LIMITS[plan] ?? Infinity;
+
+      if (limit !== Infinity) {
+        const countResult = await ctx.db
+          .select({ memberCount: count() })
+          .from(members)
+          .where(eq(members.organizationId, ctx.org.id));
+
+        const memberCount = countResult[0]?.memberCount ?? 0;
+
+        if (memberCount >= limit) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: `Your ${plan} plan allows up to ${limit} members. Upgrade to invite more.`,
+          });
+        }
+      }
+
       // Check if already a member
       const [existing] = await ctx.db
         .select({ id: usersTable.id })
@@ -206,6 +232,25 @@ export const memberRouter = router({
         });
       }
 
+      // Check for a still-pending invite to the same address
+      const [pendingInvite] = await ctx.db
+        .select({ id: invitations.id })
+        .from(invitations)
+        .where(
+          and(
+            eq(invitations.organizationId, ctx.org.id),
+            eq(invitations.email, input.email),
+            eq(invitations.status, "pending"),
+          ),
+        );
+
+      if (pendingInvite) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "An invitation has already been sent to this email.",
+        });
+      }
+
       const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
       const [invitation] = await ctx.db
@@ -221,7 +266,23 @@ export const memberRouter = router({
         })
         .returning();
 
-      // TODO: send invitation email with accept link
+      if (!invitation) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      // Fetch org name and inviter name for the email
+      const [org] = await ctx.db
+        .select({ name: organizations.name })
+        .from(organizations)
+        .where(eq(organizations.id, ctx.org.id));
+
+      await ctx.sendInvite({
+        to: input.email,
+        inviterName: ctx.session.user.name ?? ctx.session.user.email ?? "Someone",
+        orgName: org?.name ?? "your organization",
+        role: input.role,
+        invitationId: invitation.id,
+        expiresAt,
+      });
+
       return invitation;
     }),
 
@@ -254,6 +315,30 @@ export const memberRouter = router({
       return { success: true };
     }),
 
+  // Public: look up invitation details by ID — used by the /invite page before the user signs in
+  getInvitation: publicProcedure
+    .input(z.object({ invitationId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const [row] = await ctx.db
+        .select({
+          id: invitations.id,
+          email: invitations.email,
+          role: invitations.role,
+          status: invitations.status,
+          expiresAt: invitations.expiresAt,
+          orgName: organizations.name,
+        })
+        .from(invitations)
+        .innerJoin(organizations, eq(organizations.id, invitations.organizationId))
+        .where(eq(invitations.id, input.invitationId));
+
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Invitation not found or already used." });
+      if (row.status !== "pending") throw new TRPCError({ code: "BAD_REQUEST", message: "This invitation has already been used." });
+      if (row.expiresAt < new Date()) throw new TRPCError({ code: "BAD_REQUEST", message: "This invitation has expired." });
+
+      return row;
+    }),
+
   // Accept an invitation — called when the invited user signs in and lands on the accept link
   acceptInvitation: orgProcedure
     .input(z.object({ invitationId: z.string() }))
@@ -281,7 +366,7 @@ export const memberRouter = router({
         .set({ status: "accepted" })
         .where(eq(invitations.id, input.invitationId));
 
-      const [member] = await ctx.db
+      await ctx.db
         .insert(members)
         .values({
           id: crypto.randomUUID(),
@@ -289,9 +374,13 @@ export const memberRouter = router({
           userId: ctx.session.user.id,
           role: invite.role as MemberRole,
         })
-        .onConflictDoNothing()
-        .returning();
+        .onConflictDoNothing();
 
-      return member;
+      const [org] = await ctx.db
+        .select({ name: organizations.name })
+        .from(organizations)
+        .where(eq(organizations.id, invite.organizationId));
+
+      return { orgName: org?.name ?? "your organization" };
     }),
 });
