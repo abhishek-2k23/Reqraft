@@ -25,7 +25,7 @@ export type UserMenuUser = {
 };
 
 export function getDisplayName(user: UserMenuUser) {
-  return user.name?.trim() || user.email?.split("@")[0] || "ShipFlow user";
+  return user.name?.trim() || user.email?.split("@")[0] || "Reqraft user";
 }
 
 export function getInitials(user: UserMenuUser) {

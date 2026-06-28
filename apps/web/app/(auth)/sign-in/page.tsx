@@ -2,12 +2,24 @@ import Link from "next/link";
 import { ArrowLeft, Bot, CheckCircle2, GitPullRequestArrow, LockKeyhole, Rocket, ShieldCheck } from "lucide-react";
 
 import { GithubSignInForm } from "@/features/auth/components/github-sign-in-form";
+import { GoogleSignInForm } from "@/features/auth/components/google-sign-in-form";
+import { EmailSignInForm } from "@/features/auth/components/email-sign-in-form";
 
 const trustItems = [
-  "GitHub OAuth via Better Auth",
-  "PRD-first review workflow",
-  "Release approval before shipping",
+  "PRD-first AI review workflow",
+  "GitHub + Google + Email auth",
+  "Role-based team management",
 ];
+
+function Divider({ label = "or" }: { label?: string }) {
+  return (
+    <div className="flex items-center gap-3">
+      <div className="h-px flex-1 bg-white/10" />
+      <span className="text-xs text-slate-500">{label}</span>
+      <div className="h-px flex-1 bg-white/10" />
+    </div>
+  );
+}
 
 export default async function SignInPage({
   searchParams,
@@ -20,10 +32,12 @@ export default async function SignInPage({
     <main className="min-h-dvh overflow-hidden bg-[#090b10] text-slate-100">
       <div className="absolute inset-0 shipflow-grid opacity-35" />
       <div className="relative grid min-h-dvh lg:grid-cols-[1.05fr_0.95fr]">
+
+        {/* Left — marketing copy */}
         <section className="flex min-h-dvh flex-col justify-between px-5 py-6 sm:px-8 lg:px-10">
           <Link href="/" className="inline-flex w-fit items-center gap-2 text-sm text-slate-400 transition hover:text-white">
             <ArrowLeft className="size-4" />
-            Back to ShipFlow
+            Back to Reqraft
           </Link>
 
           <div className="max-w-2xl py-12">
@@ -35,7 +49,7 @@ export default async function SignInPage({
               Sign in and turn every PR into a product promise check.
             </h1>
             <p className="mt-5 max-w-xl text-lg leading-8 text-slate-300">
-              ShipFlow connects feature requests, generated PRDs, engineering tasks, GitHub pull requests, AI review, billing, and release approval in one clean workflow.
+              Reqraft connects feature requests, generated PRDs, engineering tasks, GitHub pull requests, AI review, billing, and release approval in one clean workflow.
             </p>
 
             <div className="mt-8 grid gap-3 sm:grid-cols-3">
@@ -48,23 +62,34 @@ export default async function SignInPage({
             </div>
           </div>
 
-          <p className="text-xs text-slate-600">ShipFlow AI keeps product, engineering, and founders aligned from idea to shipped code.</p>
+          <p className="text-xs text-slate-600">Reqraft keeps product, engineering, and founders aligned from idea to shipped code.</p>
         </section>
 
+        {/* Right — auth panel */}
         <section className="flex items-center justify-center border-t border-white/10 bg-[#0d1118]/80 px-5 py-10 backdrop-blur sm:px-8 lg:border-l lg:border-t-0">
           <div className="w-full max-w-md">
             <div className="rounded-lg border border-white/10 bg-white/[0.055] p-5 shadow-2xl shadow-black/30">
+
               <div className="mb-6 flex items-center gap-3">
                 <div className="grid size-10 place-items-center rounded-lg bg-cyan-300 text-slate-950">
                   <LockKeyhole className="size-5" />
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-white">Secure workspace access</p>
-                  <p className="text-xs text-slate-500">Continue with your GitHub identity</p>
+                  <p className="text-xs text-slate-500">Choose how you want to sign in</p>
                 </div>
               </div>
 
-              <GithubSignInForm callbackUrl={params.callbackUrl} />
+              <div className="grid gap-3">
+                {/* OAuth providers */}
+                <GithubSignInForm callbackUrl={params.callbackUrl} />
+                <GoogleSignInForm callbackUrl={params.callbackUrl} />
+
+                <Divider label="or continue with email" />
+
+                {/* Email + password + demo */}
+                <EmailSignInForm callbackUrl={params.callbackUrl} />
+              </div>
 
               <div className="mt-6 rounded-lg border border-cyan-300/20 bg-cyan-300/10 p-4">
                 <div className="flex items-center gap-2 text-sm font-medium text-cyan-100">
@@ -79,6 +104,7 @@ export default async function SignInPage({
             </div>
           </div>
         </section>
+
       </div>
     </main>
   );

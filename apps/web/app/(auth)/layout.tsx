@@ -1,4 +1,4 @@
-import { requireUnauth } from "@/features/auth/actions";
+import { requireUnauth } from "@/features/auth/session";
 
 export default async function AuthLayout({
   children,

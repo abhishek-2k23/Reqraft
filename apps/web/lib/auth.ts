@@ -25,9 +25,13 @@ const authSchema = {
 };
 
 export const auth = betterAuth({
-  appName: "ShipFlow AI",
+  appName: "Reqraft",
   baseURL: process.env.BETTER_AUTH_URL ?? "http://localhost:3000",
   secret: process.env.BETTER_AUTH_SECRET,
+  emailAndPassword: {
+    enabled: true,
+    autoSignIn: true,
+  },
   database: drizzleAdapter(db, {
     provider: "pg",
     schema: authSchema,
@@ -41,6 +45,10 @@ export const auth = betterAuth({
         name: profile.name ?? profile.login,
         image: profile.avatar_url,
       }),
+    },
+    google: {
+      clientId: process.env.GOOGLE_CLIENT_ID ?? "",
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
     },
   },
   plugins: [organization(), nextCookies(), dash()],
