@@ -1,7 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { and, eq } from "@repo/database";
 import { invitations, members, usersTable } from "@repo/database/schema";
-import { MEMBER_ROLES, type MemberRole } from "@repo/database/schema";
+import { MEMBER_ROLES, MEMBER_SPECIALTIES, type MemberRole } from "@repo/database/schema";
 
 import { adminProcedure, orgProcedure, router } from "../../trpc";
 import { z } from "../../schema";
@@ -13,6 +13,7 @@ export const memberRouter = router({
       .select({
         memberId: members.id,
         role: members.role,
+        specialty: members.specialty,
         joinedAt: members.createdAt,
         userId: usersTable.id,
         name: usersTable.name,
@@ -25,6 +26,17 @@ export const memberRouter = router({
 
     return rows;
   }),
+
+  updateSpecialty: adminProcedure
+    .input(z.object({ memberId: z.string(), specialty: z.enum(MEMBER_SPECIALTIES).nullable() }))
+    .mutation(async ({ ctx, input }) => {
+      const [updated] = await ctx.db
+        .update(members)
+        .set({ specialty: input.specialty })
+        .where(and(eq(members.id, input.memberId), eq(members.organizationId, ctx.org.id)))
+        .returning();
+      return updated;
+    }),
 
   // Change a member's role — admin+ only, cannot demote another owner
   updateRole: adminProcedure

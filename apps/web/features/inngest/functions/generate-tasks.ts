@@ -1,5 +1,5 @@
 import { and, db, eq } from "@repo/database";
-import { featureRequests, members, prds, tasks, usersTable } from "@repo/database/schema";
+import { featureRequests, members, prds, tasks, usersTable, SPECIALTY_TASK_TYPES } from "@repo/database/schema";
 
 import { generateTasks, type Developer } from "@/features/ai/task-generator";
 
@@ -8,7 +8,10 @@ import { inngest } from "../client";
 export const generateTasksFunction = inngest.createFunction(
   { id: "generate-tasks", triggers: [{ event: "prd/approved" }] },
   async ({ event, step }) => {
-    const { featureId } = event.data as { featureId: string };
+    const { featureId, specialtyOverrides = {} } = event.data as {
+      featureId: string;
+      specialtyOverrides?: Record<string, string>;
+    };
 
     const { prd, feature } = await step.run("fetch-prd", async () => {
       const [record] = await db
@@ -32,20 +35,15 @@ export const generateTasksFunction = inngest.createFunction(
         .where(eq(featureRequests.id, featureId));
     });
 
-    // Fetch developers in the org so the AI can assign tasks to real people
+    // Fetch all org members so the AI can assign tasks to real people
     const developers = await step.run("fetch-developers", async (): Promise<Developer[]> => {
       const rows = await db
-        .select({ userId: usersTable.id, name: usersTable.name })
+        .select({ userId: usersTable.id, name: usersTable.name, specialty: members.specialty })
         .from(members)
         .innerJoin(usersTable, eq(members.userId, usersTable.id))
-        .where(
-          and(
-            eq(members.organizationId, feature.organizationId),
-            eq(members.role, "developer"),
-          ),
-        );
+        .where(eq(members.organizationId, feature.organizationId));
 
-      return rows.map((r) => ({ userId: r.userId, name: r.name, skills: [] }));
+      return rows.map((r) => ({ userId: r.userId, name: r.name, specialty: r.specialty ?? undefined, skills: [] }));
     });
 
     const generatedTasks = await step.run("ai-generate-tasks", async () =>
@@ -60,6 +58,21 @@ export const generateTasksFunction = inngest.createFunction(
     );
 
     await step.run("save-tasks", async () => {
+      // Build taskType → userId fallback from member specialties + client overrides
+      const taskTypeToUserId: Record<string, string> = {};
+      for (const dev of developers) {
+        if (dev.specialty) {
+          for (const taskType of SPECIALTY_TASK_TYPES[dev.specialty as keyof typeof SPECIALTY_TASK_TYPES] ?? []) {
+            taskTypeToUserId[taskType] = dev.userId;
+          }
+        }
+      }
+      for (const [specialty, userId] of Object.entries(specialtyOverrides)) {
+        for (const taskType of SPECIALTY_TASK_TYPES[specialty as keyof typeof SPECIALTY_TASK_TYPES] ?? []) {
+          taskTypeToUserId[taskType] = userId;
+        }
+      }
+
       await db.insert(tasks).values(
         generatedTasks.map((task, index) => ({
           id: crypto.randomUUID(),
@@ -70,7 +83,7 @@ export const generateTasksFunction = inngest.createFunction(
           type: task.type,
           priority: task.priority,
           status: task.status,
-          assignedTo: task.assignedTo,
+          assignedTo: task.assignedTo ?? taskTypeToUserId[task.type] ?? null,
           order: index,
         })),
       );

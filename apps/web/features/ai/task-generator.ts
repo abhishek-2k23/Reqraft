@@ -5,7 +5,8 @@ import { z } from "zod";
 export type Developer = {
   userId: string;
   name: string;
-  skills: string[]; // derived from their task history / role hint
+  specialty?: string;
+  skills: string[];
 };
 
 export type GeneratedTask = {
@@ -35,7 +36,7 @@ export async function generateTasks(input: GenerateTasksInput): Promise<Generate
       : "";
 
   const { object } = await generateObject({
-    model: openai("gpt-4o"),
+    model: openai("gpt-4o-mini"),
     schema: z.object({
       tasks: z.array(
         z.object({
@@ -65,12 +66,17 @@ Acceptance Criteria: ${input.acceptanceCriteria.join("; ")}
 Edge Cases: ${input.edgeCases.join("; ")}${devContext}`,
   });
 
+  const validUserIds = new Set(input.developers?.map((d) => d.userId) ?? []);
+
   return object.tasks.map((task) => ({
     title: task.title,
     description: task.description,
     type: task.type,
     priority: task.priority,
     status: "todo" as const,
-    assignedTo: task.assignedToUserId ?? null,
+    assignedTo:
+      task.assignedToUserId && validUserIds.has(task.assignedToUserId)
+        ? task.assignedToUserId
+        : null,
   }));
 }

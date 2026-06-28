@@ -33,6 +33,7 @@ import { toast } from "sonner";
 import { Button } from "~/components/ui/button";
 import { Textarea } from "~/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "~/components/ui/select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -715,6 +716,28 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
     onError: (error) => toast.error(error.message),
   });
 
+  const orgMembers = trpc.member.list.useQuery();
+
+  const SPECIALTY_SLOTS = [
+    { key: "frontend",  label: "Frontend Developer",  taskTypes: ["frontend"] },
+    { key: "backend",   label: "Backend Developer",   taskTypes: ["backend", "database"] },
+    { key: "devops",    label: "DevOps Engineer",     taskTypes: ["infra"] },
+    { key: "ai",        label: "AI Developer",        taskTypes: ["ai"] },
+  ] as const;
+
+  // specialty → first matching member
+  const memberBySpecialty = Object.fromEntries(
+    SPECIALTY_SLOTS.map((s) => [
+      s.key,
+      orgMembers.data?.find((m) => m.specialty === s.key || (s.key === "backend" && m.specialty === "fullstack")),
+    ]),
+  );
+
+  const missingSpecialties = SPECIALTY_SLOTS.filter((s) => !memberBySpecialty[s.key]);
+
+  // specialtyKey → userId chosen for missing slots
+  const [specialtyOverrides, setSpecialtyOverrides] = useState<Record<string, string>>({});
+
   const approveRelease = trpc.approval.approve.useMutation({
     onSuccess: () => { toast.success("Release approved"); router.refresh(); },
     onError: (error) => toast.error(error.message),
@@ -971,22 +994,71 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
                         Approve PRD
                       </Button>
                     </AlertDialogTrigger>
-                    <AlertDialogContent className="border-white/10 bg-[#0d1118]">
+                    <AlertDialogContent className="border-white/10 bg-[#0d1118] sm:max-w-lg">
                       <AlertDialogHeader>
-                        <AlertDialogTitle className="text-white">Approve this PRD?</AlertDialogTitle>
+                        <AlertDialogTitle className="text-white">Team coverage before task generation</AlertDialogTitle>
                         <AlertDialogDescription className="text-slate-400">
-                          Once approved, the PRD is locked and cannot be edited. AI will immediately start breaking it into engineering tasks assigned to your developers. This action cannot be undone.
+                          AI will assign tasks based on each developer's specialty. Fill in missing slots or add team members.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
+
+                      <div className="my-1 grid gap-2">
+                        {SPECIALTY_SLOTS.map((slot) => {
+                          const covered = memberBySpecialty[slot.key];
+                          return (
+                            <div key={slot.key} className="flex items-center gap-3 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2.5">
+                              <span className={cn("size-2 shrink-0 rounded-full", covered ? "bg-emerald-400" : "bg-amber-400")} />
+                              <span className="w-40 shrink-0 text-sm text-slate-300">{slot.label}</span>
+                              {covered ? (
+                                <span className="text-sm text-slate-400">{covered.name}</span>
+                              ) : (
+                                <Select
+                                  value={specialtyOverrides[slot.key] ?? ""}
+                                  onValueChange={(v) => setSpecialtyOverrides((prev) => ({ ...prev, [slot.key]: v }))}
+                                >
+                                  <SelectTrigger className="h-7 border-white/10 bg-white/5 text-xs text-slate-300">
+                                    <SelectValue placeholder="Assign to…" />
+                                  </SelectTrigger>
+                                  <SelectContent className="border-white/10 bg-[#0d1118]">
+                                    {orgMembers.data?.map((m) => (
+                                      <SelectItem key={m.userId} value={m.userId} className="text-slate-300 focus:bg-white/10 focus:text-white text-xs">
+                                        {m.name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {missingSpecialties.length > 0 && (
+                        <p className="text-xs text-slate-500">
+                          Missing specialties without an assignment will be left unassigned.{" "}
+                          <button
+                            type="button"
+                            className="text-cyan-400 underline-offset-2 hover:underline"
+                            onClick={() => router.push("/settings/team")}
+                          >
+                            Add team members →
+                          </button>
+                        </p>
+                      )}
+
                       <AlertDialogFooter>
                         <AlertDialogCancel className="border-white/10 bg-white/5 text-slate-300 hover:bg-white/10">
                           Cancel
                         </AlertDialogCancel>
                         <AlertDialogAction
                           className="bg-cyan-300 text-slate-950 hover:bg-cyan-200"
-                          onClick={() => approvePrd.mutate({ prdId: prd.id, featureId: feature.id })}
+                          onClick={() => approvePrd.mutate({
+                            prdId: prd.id,
+                            featureId: feature.id,
+                            specialtyOverrides: Object.keys(specialtyOverrides).length ? specialtyOverrides : undefined,
+                          })}
                         >
-                          Yes, approve & generate tasks
+                          Approve & generate tasks
                         </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>

@@ -17,6 +17,19 @@ import { usersTable } from "./user";
 export const MEMBER_ROLES = ["owner", "admin", "manager", "developer", "viewer"] as const;
 export type MemberRole = (typeof MEMBER_ROLES)[number];
 
+export const MEMBER_SPECIALTIES = ["frontend", "backend", "devops", "ai", "fullstack", "testing"] as const;
+export type MemberSpecialty = (typeof MEMBER_SPECIALTIES)[number];
+
+// Which task types each specialty covers when assigning generated tasks
+export const SPECIALTY_TASK_TYPES: Record<MemberSpecialty, string[]> = {
+  frontend:  ["frontend"],
+  backend:   ["backend", "database"],
+  devops:    ["infra"],
+  ai:        ["ai"],
+  fullstack: ["frontend", "backend", "database"],
+  testing:   ["testing"],
+};
+
 // Minimum role required for a given action — usage: hasRole(memberRole, "manager")
 export function hasRole(memberRole: MemberRole, minimum: MemberRole): boolean {
   return MEMBER_ROLES.indexOf(memberRole) <= MEMBER_ROLES.indexOf(minimum);
@@ -42,6 +55,7 @@ export const members = pgTable(
       .notNull()
       .references(() => usersTable.id, { onDelete: "cascade" }),
     role: text("role").notNull().default("member"),
+    specialty: text("specialty"), // MemberSpecialty | null
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => ({

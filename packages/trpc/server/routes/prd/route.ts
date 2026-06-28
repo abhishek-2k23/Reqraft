@@ -129,7 +129,12 @@ export const prdRouter = router({
     }),
 
   approve: managerProcedure
-    .input(z.object({ prdId: z.string(), featureId: z.string() }))
+    .input(z.object({
+      prdId: z.string(),
+      featureId: z.string(),
+      // specialty → userId for slots where no member has that specialty
+      specialtyOverrides: z.record(z.string(), z.string()).optional(),
+    }))
     .mutation(async ({ ctx, input }) => {
       await ctx.db
         .update(prds)
@@ -138,7 +143,7 @@ export const prdRouter = router({
 
       await ctx.emit({
         name: "prd/approved",
-        data: { featureId: input.featureId },
+        data: { featureId: input.featureId, specialtyOverrides: input.specialtyOverrides ?? {} },
       });
 
       return { success: true };

@@ -43,6 +43,13 @@
       "when": 1782602494729,
       "tag": "0005_tidy_la_nuit",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1782676714790,
+      "tag": "0006_wild_earthquake",
+      "breakpoints": true
     }
   ]
 }
