@@ -1,6 +1,6 @@
-# ShipFlow AI
+# Reqraft
 
-ShipFlow AI is an AI-assisted product delivery platform for modern software teams.
+Reqraft is an AI-assisted product delivery platform for modern software teams.
 
 It turns messy feature requests into structured PRDs, engineering tasks, GitHub-connected pull request reviews, fix loops, human approval, and shipped releases.
 
@@ -66,7 +66,7 @@ This repo currently includes:
   - AI reviews
   - Approvals
   - Usage events
-- tRPC route for the ShipFlow workspace snapshot
+- tRPC route for the Reqraft workspace snapshot
 - BetterAuth route for GitHub sign-in and organization-aware sessions
 - GitHub webhook route that verifies signatures and queues PR review jobs
 - Inngest route with PRD generation and PR review functions
@@ -88,7 +88,7 @@ packages/
   typescript-config/    Shared TypeScript config
 ```
 
-The old standalone Express API template was removed because ShipFlow uses the Next.js app and shared tRPC package as the main product surface.
+The old standalone Express API template was removed because Reqraft uses the Next.js app and shared tRPC package as the main product surface.
 
 ## Setup
 
@@ -252,7 +252,7 @@ The webhook verifies Razorpay signatures and returns normalized subscription eve
 Suggested launch post:
 
 ```text
-I am building ShipFlow AI, an AI-assisted product delivery platform that turns feature requests into PRDs, tasks, GitHub PR reviews, human approval, and shipped releases.
+I am building Reqraft, an AI-assisted product delivery platform that turns feature requests into PRDs, tasks, GitHub PR reviews, human approval, and shipped releases.
 
 Builder Mode On | iPhone Giveaway Hackathon
 

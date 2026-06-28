@@ -10,14 +10,15 @@ async function test() {
   console.log("Fetching PR...");
   const [pullRequest] = await db.select().from(pullRequests).where(eq(pullRequests.id, pullRequestId));
   if (!pullRequest) throw new Error("PR not found");
-  
+  if (!pullRequest.featureId) throw new Error("PR is not linked to a feature");
+
   console.log("Fetching Context...");
   const [prd] = await db.select().from(prds).where(eq(prds.featureId, pullRequest.featureId));
   if (!prd) throw new Error("PRD not found");
 
   console.log("Fetching Diff...");
   const app = getGithubApp();
-  const [owner, repo] = pullRequest.repoFullName.split("/");
+  const [owner, repo] = pullRequest.repoFullName.split("/") as [string, string];
   const { data: installation } = await app.octokit.rest.apps.getRepoInstallation({ owner, repo });
   const octokit = await app.getInstallationOctokit(installation.id);
   
@@ -38,7 +39,7 @@ async function test() {
 
   console.log("Review Status:", review.status);
   
-  let markdownBody = `### ShipFlow AI Review 🚢\n\n`;
+  let markdownBody = `### Reqraft Review 🚢\n\n`;
   markdownBody += `**Verdict:** ${review.status === "passed" ? "✅ Approved" : "❌ Changes Requested"}\n\n`;
   markdownBody += `${review.summary}\n\n`;
   if (review.findings.length > 0) {

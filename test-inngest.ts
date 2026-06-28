@@ -40,7 +40,7 @@ async function test() {
   console.log("Review Summary:", review.summary);
   console.log("Posting Comment...");
 
-  let markdownBody = `### ShipFlow AI Review 🚢\n\n`;
+  let markdownBody = `### Reqraft Review 🚢\n\n`;
   markdownBody += `**Verdict:** ${review.status === "passed" ? "✅ Approved" : "❌ Changes Requested"}\n\n`;
   markdownBody += `${review.summary}\n\n`;
   if (review.findings.length > 0) {

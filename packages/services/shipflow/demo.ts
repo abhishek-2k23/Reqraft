@@ -176,7 +176,7 @@ const features: DemoFeature[] = [
     prdVersion: 2,
     linkedPr: "acme/web#101",
     acceptanceCriteria: [
-      "Explain ShipFlow in one screen",
+      "Explain Reqraft in one screen",
       "Convert visitors into waitlist signups",
     ],
   },

@@ -1,6 +1,6 @@
 "use server";
 
-import { requireAuth } from "@/features/auth/actions";
+import { requireAuth } from "@/features/auth/session";
 
 import { getRazorpayInstance } from "../lib/razorpay";
 
