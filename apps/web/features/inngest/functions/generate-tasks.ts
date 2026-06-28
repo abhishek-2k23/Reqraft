@@ -6,8 +6,7 @@ import { generateTasks, type Developer } from "@/features/ai/task-generator";
 import { inngest } from "../client";
 
 export const generateTasksFailureHandler = inngest.createFunction(
-  { id: "generate-tasks-on-failure" },
-  { event: "inngest/function.failed" },
+  { id: "generate-tasks-on-failure", triggers: [{ event: "inngest/function.failed" }] },
   async ({ event }) => {
     if ((event.data as { function_id?: string }).function_id !== "generate-tasks") return;
     const featureId = (event.data as { event?: { data?: { featureId?: string } } }).event?.data?.featureId;
