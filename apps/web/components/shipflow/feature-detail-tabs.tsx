@@ -34,6 +34,7 @@ import { Button } from "~/components/ui/button";
 import { Textarea } from "~/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "~/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "~/components/ui/popover";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -216,7 +217,7 @@ function PrdGeneratingCard({
   );
 }
 
-function TasksGeneratingBanner() {
+function TasksGeneratingBanner({ onCancel }: { onCancel?: () => void }) {
   return (
     <div className="flex items-center gap-3 rounded-xl border border-cyan-400/20 bg-cyan-400/5 px-5 py-4">
       <div className="relative grid size-8 shrink-0 place-items-center rounded-full bg-cyan-400/10">
@@ -227,7 +228,14 @@ function TasksGeneratingBanner() {
         <p className="text-sm font-semibold text-white">Generating engineering tasks</p>
         <p className="text-xs text-slate-500">AI is breaking the PRD into developer-ready tasks — this takes about 30 seconds</p>
       </div>
-      <Loader2 className="ml-auto size-4 shrink-0 animate-spin text-cyan-400" />
+      <div className="ml-auto flex items-center gap-3">
+        <Loader2 className="size-4 shrink-0 animate-spin text-cyan-400" />
+        {onCancel && (
+          <button type="button" onClick={onCancel} className="text-xs text-slate-500 underline-offset-2 hover:text-slate-300 hover:underline">
+            Cancel
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -351,6 +359,13 @@ function KanbanBoard({
     },
   });
 
+  const assignTo = trpc.task.assignTo.useMutation({
+    onSuccess: () => utils.feature.getById.invalidate({ featureId }),
+    onError: (error) => toast.error(error.message),
+  });
+
+  const { data: orgMembers = [] } = trpc.member.list.useQuery();
+
   function persist(next: Record<TaskStatus, Task[]>) {
     const items = KANBAN_COLUMNS.flatMap((col) =>
       next[col.key].map((t, index) => ({
@@ -470,19 +485,55 @@ function KanbanBoard({
                             </div>
                           ) : null}
 
-                          {task.assigneeName ? (
-                            <div className="mt-2 flex items-center gap-1.5">
-                              {task.assigneeImage ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img src={task.assigneeImage} alt={task.assigneeName} className="size-4 rounded-full object-cover" />
-                              ) : (
-                                <div className="grid size-4 place-items-center rounded-full bg-cyan-300/20 text-[9px] font-bold text-cyan-300">
-                                  {task.assigneeName[0]}
-                                </div>
-                              )}
-                              <span className="text-[11px] text-slate-400">{task.assigneeName}</span>
-                            </div>
-                          ) : null}
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <button type="button" className="mt-2 flex items-center gap-1.5 rounded hover:opacity-80">
+                                {task.assigneeName ? (
+                                  <>
+                                    {task.assigneeImage ? (
+                                      // eslint-disable-next-line @next/next/no-img-element
+                                      <img src={task.assigneeImage} alt={task.assigneeName} className="size-5 rounded-full object-cover ring-1 ring-white/10" />
+                                    ) : (
+                                      <div className="grid size-5 place-items-center rounded-full bg-cyan-300/20 text-[9px] font-bold text-cyan-300 ring-1 ring-white/10">
+                                        {task.assigneeName[0]}
+                                      </div>
+                                    )}
+                                    <span className="text-[11px] text-slate-400">{task.assigneeName}</span>
+                                  </>
+                                ) : (
+                                  <div className="flex items-center gap-1 rounded border border-dashed border-white/15 px-1.5 py-0.5 text-[10px] text-slate-600 hover:border-white/30 hover:text-slate-400">
+                                    <Users className="size-3" />
+                                    Assign
+                                  </div>
+                                )}
+                              </button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-48 border-white/10 bg-[#0d1118] p-1" align="start">
+                              <p className="px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-slate-500">Reassign to</p>
+                              {orgMembers.map((m) => (
+                                <button
+                                  key={m.userId}
+                                  type="button"
+                                  onClick={() => assignTo.mutate({ taskId: task.id, userId: m.userId })}
+                                  className={cn(
+                                    "flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs transition hover:bg-white/10",
+                                    task.assignedTo === m.userId ? "text-cyan-300" : "text-slate-300",
+                                  )}
+                                >
+                                  {m.image ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img src={m.image} alt={m.name ?? ""} className="size-5 rounded-full object-cover" />
+                                  ) : (
+                                    <div className="grid size-5 place-items-center rounded-full bg-cyan-300/20 text-[9px] font-bold text-cyan-300">
+                                      {(m.name ?? "?")[0]}
+                                    </div>
+                                  )}
+                                  <span className="truncate">{m.name}</span>
+                                  {task.assignedTo === m.userId && <Check className="ml-auto size-3 shrink-0" />}
+                                </button>
+                              ))}
+                            </PopoverContent>
+                          </Popover>
 
                           {/* Quick-move buttons (accessible fallback for drag-and-drop) */}
                           <div className="mt-3 flex flex-wrap gap-1.5">
@@ -713,6 +764,11 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
       setShouldPoll(true);
       refreshFeature();
     },
+    onError: (error) => toast.error(error.message),
+  });
+
+  const cancelTaskGeneration = trpc.feature.cancelTaskGeneration.useMutation({
+    onSuccess: () => { toast.info("Task generation cancelled"); setShouldPoll(false); refreshFeature(); },
     onError: (error) => toast.error(error.message),
   });
 
@@ -1073,7 +1129,11 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
       {/* ── Tasks ────────────────────────────────────────── */}
       <TabsContent value="tasks">
         <div className="space-y-4">
-          {isGeneratingTasks && <TasksGeneratingBanner />}
+          {isGeneratingTasks && (
+            <TasksGeneratingBanner
+              onCancel={() => cancelTaskGeneration.mutate({ featureId: feature.id })}
+            />
+          )}
           {feature.tasks.length === 0 && !isGeneratingTasks ? (
             <div className="rounded-lg border border-white/10 bg-white/[0.045] p-10 text-center">
               <p className="text-sm text-slate-500">No tasks yet. Approve the PRD to generate engineering tasks.</p>

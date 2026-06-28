@@ -192,6 +192,22 @@ export const featureRouter = router({
       return updated;
     }),
 
+  cancelTaskGeneration: orgProcedure
+    .input(z.object({ featureId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      await ctx.db
+        .update(featureRequests)
+        .set({ status: "prd_ready", updatedAt: new Date() })
+        .where(
+          and(
+            eq(featureRequests.id, input.featureId),
+            eq(featureRequests.organizationId, ctx.org.id),
+            eq(featureRequests.status, "in_progress"),
+          ),
+        );
+      return { cancelled: true };
+    }),
+
   cancelPrdGeneration: orgProcedure
     .input(z.object({ featureId: z.string() }))
     .mutation(async ({ ctx, input }) => {

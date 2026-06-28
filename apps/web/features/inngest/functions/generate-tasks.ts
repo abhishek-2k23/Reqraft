@@ -5,6 +5,20 @@ import { generateTasks, type Developer } from "@/features/ai/task-generator";
 
 import { inngest } from "../client";
 
+export const generateTasksFailureHandler = inngest.createFunction(
+  { id: "generate-tasks-on-failure" },
+  { event: "inngest/function.failed" },
+  async ({ event }) => {
+    if ((event.data as { function_id?: string }).function_id !== "generate-tasks") return;
+    const featureId = (event.data as { event?: { data?: { featureId?: string } } }).event?.data?.featureId;
+    if (!featureId) return;
+    await db
+      .update(featureRequests)
+      .set({ status: "prd_ready", updatedAt: new Date() })
+      .where(eq(featureRequests.id, featureId));
+  },
+);
+
 export const generateTasksFunction = inngest.createFunction(
   { id: "generate-tasks", triggers: [{ event: "prd/approved" }] },
   async ({ event, step }) => {
