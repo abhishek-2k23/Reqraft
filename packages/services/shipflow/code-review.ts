@@ -80,7 +80,7 @@ function buildReviewMarkdown(
     .map((finding) => `- **${finding.severity}** (${finding.file}): ${finding.message}`)
     .join("\n");
 
-  return `## ShipFlow AI Review
+  return `## Reqraft Review
 
 Repository: ${input.repoFullName}
 PR: ${input.pullRequestTitle}
