@@ -1,8 +1,12 @@
 "use server";
 
-import { db, eq } from "@repo/database";
-import { featureRequests, pullRequestsTable } from "@repo/database/schema";
+import { headers } from "next/headers";
+import { Octokit } from "octokit";
 
+import { and, db, eq } from "@repo/database";
+import { accountsTable, featureRequests, pullRequestsTable } from "@repo/database/schema";
+
+import { auth } from "@/lib/auth";
 import { getGithubApp } from "@/lib/github/app";
 import { inngest } from "@/features/inngest/client";
 import { runReviewForPullRequest, hasExistingReview } from "@/features/github/review";
@@ -59,27 +63,71 @@ export type AppInstallation = {
   avatarUrl: string | null;
 };
 
+function mapInstallation(i: {
+  id: number;
+  account: { login?: string; type?: string; avatar_url?: string } | null;
+}): AppInstallation {
+  return {
+    installationId: i.id,
+    accountLogin: i.account?.login ?? null,
+    accountType: i.account?.type ?? null,
+    avatarUrl: i.account?.avatar_url ?? null,
+  };
+}
+
 /**
- * Lists every installation of our GitHub App (authenticated as the app via JWT).
- * Used to auto-detect an existing installation when GitHub doesn't redirect back
- * with installation_id (e.g. the app is already installed and no Setup URL is set).
+ * Lists ONLY the GitHub App installations the currently signed-in user can access.
+ *
+ * This is scoped per-user — never list every installation of the app globally,
+ * or a brand-new user would auto-detect and bind another tenant's installation
+ * (cross-tenant data leak). We scope by:
+ *   1. The user's GitHub OAuth token (`GET /user/installations`) when available, or
+ *   2. Matching the global installation list against the user's GitHub account id.
  */
 export async function listAppInstallations(): Promise<AppInstallation[]> {
   try {
+    const session = await auth.api.getSession({ headers: await headers() });
+    if (!session?.user) return [];
+
+    // Look up the user's linked GitHub account (OAuth token + GitHub user id).
+    const [ghAccount] = await db
+      .select()
+      .from(accountsTable)
+      .where(
+        and(
+          eq(accountsTable.userId, session.user.id),
+          eq(accountsTable.providerId, "github"),
+        ),
+      );
+
+    // Preferred: list installations the *user* can access, via their OAuth token.
+    if (ghAccount?.accessToken) {
+      try {
+        const userOctokit = new Octokit({ auth: ghAccount.accessToken });
+        const { data } = await userOctokit.rest.apps.listInstallationsForAuthenticatedUser({
+          per_page: 100,
+        });
+        return data.installations.map((i) =>
+          mapInstallation(i as never),
+        );
+      } catch (err) {
+        console.error("User-scoped installation lookup failed, falling back:", err);
+      }
+    }
+
+    // Fallback: filter the global list down to the user's own GitHub account id.
+    if (!ghAccount?.accountId) return [];
     const app = getGithubApp();
     const installations = await app.octokit.paginate(
       app.octokit.rest.apps.listInstallations,
       { per_page: 100 },
     );
-    return installations.map((i) => {
-      const account = i.account as { login?: string; type?: string; avatar_url?: string } | null;
-      return {
-        installationId: i.id,
-        accountLogin: account?.login ?? null,
-        accountType: account?.type ?? null,
-        avatarUrl: account?.avatar_url ?? null,
-      };
-    });
+    return installations
+      .filter((i) => {
+        const account = i.account as { id?: number } | null;
+        return account?.id != null && String(account.id) === ghAccount.accountId;
+      })
+      .map((i) => mapInstallation(i as never));
   } catch (error) {
     console.error("Failed to list app installations:", error);
     return [];
