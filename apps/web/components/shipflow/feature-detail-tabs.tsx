@@ -563,13 +563,23 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
     initialFeature.status === "in_review" ||
     initialFeature.reviewCycles.some((c) => c.status === "running"),
   );
+  const [pollInterval, setPollInterval] = useState(3000);
   const wasGeneratingRef = useRef(false);
+
+  // Exponential backoff: 3s → 4.5s → 6.75s → ... → 15s max, resets when polling stops
+  useEffect(() => {
+    if (!shouldPoll) { setPollInterval(3000); return; }
+    const id = setInterval(() => {
+      setPollInterval((prev) => Math.min(Math.round(prev * 1.5), 15000));
+    }, 15000);
+    return () => clearInterval(id);
+  }, [shouldPoll]);
 
   const { data: feature } = trpc.feature.getById.useQuery(
     { featureId: initialFeature.id },
     {
       initialData: initialFeature,
-      refetchInterval: shouldPoll ? 3000 : false,
+      refetchInterval: shouldPoll ? pollInterval : false,
       refetchIntervalInBackground: false,
     },
   );

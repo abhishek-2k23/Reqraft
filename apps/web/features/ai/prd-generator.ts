@@ -61,7 +61,7 @@ export async function generatePrd(input: GeneratePrdInput): Promise<PrdContent &
     .join("\n\n");
 
   const { object } = await generateObject({
-    model: openai("gpt-4o"),
+    model: openai("gpt-4o-mini"),
     schema: prdSchema,
     system: PRD_SYSTEM_PROMPT,
     prompt: `Feature Title: ${input.title}\nDescription: ${input.description}\n\nClarification conversation:\n${conversation || "(none)"}`,
@@ -88,7 +88,7 @@ export type EditPrdInput = {
 
 export async function editPrdWithAI(input: EditPrdInput): Promise<PrdContent & { rawMarkdown: string }> {
   const { object } = await generateObject({
-    model: openai("gpt-4o"),
+    model: openai("gpt-4o-mini"),
     schema: prdSchema,
     system: `${PRD_SYSTEM_PROMPT}\nYou are updating an existing PRD. Apply only the changes requested. Preserve all sections not mentioned in the edit request. Keep the same level of detail and structure.`,
     prompt: `CURRENT PRD:\n${JSON.stringify(input.currentPrd, null, 2)}\n\nEDIT REQUEST:\n${input.editPrompt}`,
