@@ -263,7 +263,7 @@ function PrRow({
                   </option>
                 ))}
               </select>
-              <span className="font-mono text-[11px] text-slate-500">→ feature/{selectedFeatureId.slice(0, 8)}…</span>
+              <span className="break-all font-mono text-[11px] text-slate-500">→ feature/{selectedFeatureId}</span>
               <button
                 type="button"
                 onClick={handleRename}
