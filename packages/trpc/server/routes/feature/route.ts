@@ -247,6 +247,31 @@ export const featureRouter = router({
       return { triggered: true };
     }),
 
+  // Manually trigger task generation — fires the same Inngest event as PRD approval
+  triggerTaskGeneration: orgProcedure
+    .input(z.object({
+      featureId: z.string(),
+      specialtyOverrides: z.record(z.string(), z.string()).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      await ctx.db
+        .update(featureRequests)
+        .set({ status: "in_progress", updatedAt: new Date() })
+        .where(
+          and(
+            eq(featureRequests.id, input.featureId),
+            eq(featureRequests.organizationId, ctx.org.id),
+          ),
+        );
+
+      await ctx.emit({
+        name: "prd/approved",
+        data: { featureId: input.featureId, specialtyOverrides: input.specialtyOverrides ?? {} },
+      });
+
+      return { triggered: true };
+    }),
+
   sendClarificationMessage: orgProcedure
     .input(z.object({ featureId: z.string(), message: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
