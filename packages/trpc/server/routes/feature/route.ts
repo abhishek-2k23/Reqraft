@@ -70,6 +70,13 @@ export const featureRouter = router({
         // Non-fatal — clarification can be started manually from the feature page
       }
 
+      await ctx.publish(ctx.org.id, {
+        type: "feature.created",
+        featureId: feature.id,
+        title: feature.title,
+        actorName: ctx.session.user.name ?? ctx.session.user.email ?? "Someone",
+      });
+
       return feature;
     }),
 
@@ -188,6 +195,15 @@ export const featureRouter = router({
           ),
         )
         .returning();
+
+      if (updated) {
+        await ctx.publish(ctx.org.id, {
+          type: "feature.updated",
+          featureId: updated.id,
+          title: updated.title,
+          status: updated.status,
+        });
+      }
 
       return updated;
     }),

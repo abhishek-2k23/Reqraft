@@ -149,7 +149,20 @@ export const memberRouter = router({
           .where(inArray(tasks.id, orgTasks.map((t) => t.id)));
       }
 
+      // Resolve the removed user's name before deleting for the broadcast
+      const [removedUser] = await ctx.db
+        .select({ name: usersTable.name })
+        .from(usersTable)
+        .where(eq(usersTable.id, target.userId));
+
       await ctx.db.delete(members).where(eq(members.id, input.memberId));
+
+      await ctx.publish(ctx.org.id, {
+        type: "member.removed",
+        userId: target.userId,
+        name: removedUser?.name ?? "A member",
+      });
+
       return { success: true };
     }),
 
@@ -318,13 +331,22 @@ export const memberRouter = router({
         .from(organizations)
         .where(eq(organizations.id, ctx.org.id));
 
+      const actorName = ctx.session.user.name ?? ctx.session.user.email ?? "Someone";
+
       await ctx.sendInvite({
         to: input.email,
-        inviterName: ctx.session.user.name ?? ctx.session.user.email ?? "Someone",
+        inviterName: actorName,
         orgName: org?.name ?? "your organization",
         role: input.role,
         invitationId: invitation.id,
         expiresAt,
+      });
+
+      await ctx.publish(ctx.org.id, {
+        type: "member.invited",
+        email: input.email,
+        role: input.role,
+        actorName,
       });
 
       return invitation;
@@ -424,6 +446,14 @@ export const memberRouter = router({
         .update(sessionsTable)
         .set({ activeOrganizationId: invite.organizationId })
         .where(eq(sessionsTable.id, ctx.session.session.id));
+
+      // Tell the rest of the org a new member just joined
+      await ctx.publish(invite.organizationId, {
+        type: "member.accepted",
+        userId: ctx.session.user.id,
+        name: ctx.session.user.name ?? ctx.session.user.email ?? "A new member",
+        role: invite.role,
+      });
 
       const [org] = await ctx.db
         .select({ name: organizations.name })

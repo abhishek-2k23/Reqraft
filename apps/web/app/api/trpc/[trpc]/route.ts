@@ -6,6 +6,7 @@ import { inngest } from "@/features/inngest/client";
 import { runClarificationAgent } from "@/features/ai/clarification-agent";
 import { editPrdWithAI } from "@/features/ai/prd-generator";
 import { sendInviteEmail } from "@/lib/email";
+import { publishOrgEvent } from "@/lib/realtime/server";
 
 async function handler(request: Request) {
   const session = await auth.api.getSession({
@@ -24,6 +25,7 @@ async function handler(request: Request) {
         emit: (event) => inngest.send(event as any),
         ai: { clarify: runClarificationAgent, editPrd: editPrdWithAI },
         sendInvite: sendInviteEmail,
+        publish: publishOrgEvent,
       }),
   });
 }

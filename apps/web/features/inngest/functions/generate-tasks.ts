@@ -2,6 +2,7 @@ import { and, db, eq } from "@repo/database";
 import { featureRequests, members, prds, tasks, usersTable, SPECIALTY_TASK_TYPES } from "@repo/database/schema";
 
 import { generateTasks, type Developer } from "@/features/ai/task-generator";
+import { publishOrgEvent } from "@/lib/realtime/server";
 
 import { inngest } from "../client";
 
@@ -104,6 +105,15 @@ export const generateTasksFunction = inngest.createFunction(
         .update(featureRequests)
         .set({ status: "tasks_ready", updatedAt: new Date() })
         .where(eq(featureRequests.id, featureId));
+    });
+
+    await step.run("broadcast-tasks-ready", async () => {
+      await publishOrgEvent(feature.organizationId, {
+        type: "tasks.generated",
+        featureId,
+        featureTitle: feature.title,
+        count: generatedTasks.length,
+      });
     });
 
     return { featureId, taskCount: generatedTasks.length, developerCount: developers.length };
