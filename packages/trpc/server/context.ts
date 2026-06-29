@@ -1,5 +1,7 @@
 import { db, type Database } from "@repo/database";
 
+import type { OrgEvent, PublishOrgEvent } from "./events";
+
 export type AuthSession = {
   session: {
     id: string;
@@ -59,6 +61,7 @@ export type CreateContextOptions = {
     editPrd: (input: { currentPrd: PrdContent; editPrompt: string }) => Promise<EditPrdResult>;
   };
   sendInvite?: (input: SendInviteInput) => Promise<unknown>;
+  publish?: PublishOrgEvent;
 };
 
 export type ContextValue = {
@@ -71,6 +74,7 @@ export type ContextValue = {
     editPrd: (input: { currentPrd: PrdContent; editPrompt: string }) => Promise<EditPrdResult>;
   };
   sendInvite: (input: SendInviteInput) => Promise<unknown>;
+  publish: PublishOrgEvent;
 };
 
 const noopEmit = async () => {};
@@ -84,6 +88,7 @@ const noopEditPrd = async ({ currentPrd }: { currentPrd: PrdContent }): Promise<
   rawMarkdown: "",
 });
 const noopSendInvite = async () => {};
+const noopPublish: PublishOrgEvent = async () => {};
 
 export async function createContext(
   options: CreateContextOptions = {},
@@ -95,7 +100,9 @@ export async function createContext(
     emit: options.emit ?? noopEmit,
     ai: options.ai ?? { clarify: noopClarify, editPrd: noopEditPrd },
     sendInvite: options.sendInvite ?? noopSendInvite,
+    publish: options.publish ?? noopPublish,
   };
 }
 
 export type Context = ContextValue;
+export type { OrgEvent };

@@ -19,6 +19,7 @@ import {
 } from "~/components/ui/dropdown-menu";
 import { cn } from "~/lib/utils";
 import { trpc } from "~/trpc/client";
+import { useOrgRealtime } from "@/hooks/use-org-realtime";
 
 type Project = { id: string; name: string; slug: string; description: string | null };
 
@@ -38,6 +39,9 @@ const STORAGE_PREFIX = "shipflow.activeProject";
 export function ProjectProvider({ children }: { children: React.ReactNode }) {
   const { data: org } = trpc.org.current.useQuery();
   const { data: projects = [], isLoading } = trpc.project.list.useQuery();
+
+  // Subscribe to the active org's realtime channel — keeps the whole team in sync
+  useOrgRealtime(org?.id);
 
   // `null` = not yet hydrated from localStorage (avoids SSR mismatch)
   const [activeProjectId, setActiveProjectIdState] = useState<string | null>(null);

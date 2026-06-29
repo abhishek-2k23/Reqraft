@@ -51,6 +51,15 @@ export const taskRouter = router({
         .where(eq(tasks.id, input.taskId))
         .returning();
 
+      if (updated) {
+        await ctx.publish(ctx.org.id, {
+          type: "task.updated",
+          taskId: updated.id,
+          title: updated.title,
+          status: updated.status,
+        });
+      }
+
       return updated;
     }),
 
@@ -94,6 +103,15 @@ export const taskRouter = router({
         .set({ assignedTo: input.userId, updatedAt: new Date() })
         .where(eq(tasks.id, input.taskId))
         .returning();
+
+      if (updated) {
+        await ctx.publish(ctx.org.id, {
+          type: "task.updated",
+          taskId: updated.id,
+          title: updated.title,
+          status: updated.status,
+        });
+      }
 
       return updated;
     }),

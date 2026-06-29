@@ -6,6 +6,7 @@ import {
 } from "@repo/database/schema";
 
 import { generatePrd } from "@/features/ai/prd-generator";
+import { publishOrgEvent } from "@/lib/realtime/server";
 
 import { inngest } from "../client";
 
@@ -88,6 +89,14 @@ export const generatePrdFunction = inngest.createFunction(
         .update(featureRequests)
         .set({ status: "prd_ready", updatedAt: new Date() })
         .where(eq(featureRequests.id, featureId));
+    });
+
+    await step.run("broadcast-prd-ready", async () => {
+      await publishOrgEvent(context.feature.organizationId, {
+        type: "prd.generated",
+        featureId,
+        featureTitle: context.feature.title,
+      });
     });
 
     return { featureId, status: "prd_ready" };

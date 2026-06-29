@@ -10,6 +10,7 @@ import {
 
 import { reviewPullRequestAgainstPrd } from "@/features/ai/qa-reviewer";
 import { getGithubApp } from "@/lib/github/app";
+import { publishOrgEvent } from "@/lib/realtime/server";
 
 /**
  * Runs the full AI review for a cached pull request and posts the result back
@@ -67,10 +68,19 @@ export async function runReviewForPullRequest(pullRequestId: string) {
       .returning();
     reviewCycle = cycle ?? null;
 
-    await db
+    const [feat] = await db
       .update(featureRequests)
       .set({ status: "in_review", updatedAt: new Date() })
-      .where(eq(featureRequests.id, featureId));
+      .where(eq(featureRequests.id, featureId))
+      .returning({ organizationId: featureRequests.organizationId });
+
+    if (feat) {
+      await publishOrgEvent(feat.organizationId, {
+        type: "review.started",
+        featureId,
+        prNumber: pullRequest.number,
+      });
+    }
   }
 
   // --- Run the AI review (with or without PRD context) ---
@@ -127,6 +137,21 @@ export async function runReviewForPullRequest(pullRequestId: string) {
         updatedAt: new Date(),
       })
       .where(eq(featureRequests.id, featureId));
+
+    // Broadcast the result to the org so everyone sees the verdict live
+    const [feat] = await db
+      .select({ organizationId: featureRequests.organizationId })
+      .from(featureRequests)
+      .where(eq(featureRequests.id, featureId));
+
+    if (feat) {
+      await publishOrgEvent(feat.organizationId, {
+        type: "review.completed",
+        featureId,
+        verdict: review.status === "passed" ? "approved" : "changes requested",
+        complianceScore: review.status === "passed" ? 100 : 60,
+      });
+    }
   }
 
   // --- Always post a summary comment on the GitHub PR ---

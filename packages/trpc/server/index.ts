@@ -31,4 +31,6 @@ export const serverRouter = router({
 });
 
 export { createContext } from "./context";
+export { ORG_EVENT_NAME, orgChannel } from "./events";
+export type { OrgEvent, OrgEventType, PublishOrgEvent } from "./events";
 export type ServerRouter = typeof serverRouter;
