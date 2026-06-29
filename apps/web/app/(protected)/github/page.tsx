@@ -241,7 +241,6 @@ export default function GithubPage() {
     const id = installStatus.installation?.installationId;
     if (!id) return;
     void loadGithubRepos(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [installStatus.installation?.installationId]);
 
   // Listen for the popup's "installed" message (BroadcastChannel + postMessage),

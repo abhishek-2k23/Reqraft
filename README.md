@@ -30,7 +30,8 @@ Feature Request
 - Octokit for GitHub App integration
 - BetterAuth for authentication and organizations
 - Razorpay for subscriptions and AI credit billing
-- Vercel AI SDK + Anthropic for production AI calls
+- Vercel AI SDK + OpenAI for production AI calls
+- Pusher for real-time org sync and Resend for transactional email
 
 ## Current Implementation
 
@@ -147,10 +148,13 @@ DATABASE_URL=
 BETTER_AUTH_SECRET=
 BETTER_AUTH_URL=
 NEXT_PUBLIC_APP_URL=
-ANTHROPIC_API_KEY=
-ANTHROPIC_MODEL=
+OPENAI_API_KEY=
+OPENAI_MODEL=
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
 INNGEST_EVENT_KEY=
 INNGEST_SIGNING_KEY=
+INNGEST_SERVE_ORIGIN=
 GITHUB_APP_ID=
 GITHUB_APP_PRIVATE_KEY=
 GITHUB_CLIENT_ID=
@@ -158,8 +162,19 @@ GITHUB_CLIENT_SECRET=
 GITHUB_WEBHOOK_SECRET=
 RAZORPAY_KEY_ID=
 RAZORPAY_KEY_SECRET=
+RAZORPAY_PRO_PLAN_ID=
 RAZORPAY_WEBHOOK_SECRET=
+PUSHER_APP_ID=
+PUSHER_KEY=
+PUSHER_SECRET=
+PUSHER_CLUSTER=
+NEXT_PUBLIC_PUSHER_KEY=
+NEXT_PUBLIC_PUSHER_CLUSTER=
+RESEND_API_KEY=
+RESEND_FROM_EMAIL=
 ```
+
+> `turbo.json` `globalEnv` is the source of truth for the full env-var surface.
 
 ## Database Notes
 
@@ -190,11 +205,13 @@ The current service layer includes deterministic testable agent logic in:
 packages/services/shipflow/agents.ts
 ```
 
-Production AI calls are wrapped through Vercel AI SDK + Anthropic in:
+Production AI calls are wrapped through Vercel AI SDK + OpenAI (`OPENAI_MODEL`, default `gpt-4o-mini`) in:
 
 ```text
-apps/web/lib/ai.ts
-apps/web/lib/inngest.ts
+apps/web/features/ai/clarification-agent.ts
+apps/web/features/ai/prd-generator.ts
+apps/web/features/ai/task-generator.ts
+apps/web/features/ai/qa-reviewer.ts
 ```
 
 The AI workflow covers:

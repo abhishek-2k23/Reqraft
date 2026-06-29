@@ -1066,7 +1066,7 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
                       <AlertDialogHeader>
                         <AlertDialogTitle className="text-white">Team coverage before task generation</AlertDialogTitle>
                         <AlertDialogDescription className="text-slate-400">
-                          AI will assign tasks based on each developer's specialty. Fill in missing slots or add team members.
+                          AI will assign tasks based on each developer&apos;s specialty. Fill in missing slots or add team members.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
 
@@ -1194,7 +1194,7 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
           <AlertDialogHeader>
             <AlertDialogTitle className="text-white">Team coverage before task generation</AlertDialogTitle>
             <AlertDialogDescription className="text-slate-400">
-              AI will assign tasks based on each developer's specialty. Fill in missing slots or add team members.
+              AI will assign tasks based on each developer&apos;s specialty. Fill in missing slots or add team members.
             </AlertDialogDescription>
           </AlertDialogHeader>
 

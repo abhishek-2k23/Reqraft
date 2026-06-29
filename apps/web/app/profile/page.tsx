@@ -6,17 +6,13 @@ import {
   Building2,
   CheckCircle2,
   Clock,
-  GitPullRequest,
   ListTodo,
   LogOut,
-  Shield,
-  User,
 } from "lucide-react";
 
 import { authClient } from "@/lib/auth-client";
 import { trpc } from "@/trpc/client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getDisplayName, getInitials } from "@/features/auth/components/user-menu";

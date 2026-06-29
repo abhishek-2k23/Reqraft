@@ -1,4 +1,4 @@
-import { and, db, eq } from "@repo/database";
+import { db, eq } from "@repo/database";
 import { featureRequests, members, prds, tasks, usersTable, SPECIALTY_TASK_TYPES } from "@repo/database/schema";
 
 import { generateTasks, type Developer } from "@/features/ai/task-generator";

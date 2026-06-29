@@ -104,7 +104,7 @@ function InvitePageContent() {
               <Mail className="size-8 text-cyan-300" />
             </div>
             <div>
-              <p className="text-xl font-semibold text-white">You're invited to join</p>
+              <p className="text-xl font-semibold text-white">You&apos;re invited to join</p>
               <p className="mt-1 text-2xl font-bold text-cyan-300">{invite.orgName}</p>
               <p className="mt-3 text-sm text-slate-400">
                 as a <span className="font-medium text-slate-300">{invite.role}</span>
@@ -117,7 +117,7 @@ function InvitePageContent() {
               Sign in to accept
             </Button>
             <p className="text-xs text-slate-500">
-              Don't have an account? You can sign up on the next page.
+              Don&apos;t have an account? You can sign up on the next page.
             </p>
           </div>
         )}
@@ -125,7 +125,7 @@ function InvitePageContent() {
         {state.status === "success" && (
           <div className="flex flex-col items-center gap-4">
             <CheckCircle2 className="size-14 text-emerald-400" />
-            <p className="text-xl font-semibold text-white">You're in!</p>
+            <p className="text-xl font-semibold text-white">You&apos;re in!</p>
             <p className="text-sm text-slate-400">
               Welcome to <span className="text-slate-200">{state.orgName}</span>. Redirecting to your dashboard…
             </p>

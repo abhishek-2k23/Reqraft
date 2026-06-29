@@ -317,6 +317,7 @@ export default function TeamPage() {
                 {members.map((m) => (
                   <div key={m.memberId} className="flex items-center gap-4 px-5 py-4">
                     {m.image ? (
+                      // eslint-disable-next-line @next/next/no-img-element -- avatar URLs come from arbitrary OAuth providers; next/image would require remotePatterns config
                       <img src={m.image} alt={m.name} className="size-9 rounded-full object-cover" />
                     ) : (
                       <div className="grid size-9 place-items-center rounded-full bg-white/10 text-sm font-semibold text-white">
