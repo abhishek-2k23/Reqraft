@@ -44,7 +44,7 @@ export function ShipFlowShell({
     <main className="min-h-screen bg-[#090b10] text-slate-100">
       <div className="grid min-h-screen lg:grid-cols-[260px_1fr]">
         <aside className="flex flex-col border-r border-white/10 bg-[#0d1118] px-4 py-5">
-          <Link href="/" className="flex items-center gap-3 rounded-lg px-2 py-2">
+          <Link href="/dashboard" className="flex items-center gap-3 rounded-lg px-2 py-2">
             <Image
               src="/icons/reqraft-icon-transparent-512.png"
               alt="Reqraft"

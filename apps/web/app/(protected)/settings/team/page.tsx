@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Crown, Shield, Briefcase, Code2, Eye, MoreHorizontal, UserPlus, Loader2, AlertTriangle } from "lucide-react";
+import { Crown, Shield, Briefcase, Code2, Eye, MoreHorizontal, UserPlus, Loader2, AlertTriangle, Mail } from "lucide-react";
 import { toast } from "sonner";
 
 import { ShipFlowShell } from "~/components/shipflow/shell";
@@ -266,6 +266,7 @@ function RemoveMemberModal({
 export default function TeamPage() {
   const utils = trpc.useUtils();
   const { data: members = [], isLoading } = trpc.member.list.useQuery();
+  const { data: invitations = [], isLoading: isLoadingInvitations } = trpc.member.listInvitations.useQuery();
 
   const [pendingRemoval, setPendingRemoval] = useState<PendingRemoval | null>(null);
 
@@ -283,6 +284,16 @@ export default function TeamPage() {
     onError: (err) => toast.error(err.message),
   });
 
+  const cancelInvitation = trpc.member.cancelInvitation.useMutation({
+    onSuccess: () => {
+      utils.member.listInvitations.invalidate();
+      toast.success("Invitation cancelled");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const totalCount = members.length + invitations.length;
+
   return (
     <ShipFlowShell
       active="/settings"
@@ -292,16 +303,17 @@ export default function TeamPage() {
       <div className="grid max-w-4xl gap-8">
         <InviteForm />
 
-        {/* Members list */}
+        {/* Members + pending invitations list */}
         <div>
-          <h2 className="mb-3 text-sm font-semibold text-white">Members ({members.length})</h2>
+          <h2 className="mb-3 text-sm font-semibold text-white">Members ({totalCount})</h2>
           <div className="overflow-hidden rounded-xl border border-white/10">
-            {isLoading ? (
+            {isLoading || isLoadingInvitations ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="size-5 animate-spin text-slate-500" />
               </div>
             ) : (
               <div className="divide-y divide-white/5">
+                {/* Active members */}
                 {members.map((m) => (
                   <div key={m.memberId} className="flex items-center gap-4 px-5 py-4">
                     {m.image ? (
@@ -353,6 +365,50 @@ export default function TeamPage() {
                     </DropdownMenu>
                   </div>
                 ))}
+
+                {/* Pending invitations */}
+                {invitations.map((inv) => (
+                  <div key={inv.id} className="flex items-center gap-4 px-5 py-4 opacity-70">
+                    <div className="grid size-9 place-items-center rounded-full border border-dashed border-amber-400/40 bg-amber-400/5 text-amber-400">
+                      <Mail className="size-4" />
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <p className="truncate text-sm font-medium text-slate-300">{inv.email}</p>
+                      <p className="truncate text-xs text-slate-500">
+                        Invite expires {new Date(inv.expiresAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                      </p>
+                    </div>
+
+                    <RoleBadge role={inv.role as MemberRole} />
+
+                    <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/30 bg-amber-400/10 px-2.5 py-0.5 text-xs font-medium text-amber-300">
+                      Invited
+                    </span>
+
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="size-8 text-slate-500 hover:text-white">
+                          <MoreHorizontal className="size-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="border-white/10 bg-[#0d1118] w-48">
+                        <DropdownMenuItem
+                          className="cursor-pointer text-sm text-red-400 focus:bg-red-400/10 focus:text-red-300"
+                          onSelect={() => cancelInvitation.mutate({ invitationId: inv.id })}
+                        >
+                          Cancel invitation
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                ))}
+
+                {members.length === 0 && invitations.length === 0 && (
+                  <div className="px-5 py-10 text-center text-sm text-slate-500">
+                    No members yet. Invite your team above.
+                  </div>
+                )}
               </div>
             )}
           </div>
