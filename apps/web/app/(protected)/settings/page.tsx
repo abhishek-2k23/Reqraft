@@ -2,6 +2,7 @@ import Image from "next/image";
 
 import { getServerSession } from "@/features/auth/session";
 import { CreateOrgForm } from "~/components/shipflow/create-org-form";
+import { OrgSettingsForm } from "~/components/shipflow/org-settings-form";
 import { ProjectsSection } from "~/components/shipflow/projects-section";
 import { ShipFlowShell } from "~/components/shipflow/shell";
 import { api } from "~/trpc/server";
@@ -11,15 +12,17 @@ export const dynamic = "force-dynamic";
 export default async function SettingsPage() {
   const session = await getServerSession();
   const orgs = await api.org.list.query().catch(() => []);
+  const currentOrg = await api.org.current.query().catch(() => null);
 
   return (
     <ShipFlowShell
       active="/settings"
       title="Settings"
-      description="Manage your account and organizations."
+      description="Manage your account, organization, and projects."
     >
       <div className="max-w-2xl space-y-6">
-        <ProjectsSection />
+
+        {/* Account */}
         <div className="rounded-lg border border-white/10 bg-white/[0.045] p-5">
           <h2 className="mb-4 text-sm font-semibold text-white">Account</h2>
           <div className="flex items-center gap-3">
@@ -37,8 +40,24 @@ export default async function SettingsPage() {
           </div>
         </div>
 
+        {/* Active org settings */}
+        {currentOrg && (
+          <div className="rounded-lg border border-white/10 bg-white/[0.045] p-5">
+            <h2 className="mb-1 text-sm font-semibold text-white">Organization settings</h2>
+            <p className="mb-4 text-xs text-slate-500">
+              Edit the name and slug for <span className="text-slate-300">{currentOrg.name}</span>.
+              Only the owner can make changes.
+            </p>
+            <OrgSettingsForm />
+          </div>
+        )}
+
+        {/* Projects */}
+        <ProjectsSection />
+
+        {/* All orgs + create */}
         <div className="rounded-lg border border-white/10 bg-white/[0.045] p-5">
-          <h2 className="mb-4 text-sm font-semibold text-white">Organizations</h2>
+          <h2 className="mb-4 text-sm font-semibold text-white">Your organizations</h2>
           {orgs.length === 0 ? (
             <p className="mb-4 text-sm text-slate-500">No organizations yet.</p>
           ) : (
@@ -53,6 +72,7 @@ export default async function SettingsPage() {
           )}
           <CreateOrgForm />
         </div>
+
       </div>
     </ShipFlowShell>
   );

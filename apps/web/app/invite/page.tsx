@@ -41,6 +41,8 @@ function InvitePageContent() {
   const acceptMutation = trpc.member.acceptInvitation.useMutation({
     onSuccess: (data) => {
       setState({ status: "success", orgName: data.orgName ?? "your organization" });
+      // Refresh router cache so the new activeOrganizationId is picked up from the session
+      router.refresh();
       setTimeout(() => router.push("/dashboard"), 2000);
     },
     onError: (err) => setState({ status: "error", message: err.message }),

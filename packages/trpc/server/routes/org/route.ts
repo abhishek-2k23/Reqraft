@@ -1,8 +1,8 @@
 import { TRPCError } from "@trpc/server";
 import { and, eq } from "@repo/database";
-import { members, organizations } from "@repo/database/schema";
+import { members, organizations, sessionsTable } from "@repo/database/schema";
 
-import { protectedProcedure, router } from "../../trpc";
+import { orgProcedure, protectedProcedure, router } from "../../trpc";
 import { z } from "../../schema";
 
 export const orgRouter = router({
@@ -26,6 +26,12 @@ export const orgRouter = router({
         userId: ctx.session.user.id,
         role: "owner",
       });
+
+      // Make the new org active in the current session
+      await ctx.db
+        .update(sessionsTable)
+        .set({ activeOrganizationId: id })
+        .where(eq(sessionsTable.id, ctx.session.session.id));
 
       return org;
     }),
@@ -83,5 +89,30 @@ export const orgRouter = router({
       }
 
       return org.organization;
+    }),
+
+  // Update the active org's name/slug — owner only
+  update: orgProcedure
+    .input(
+      z.object({
+        name: z.string().min(1).optional(),
+        slug: z.string().min(1).regex(/^[a-z0-9-]+$/).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.memberRole !== "owner") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Only the org owner can edit organization settings." });
+      }
+
+      const [updated] = await ctx.db
+        .update(organizations)
+        .set({
+          ...(input.name ? { name: input.name } : {}),
+          ...(input.slug ? { slug: input.slug } : {}),
+        })
+        .where(eq(organizations.id, ctx.org.id))
+        .returning();
+
+      return updated;
     }),
 });

@@ -1,9 +1,9 @@
 import { TRPCError } from "@trpc/server";
 import { and, count, eq, inArray } from "@repo/database";
-import { featureRequests, invitations, members, organizations, subscriptions, tasks, usersTable } from "@repo/database/schema";
+import { featureRequests, invitations, members, organizations, sessionsTable, subscriptions, tasks, usersTable } from "@repo/database/schema";
 import { MEMBER_ROLES, MEMBER_SPECIALTIES, type MemberRole } from "@repo/database/schema";
 
-import { adminProcedure, orgProcedure, publicProcedure, router } from "../../trpc";
+import { adminProcedure, orgProcedure, protectedProcedure, publicProcedure, router } from "../../trpc";
 import { z } from "../../schema";
 
 export const memberRouter = router({
@@ -295,7 +295,7 @@ export const memberRouter = router({
         });
       }
 
-      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+      const expiresAt = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000); // 2 days
 
       const [invitation] = await ctx.db
         .insert(invitations)
@@ -383,8 +383,8 @@ export const memberRouter = router({
       return row;
     }),
 
-  // Accept an invitation — called when the invited user signs in and lands on the accept link
-  acceptInvitation: orgProcedure
+  // Accept an invitation — only requires being signed in, not having an active org
+  acceptInvitation: protectedProcedure
     .input(z.object({ invitationId: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const [invite] = await ctx.db
@@ -413,18 +413,23 @@ export const memberRouter = router({
       await ctx.db
         .insert(members)
         .values({
-          id: crypto.randomUUID(),
           organizationId: invite.organizationId,
           userId: ctx.session.user.id,
           role: invite.role as MemberRole,
         })
         .onConflictDoNothing();
 
+      // Stamp the current session so the invited org becomes active immediately
+      await ctx.db
+        .update(sessionsTable)
+        .set({ activeOrganizationId: invite.organizationId })
+        .where(eq(sessionsTable.id, ctx.session.session.id));
+
       const [org] = await ctx.db
         .select({ name: organizations.name })
         .from(organizations)
         .where(eq(organizations.id, invite.organizationId));
 
-      return { orgName: org?.name ?? "your organization" };
+      return { orgId: invite.organizationId, orgName: org?.name ?? "your organization" };
     }),
 });
