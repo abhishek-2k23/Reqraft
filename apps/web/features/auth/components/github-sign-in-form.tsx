@@ -19,12 +19,7 @@ function SubmitButton() {
   const { pending } = useFormStatus();
 
   return (
-    <Button
-      type="submit"
-      size="lg"
-      className="w-full bg-cyan-300 font-semibold text-slate-950 shadow-lg shadow-cyan-950/20 hover:bg-cyan-200"
-      disabled={pending}
-    >
+    <Button type="submit" size="lg" className="w-full" disabled={pending}>
       {pending ? <Spinner className="size-4" /> : <GitHubIcon />}
       {pending ? "Redirecting to GitHub..." : "Continue with GitHub"}
     </Button>
