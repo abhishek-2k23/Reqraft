@@ -41,6 +41,7 @@ test("getNextFeatureStatus follows the ShipFlow lifecycle", () => {
   const path: FeatureStatus[] = [
     "intake",
     "clarifying",
+    "prd_generating",
     "prd_ready",
     "tasks_ready",
     "in_progress",
