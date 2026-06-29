@@ -3,6 +3,7 @@ import localFont from "next/font/local";
 import "./globals.css";
 import { GlobalProviders } from "~/providers/global";
 import { AnimatedBackground } from "~/components/animated-background";
+import { SmoothScroll } from "~/components/smooth-scroll";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -38,9 +39,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark" suppressHydrationWarning>
-      <body className={`${geistSans.variable} ${geistMono.variable} relative min-h-screen bg-[#0a0a0a] text-white antialiased selection:bg-orange-500/30 selection:text-orange-200`}>
+    <html lang="en" suppressHydrationWarning>
+      <body className={`${geistSans.variable} ${geistMono.variable} relative min-h-screen bg-background text-foreground antialiased selection:bg-primary/25 selection:text-foreground`}>
         <AnimatedBackground />
+        <SmoothScroll />
         <GlobalProviders>
           <div className="relative z-10 flex min-h-screen flex-col">
             {children}
