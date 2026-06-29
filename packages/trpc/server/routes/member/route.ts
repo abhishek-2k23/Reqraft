@@ -1,6 +1,6 @@
 import { TRPCError } from "@trpc/server";
-import { and, count, eq } from "@repo/database";
-import { invitations, members, organizations, subscriptions, usersTable } from "@repo/database/schema";
+import { and, count, eq, inArray } from "@repo/database";
+import { featureRequests, invitations, members, organizations, subscriptions, tasks, usersTable } from "@repo/database/schema";
 import { MEMBER_ROLES, MEMBER_SPECIALTIES, type MemberRole } from "@repo/database/schema";
 
 import { adminProcedure, orgProcedure, publicProcedure, router } from "../../trpc";
@@ -82,9 +82,34 @@ export const memberRouter = router({
       return updated;
     }),
 
-  // Remove a member — admin+ only, cannot remove themselves if owner
+  // Get tasks assigned to a member within this org — used before removal to prompt reassignment
+  getAssignedTasks: adminProcedure
+    .input(z.object({ userId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      return ctx.db
+        .select({
+          id: tasks.id,
+          title: tasks.title,
+          status: tasks.status,
+          featureId: tasks.featureId,
+        })
+        .from(tasks)
+        .innerJoin(featureRequests, eq(tasks.featureId, featureRequests.id))
+        .where(
+          and(
+            eq(tasks.assignedTo, input.userId),
+            eq(featureRequests.organizationId, ctx.org.id),
+          ),
+        );
+    }),
+
+  // Remove a member — admin+ only, cannot remove owner.
+  // If reassignToUserId is provided, reassigns their tasks; otherwise nulls them out.
   remove: adminProcedure
-    .input(z.object({ memberId: z.string() }))
+    .input(z.object({
+      memberId: z.string(),
+      reassignToUserId: z.string().nullable().optional(),
+    }))
     .mutation(async ({ ctx, input }) => {
       const [target] = await ctx.db
         .select()
@@ -103,6 +128,25 @@ export const memberRouter = router({
           code: "BAD_REQUEST",
           message: "Cannot remove the owner of the organization.",
         });
+      }
+
+      // Reassign or null out tasks assigned to this user in the org
+      const orgTasks = await ctx.db
+        .select({ id: tasks.id })
+        .from(tasks)
+        .innerJoin(featureRequests, eq(tasks.featureId, featureRequests.id))
+        .where(
+          and(
+            eq(tasks.assignedTo, target.userId),
+            eq(featureRequests.organizationId, ctx.org.id),
+          ),
+        );
+
+      if (orgTasks.length > 0) {
+        await ctx.db
+          .update(tasks)
+          .set({ assignedTo: input.reassignToUserId ?? null, updatedAt: new Date() })
+          .where(inArray(tasks.id, orgTasks.map((t) => t.id)));
       }
 
       await ctx.db.delete(members).where(eq(members.id, input.memberId));

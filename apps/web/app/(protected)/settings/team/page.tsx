@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Crown, Shield, Briefcase, Code2, Eye, MoreHorizontal, UserPlus, Loader2 } from "lucide-react";
+import { Crown, Shield, Briefcase, Code2, Eye, MoreHorizontal, UserPlus, Loader2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 
 import { ShipFlowShell } from "~/components/shipflow/shell";
@@ -21,6 +21,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "~/components/ui/dialog";
 import { trpc } from "~/trpc/client";
 import { MEMBER_ROLES, type MemberRole } from "@repo/database/schema";
 
@@ -30,6 +38,19 @@ const ROLE_META: Record<MemberRole, { label: string; icon: typeof Crown; descrip
   manager:   { label: "Manager",   icon: Briefcase, description: "Create features, approve PRDs, ship" },
   developer: { label: "Developer", icon: Code2,     description: "Assigned tasks, connect GitHub, open PRs" },
   viewer:    { label: "Viewer",    icon: Eye,       description: "Read-only access" },
+};
+
+const STATUS_LABEL: Record<string, string> = {
+  todo: "To do",
+  in_progress: "In progress",
+  done: "Done",
+  blocked: "Blocked",
+};
+
+type PendingRemoval = {
+  memberId: string;
+  userId: string;
+  name: string;
 };
 
 function RoleBadge({ role }: { role: MemberRole }) {
@@ -51,16 +72,16 @@ function RoleBadge({ role }: { role: MemberRole }) {
   );
 }
 
-function DirectAddForm() {
+function InviteForm() {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<MemberRole>("developer");
   const utils = trpc.useUtils();
 
-  const add = trpc.member.directAdd.useMutation({
-    onSuccess: (member) => {
-      toast.success(`${member.name} added to the team`);
+  const invite = trpc.member.invite.useMutation({
+    onSuccess: () => {
+      toast.success(`Invitation sent to ${email}`);
       setEmail("");
-      utils.member.list.invalidate();
+      utils.member.listInvitations.invalidate();
     },
     onError: (err) => toast.error(err.message),
   });
@@ -69,17 +90,16 @@ function DirectAddForm() {
     <form
       onSubmit={(e) => {
         e.preventDefault();
-        add.mutate({ email, role });
+        invite.mutate({ email, role });
       }}
       className="rounded-xl border border-white/10 bg-white/[0.03] p-5"
     >
       <h2 className="mb-1 flex items-center gap-2 text-sm font-semibold text-white">
         <UserPlus className="size-4 text-cyan-300" />
-        Add a team member
+        Invite a team member
       </h2>
       <p className="mb-4 text-xs text-slate-500">
-        They can sign in immediately with Google or GitHub using this email.
-        {/* TODO: replace with email invitation + acceptance link flow */}
+        They will receive an email with a link to accept the invitation and join your organization.
       </p>
       <div className="grid gap-4 sm:grid-cols-[1fr_auto_auto]">
         <div className="grid gap-1.5">
@@ -112,10 +132,10 @@ function DirectAddForm() {
         <div className="flex items-end">
           <Button
             type="submit"
-            disabled={add.isPending || !email}
+            disabled={invite.isPending || !email}
             className="bg-cyan-300 text-slate-950 hover:bg-cyan-200"
           >
-            {add.isPending ? <Loader2 className="size-4 animate-spin" /> : "Add member"}
+            {invite.isPending ? <Loader2 className="size-4 animate-spin" /> : "Send invite"}
           </Button>
         </div>
       </div>
@@ -123,9 +143,131 @@ function DirectAddForm() {
   );
 }
 
+type Member = {
+  memberId: string;
+  userId: string;
+  name: string;
+  email: string;
+  image: string | null;
+  role: string;
+};
+
+function RemoveMemberModal({
+  pending,
+  members,
+  onConfirm,
+  onCancel,
+  isPending,
+}: {
+  pending: PendingRemoval;
+  members: Member[];
+  onConfirm: (reassignToUserId: string | null) => void;
+  onCancel: () => void;
+  isPending: boolean;
+}) {
+  const [reassignTo, setReassignTo] = useState<string>("unassigned");
+
+  const { data: assignedTasks = [], isLoading: loadingTasks } = trpc.member.getAssignedTasks.useQuery(
+    { userId: pending.userId },
+  );
+
+  // All members except the one being removed
+  const reassignOptions = members.filter((m) => m.userId !== pending.userId);
+
+  const hasTasks = assignedTasks.length > 0;
+  const leavingUnassigned = reassignTo === "unassigned";
+
+  function handleConfirm() {
+    onConfirm(leavingUnassigned ? null : reassignTo);
+  }
+
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open) onCancel(); }}>
+      <DialogContent className="border-white/10 bg-[#0d1118] text-slate-100 sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-white">Remove {pending.name}</DialogTitle>
+          <DialogDescription className="text-slate-400">
+            {hasTasks
+              ? `${pending.name} has ${assignedTasks.length} assigned task${assignedTasks.length !== 1 ? "s" : ""}. Choose what to do with them before removing.`
+              : `Remove ${pending.name} from the organization? This cannot be undone.`}
+          </DialogDescription>
+        </DialogHeader>
+
+        {loadingTasks ? (
+          <div className="flex items-center justify-center py-6">
+            <Loader2 className="size-5 animate-spin text-slate-500" />
+          </div>
+        ) : hasTasks ? (
+          <div className="grid gap-4">
+            {/* Task list */}
+            <div className="max-h-48 overflow-y-auto rounded-lg border border-white/10 divide-y divide-white/5">
+              {assignedTasks.map((task) => (
+                <div key={task.id} className="flex items-center justify-between px-3 py-2.5 gap-3">
+                  <p className="text-sm text-slate-200 truncate flex-1">{task.title}</p>
+                  <span className="shrink-0 text-xs text-slate-500">{STATUS_LABEL[task.status] ?? task.status}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Reassign dropdown */}
+            <div className="grid gap-1.5">
+              <Label className="text-xs text-slate-400">Reassign tasks to</Label>
+              <Select value={reassignTo} onValueChange={setReassignTo}>
+                <SelectTrigger className="border-white/10 bg-white/5 text-slate-100">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="border-white/10 bg-[#0d1118]">
+                  <SelectItem value="unassigned" className="text-slate-400 focus:bg-white/10 focus:text-white">
+                    Leave unassigned
+                  </SelectItem>
+                  {reassignOptions.map((m) => (
+                    <SelectItem key={m.userId} value={m.userId} className="text-slate-300 focus:bg-white/10 focus:text-white">
+                      {m.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Warning when leaving unassigned */}
+            {leavingUnassigned && (
+              <div className="flex items-start gap-2 rounded-lg border border-amber-400/20 bg-amber-400/5 px-3 py-2.5">
+                <AlertTriangle className="size-4 shrink-0 text-amber-400 mt-0.5" />
+                <p className="text-xs text-amber-300">
+                  {assignedTasks.length} task{assignedTasks.length !== 1 ? "s" : ""} will have no assignee after this member is removed.
+                </p>
+              </div>
+            )}
+          </div>
+        ) : null}
+
+        <DialogFooter>
+          <Button
+            variant="ghost"
+            onClick={onCancel}
+            disabled={isPending}
+            className="text-slate-400 hover:text-white hover:bg-white/5"
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleConfirm}
+            disabled={isPending || loadingTasks}
+            className="bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 hover:text-red-300"
+          >
+            {isPending ? <Loader2 className="size-4 animate-spin" /> : "Remove member"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function TeamPage() {
   const utils = trpc.useUtils();
   const { data: members = [], isLoading } = trpc.member.list.useQuery();
+
+  const [pendingRemoval, setPendingRemoval] = useState<PendingRemoval | null>(null);
 
   const updateRole = trpc.member.updateRole.useMutation({
     onSuccess: () => { utils.member.list.invalidate(); toast.success("Role updated"); },
@@ -133,7 +275,11 @@ export default function TeamPage() {
   });
 
   const removeMember = trpc.member.remove.useMutation({
-    onSuccess: () => { utils.member.list.invalidate(); toast.success("Member removed"); },
+    onSuccess: () => {
+      utils.member.list.invalidate();
+      toast.success("Member removed");
+      setPendingRemoval(null);
+    },
     onError: (err) => toast.error(err.message),
   });
 
@@ -144,7 +290,7 @@ export default function TeamPage() {
       description="Manage members, roles, and invitations for your organization."
     >
       <div className="grid max-w-4xl gap-8">
-        <DirectAddForm />
+        <InviteForm />
 
         {/* Members list */}
         <div>
@@ -192,7 +338,13 @@ export default function TeamPage() {
                         {m.role !== "owner" && (
                           <DropdownMenuItem
                             className="cursor-pointer text-sm text-red-400 focus:bg-red-400/10 focus:text-red-300"
-                            onSelect={() => removeMember.mutate({ memberId: m.memberId })}
+                            onSelect={() =>
+                              setPendingRemoval({
+                                memberId: m.memberId,
+                                userId: m.userId,
+                                name: m.name,
+                              })
+                            }
                           >
                             Remove from org
                           </DropdownMenuItem>
@@ -205,8 +357,19 @@ export default function TeamPage() {
             )}
           </div>
         </div>
-
       </div>
+
+      {pendingRemoval && (
+        <RemoveMemberModal
+          pending={pendingRemoval}
+          members={members as Member[]}
+          onConfirm={(reassignToUserId) =>
+            removeMember.mutate({ memberId: pendingRemoval.memberId, reassignToUserId })
+          }
+          onCancel={() => setPendingRemoval(null)}
+          isPending={removeMember.isPending}
+        />
+      )}
     </ShipFlowShell>
   );
 }
