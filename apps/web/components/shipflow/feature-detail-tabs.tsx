@@ -720,6 +720,7 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
   const [messages, setMessages] = useState<Message[]>(initialFeature.messages);
   const [inputMessage, setInputMessage] = useState("");
   const [prdProgress, setPrdProgress] = useState(0);
+  const [taskCountdown, setTaskCountdown] = useState(10);
   const [editPrompt, setEditPrompt] = useState("");
   const [shouldPoll, setShouldPoll] = useState(
     initialFeature.status === "prd_generating" ||
@@ -939,6 +940,51 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
     sendMessage.mutate({ featureId: feature.id, message: trimmed });
   }
 
+  // ── Derived gating state ──────────────────────────────────────────────
+  // Latest clarification timestamp (covers optimistic + server messages).
+  const latestMessageAt = useMemo(
+    () => messages.reduce((max, m) => Math.max(max, new Date(m.createdAt).getTime()), 0),
+    [messages],
+  );
+
+  // A PRD can only be regenerated once the user has actually changed the
+  // clarification since it was last generated — this stops pointless,
+  // bill-burning re-runs. Approved PRDs are locked.
+  const prdUpdatedAt = prd ? new Date(prd.updatedAt).getTime() : 0;
+  const clarificationChangedSincePrd =
+    Boolean(prd) && !prd?.approvedAt && latestMessageAt > prdUpdatedAt;
+
+  // Any in-flight AI/generation work — hard-disables every "spend money" button
+  // so a single user can't fan out concurrent generations.
+  const aiBusy =
+    isGeneratingPrd ||
+    isGeneratingTasks ||
+    triggerPrd.isPending ||
+    triggerTaskGeneration.isPending ||
+    approvePrd.isPending ||
+    editPrd.isPending ||
+    sendMessage.isPending;
+
+  const canGeneratePrd = !aiBusy && (!prd || clarificationChangedSincePrd);
+  const prdButtonLabel = !prd
+    ? "Generate PRD now"
+    : prd.approvedAt
+      ? "PRD approved — locked"
+      : `Regenerate PRD → v${prd.version + 1}`;
+
+  // Engineering tasks auto-start after PRD approval. Show a short countdown; if
+  // auto-generation doesn't kick in within the window, enable a manual fallback.
+  const awaitingTasks = Boolean(prd?.approvedAt) && feature.tasks.length === 0;
+  useEffect(() => {
+    if (!awaitingTasks) {
+      setTaskCountdown(10);
+      return;
+    }
+    setTaskCountdown(10);
+    const id = setInterval(() => setTaskCountdown((c) => (c <= 1 ? 0 : c - 1)), 1000);
+    return () => clearInterval(id);
+  }, [awaitingTasks, prd?.id]);
+
   return (
     <div className="space-y-5">
       {/* Feature summary — persistent header (replaces the old Overview tab) */}
@@ -992,10 +1038,22 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
                 {sendMessage.isPending ? <Loader2 className="size-4 animate-spin" /> : <SendHorizontal className="size-4" />}
                 Send
               </Button>
-              <Button type="button" variant="outline" disabled={triggerPrd.isPending || isGeneratingPrd} onClick={() => triggerPrd.mutate({ featureId: feature.id })} className="border-white/10 bg-white/5 text-slate-100 hover:bg-white/10 disabled:opacity-50">
-                {isGeneratingPrd ? <><Loader2 className="size-4 animate-spin" />Generating PRD…</> : "Generate PRD now"}
+              <Button type="button" variant="outline" disabled={!canGeneratePrd} onClick={() => triggerPrd.mutate({ featureId: feature.id })} className="border-white/10 bg-white/5 text-slate-100 hover:bg-white/10 disabled:opacity-50">
+                {isGeneratingPrd ? <><Loader2 className="size-4 animate-spin" />Generating PRD…</> : prdButtonLabel}
               </Button>
             </div>
+            {prd && !prd.approvedAt && !clarificationChangedSincePrd && !isGeneratingPrd ? (
+              <p className="flex items-center gap-1.5 text-xs text-slate-500">
+                <Sparkles className="size-3 text-cyan-300/70" />
+                A PRD (v{prd.version}) already exists. Add a new clarification message above to regenerate it as v{prd.version + 1}.
+              </p>
+            ) : null}
+            {prd?.approvedAt ? (
+              <p className="flex items-center gap-1.5 text-xs text-slate-500">
+                <ShieldCheck className="size-3 text-emerald-400/70" />
+                The PRD is approved and locked — clarifications no longer regenerate it.
+              </p>
+            ) : null}
           </div>
         </div>
       </TabsContent>
@@ -1012,7 +1070,7 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
           ) : !prd ? (
             <div className="rounded-lg border border-white/10 bg-white/[0.045] p-10 text-center">
               <p className="text-sm text-slate-500">No PRD generated yet.</p>
-              <Button type="button" variant="outline" disabled={triggerPrd.isPending} onClick={() => triggerPrd.mutate({ featureId: feature.id })} className="mt-4 border-white/10 bg-white/5 text-slate-100 hover:bg-white/10">
+              <Button type="button" variant="outline" disabled={!canGeneratePrd} onClick={() => triggerPrd.mutate({ featureId: feature.id })} className="mt-4 border-white/10 bg-white/5 text-slate-100 hover:bg-white/10 disabled:opacity-50">
                 {triggerPrd.isPending ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
                 Generate PRD
               </Button>
@@ -1136,7 +1194,7 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
                     </p>
                     <Button
                       type="button"
-                      disabled={!editPrompt.trim() || editPrd.isPending}
+                      disabled={!editPrompt.trim() || aiBusy}
                       onClick={() => editPrd.mutate({ prdId: prd.id, featureId: feature.id, prompt: editPrompt })}
                       className="shrink-0 bg-purple-500 text-white hover:bg-purple-400"
                     >
@@ -1157,7 +1215,7 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
                 ) : (
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
-                      <Button type="button" disabled={approvePrd.isPending} className="bg-cyan-300 text-slate-950 hover:bg-cyan-200">
+                      <Button type="button" disabled={aiBusy} className="bg-cyan-300 text-slate-950 hover:bg-cyan-200 disabled:opacity-50">
                         {approvePrd.isPending ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
                         Approve PRD
                       </Button>
@@ -1250,11 +1308,27 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
             <div className="rounded-lg border border-white/10 bg-white/[0.045] p-10 text-center">
               {feature.prd?.approvedAt ? (
                 <div className="flex flex-col items-center gap-4">
-                  <p className="text-sm text-slate-400">PRD is approved. Generate engineering tasks to start building.</p>
+                  {taskCountdown > 0 ? (
+                    <>
+                      <Loader2 className="size-6 animate-spin text-cyan-300" />
+                      <div className="space-y-1">
+                        <p className="text-sm text-slate-300">
+                          PRD approved — engineering task generation starts automatically in{" "}
+                          <span className="font-mono font-semibold text-cyan-300">{taskCountdown}s</span>.
+                        </p>
+                        <p className="text-xs text-slate-500">Hang tight — this happens on its own.</p>
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-sm text-slate-400">
+                      Auto-start didn&apos;t kick in. Generate the engineering tasks manually.
+                    </p>
+                  )}
                   <Button
                     type="button"
+                    disabled={aiBusy || taskCountdown > 0}
                     onClick={() => setTaskGenDialogOpen(true)}
-                    className="bg-cyan-300 text-slate-950 hover:bg-cyan-200"
+                    className="bg-cyan-300 text-slate-950 hover:bg-cyan-200 disabled:opacity-50"
                   >
                     <Zap className="size-4" />
                     Generate tasks
@@ -1347,8 +1421,8 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
-              className="bg-cyan-300 text-slate-950 hover:bg-cyan-200"
-              disabled={triggerTaskGeneration.isPending}
+              className="bg-cyan-300 text-slate-950 hover:bg-cyan-200 disabled:opacity-50"
+              disabled={aiBusy}
               onClick={() => triggerTaskGeneration.mutate({
                 featureId: feature.id,
                 specialtyOverrides: Object.keys(specialtyOverrides).length ? specialtyOverrides : undefined,

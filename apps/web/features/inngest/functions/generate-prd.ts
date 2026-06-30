@@ -3,6 +3,7 @@ import {
   clarificationMessages,
   featureRequests,
   prds,
+  tasks,
 } from "@repo/database/schema";
 
 import { generatePrd } from "@/features/ai/prd-generator";
@@ -13,15 +14,22 @@ import { inngest } from "../client";
 export const generatePrdFunction = inngest.createFunction(
   { id: "generate-prd", triggers: [{ event: "feature/clarification-complete" }] },
   async ({ event, step }) => {
-    const { featureId } = event.data as { featureId: string };
+    const { featureId, regenerate = false } = event.data as {
+      featureId: string;
+      regenerate?: boolean;
+    };
 
     const context = await step.run("fetch-context", async () => {
-      // Idempotency guard: skip entirely if a PRD already exists (handles Inngest replays)
       const [existingPrd] = await db
-        .select({ id: prds.id })
+        .select({ id: prds.id, version: prds.version, approvedAt: prds.approvedAt })
         .from(prds)
         .where(eq(prds.featureId, featureId));
-      if (existingPrd) return null;
+
+      // Idempotency guard: a PRD already exists and this isn't an explicit
+      // regeneration (e.g. a duplicate/replayed event) — nothing to do.
+      if (existingPrd && !regenerate) return null;
+      // Approved PRDs are locked — never overwrite them, even on regenerate.
+      if (existingPrd?.approvedAt) return null;
 
       const [feature] = await db
         .select()
@@ -34,10 +42,10 @@ export const generatePrdFunction = inngest.createFunction(
 
       if (!feature) throw new Error(`Feature ${featureId} not found`);
 
-      return { feature, messages };
+      return { feature, messages, existingPrd: existingPrd ?? null };
     });
 
-    // PRD already existed — nothing to do
+    // Nothing to do (PRD already exists / is approved)
     if (context === null) return { featureId, status: "skipped" };
 
     await step.run("set-generating", async () => {
@@ -69,9 +77,7 @@ export const generatePrdFunction = inngest.createFunction(
         return { skipped: true };
       }
 
-      await db.insert(prds).values({
-        id: crypto.randomUUID(),
-        featureId,
+      const content = {
         problem: prdContent.problemStatement,
         goals: JSON.stringify(prdContent.goals),
         nonGoals: JSON.stringify(prdContent.nonGoals),
@@ -84,7 +90,31 @@ export const generatePrdFunction = inngest.createFunction(
         risks: JSON.stringify(prdContent.risks),
         estimatedTotalHours: prdContent.estimatedTotalHours,
         rawMarkdown: prdContent.rawMarkdown,
-      });
+      };
+
+      if (context.existingPrd) {
+        // Regeneration: bump to the next version in place (featureId is unique,
+        // so we reuse the same row), reset any prior approval, and drop the
+        // now-stale tasks so re-approval produces a fresh v<n> task set.
+        await db
+          .update(prds)
+          .set({
+            ...content,
+            version: context.existingPrd.version + 1,
+            approvedAt: null,
+            approvedBy: null,
+            updatedAt: new Date(),
+          })
+          .where(eq(prds.id, context.existingPrd.id));
+        await db.delete(tasks).where(eq(tasks.featureId, featureId));
+      } else {
+        await db.insert(prds).values({
+          id: crypto.randomUUID(),
+          featureId,
+          ...content,
+        });
+      }
+
       await db
         .update(featureRequests)
         .set({ status: "prd_ready", updatedAt: new Date() })

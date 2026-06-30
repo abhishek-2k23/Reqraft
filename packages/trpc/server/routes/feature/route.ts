@@ -13,6 +13,7 @@ import {
 
 import { orgProcedure, router } from "../../trpc";
 import { z } from "../../schema";
+import { enforceRateLimit } from "../../rate-limit";
 
 const featureStatusSchema = z.enum([
   "intake",
@@ -241,10 +242,52 @@ export const featureRouter = router({
       return { cancelled: true };
     }),
 
-  // Manually trigger PRD generation — fires the same Inngest event the AI uses when done clarifying
+  // Manually trigger PRD (re)generation — fires the same Inngest event the AI uses when done clarifying
   triggerPrdGeneration: orgProcedure
     .input(z.object({ featureId: z.string() }))
     .mutation(async ({ ctx, input }) => {
+      // Bill/abuse guard: cap how often a single user can kick off PRD generation.
+      enforceRateLimit({
+        key: `prd-generate:${ctx.session.user.id}`,
+        limit: 5,
+        windowMs: 60_000,
+        message: "You're generating PRDs too quickly — please wait a moment.",
+      });
+
+      const [feature] = await ctx.db
+        .select({ status: featureRequests.status })
+        .from(featureRequests)
+        .where(
+          and(
+            eq(featureRequests.id, input.featureId),
+            eq(featureRequests.organizationId, ctx.org.id),
+          ),
+        );
+
+      if (!feature) throw new TRPCError({ code: "NOT_FOUND" });
+
+      // Don't let a second generation start while one is already running.
+      if (feature.status === "prd_generating") {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "A PRD is already being generated for this feature.",
+        });
+      }
+
+      // A PRD already exists → this is an explicit regeneration (new version).
+      // Approved PRDs are locked, exactly like manual editing.
+      const [existingPrd] = await ctx.db
+        .select({ id: prds.id, approvedAt: prds.approvedAt })
+        .from(prds)
+        .where(eq(prds.featureId, input.featureId));
+
+      if (existingPrd?.approvedAt) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "This PRD is approved and can no longer be regenerated.",
+        });
+      }
+
       await ctx.db
         .update(featureRequests)
         .set({ status: "prd_generating", updatedAt: new Date() })
@@ -257,10 +300,10 @@ export const featureRouter = router({
 
       await ctx.emit({
         name: "feature/clarification-complete",
-        data: { featureId: input.featureId },
+        data: { featureId: input.featureId, regenerate: Boolean(existingPrd) },
       });
 
-      return { triggered: true };
+      return { triggered: true, regenerated: Boolean(existingPrd) };
     }),
 
   // Manually trigger task generation — fires the same Inngest event as PRD approval
@@ -270,6 +313,33 @@ export const featureRouter = router({
       specialtyOverrides: z.record(z.string(), z.string()).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
+      enforceRateLimit({
+        key: `task-generate:${ctx.session.user.id}`,
+        limit: 5,
+        windowMs: 60_000,
+        message: "You're generating tasks too quickly — please wait a moment.",
+      });
+
+      const [feature] = await ctx.db
+        .select({ status: featureRequests.status })
+        .from(featureRequests)
+        .where(
+          and(
+            eq(featureRequests.id, input.featureId),
+            eq(featureRequests.organizationId, ctx.org.id),
+          ),
+        );
+
+      if (!feature) throw new TRPCError({ code: "NOT_FOUND" });
+
+      // Block re-triggering while task generation is already running.
+      if (feature.status === "in_progress") {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "Engineering tasks are already being generated for this feature.",
+        });
+      }
+
       await ctx.db
         .update(featureRequests)
         .set({ status: "in_progress", updatedAt: new Date() })
@@ -291,6 +361,14 @@ export const featureRouter = router({
   sendClarificationMessage: orgProcedure
     .input(z.object({ featureId: z.string(), message: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
+      // Each clarification turn is an AI call — throttle to keep costs sane.
+      enforceRateLimit({
+        key: `clarify:${ctx.session.user.id}`,
+        limit: 20,
+        windowMs: 60_000,
+        message: "You're sending messages too quickly — please slow down.",
+      });
+
       // Save the user's message first
       await ctx.db.insert(clarificationMessages).values({
         id: crypto.randomUUID(),

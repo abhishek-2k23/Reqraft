@@ -1,8 +1,11 @@
 import { and, eq } from "@repo/database";
-import { featureRequests, prds } from "@repo/database/schema";
+import { prds } from "@repo/database/schema";
+
+import { TRPCError } from "@trpc/server";
 
 import { managerProcedure, orgProcedure, router } from "../../trpc";
 import { z } from "../../schema";
+import { enforceRateLimit } from "../../rate-limit";
 
 function safeParseArray(raw: string | null | undefined): string[] {
   if (!raw) return [];
@@ -47,6 +50,13 @@ export const prdRouter = router({
   editWithAI: managerProcedure
     .input(z.object({ prdId: z.string(), featureId: z.string(), prompt: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
+      enforceRateLimit({
+        key: `prd-edit:${ctx.session.user.id}`,
+        limit: 10,
+        windowMs: 60_000,
+        message: "You're editing the PRD too quickly — please wait a moment.",
+      });
+
       const [existing] = await ctx.db
         .select()
         .from(prds)
@@ -136,6 +146,28 @@ export const prdRouter = router({
       specialtyOverrides: z.record(z.string(), z.string()).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
+      enforceRateLimit({
+        key: `prd-approve:${ctx.session.user.id}`,
+        limit: 5,
+        windowMs: 60_000,
+        message: "You're approving too quickly — please wait a moment.",
+      });
+
+      // Idempotency / double-click guard: approving already kicks off task
+      // generation, so don't let a second approval fire a duplicate run.
+      const [existing] = await ctx.db
+        .select({ approvedAt: prds.approvedAt })
+        .from(prds)
+        .where(eq(prds.id, input.prdId));
+
+      if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "PRD not found" });
+      if (existing.approvedAt) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "This PRD has already been approved.",
+        });
+      }
+
       await ctx.db
         .update(prds)
         .set({ approvedBy: ctx.session.user.id, approvedAt: new Date() })

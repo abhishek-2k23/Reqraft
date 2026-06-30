@@ -87,6 +87,10 @@ export const generateTasksFunction = inngest.createFunction(
         }
       }
 
+      // Replace any prior task set (e.g. from a regenerated PRD version or a
+      // re-trigger) so we never accumulate duplicates.
+      await db.delete(tasks).where(eq(tasks.featureId, featureId));
+
       await db.insert(tasks).values(
         generatedTasks.map((task, index) => ({
           id: crypto.randomUUID(),
