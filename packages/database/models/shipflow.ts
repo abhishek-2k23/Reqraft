@@ -287,10 +287,23 @@ export const subscriptions = pgTable("subscription", {
   plan: text("plan").notNull().default("free"),
   status: text("status").notNull().default("active"),
   currentPeriodEnd: timestamp("current_period_end"),
+  // Included AI-review credits for the current plan (the monthly allowance).
   aiReviewCredits: integer("ai_review_credits").notNull().default(100),
+  // Credits consumed in the current period; resets to 0 each billing cycle.
+  aiReviewCreditsUsed: integer("ai_review_credits_used").notNull().default(0),
+  // When the credit window resets (billing cycle end, or +30d for free).
+  creditsResetAt: timestamp("credits_reset_at"),
   repositoryLimit: integer("repository_limit").notNull().default(1),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Idempotency ledger for inbound provider webhooks (Razorpay etc.) — keyed by
+// the provider's event id so retried/duplicate deliveries are applied once.
+export const processedWebhookEvents = pgTable("processed_webhook_event", {
+  id: text("id").primaryKey(),
+  provider: text("provider").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
 export const organizationsTable = organizations;
