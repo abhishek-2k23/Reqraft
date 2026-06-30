@@ -9,8 +9,11 @@ import {
 } from "@repo/database/schema";
 
 import { reviewPullRequestAgainstPrd } from "@/features/ai/qa-reviewer";
+import { consumeReviewCredit, resolveOrgIdForPullRequest, ReviewCreditError } from "@/features/billing/server/credits";
 import { getGithubApp } from "@/lib/github/app";
 import { publishOrgEvent } from "@/lib/realtime/server";
+
+export { ReviewCreditError };
 
 /**
  * Runs the full AI review for a cached pull request and posts the result back
@@ -29,6 +32,17 @@ export async function runReviewForPullRequest(pullRequestId: string) {
   }
 
   const featureId = pullRequest.featureId; // null for PRs not on a feature branch
+
+  // Billing gate: each review cycle (initial + re-runs) spends one AI-review
+  // credit. Block before any AI work when the org's monthly budget is spent.
+  const organizationId = await resolveOrgIdForPullRequest({
+    featureId,
+    repositoryId: pullRequest.repositoryId,
+  });
+  if (organizationId) {
+    const allowed = await consumeReviewCredit(organizationId);
+    if (!allowed) throw new ReviewCreditError();
+  }
 
   // PRD context — only present when the PR is linked to a feature.
   const [prd] = featureId

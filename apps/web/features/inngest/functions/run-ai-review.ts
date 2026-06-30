@@ -1,5 +1,5 @@
 import { reviewPullRequestAgainstPrd } from "@/features/ai/qa-reviewer";
-import { runReviewForPullRequest } from "@/features/github/review";
+import { runReviewForPullRequest, ReviewCreditError } from "@/features/github/review";
 
 import { inngest } from "../client";
 
@@ -29,6 +29,16 @@ export const reviewPullRequestFunction = inngest.createFunction(
     }
 
     // Standard path: run the shared review pipeline for the cached PR.
-    return step.run("run-review", async () => runReviewForPullRequest(pullRequestId));
+    return step.run("run-review", async () => {
+      try {
+        return await runReviewForPullRequest(pullRequestId);
+      } catch (error) {
+        // Out of credits is terminal — don't let Inngest retry (and re-charge).
+        if (error instanceof ReviewCreditError) {
+          return { skipped: true, reason: "no_credits" as const };
+        }
+        throw error;
+      }
+    });
   },
 );
