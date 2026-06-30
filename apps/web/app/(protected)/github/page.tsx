@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import { PageHeader } from "~/components/shipflow/ui-kit";
 import { Button } from "~/components/ui/button";
 import { cn } from "~/lib/utils";
-import { useActiveProject } from "~/components/shipflow/project-context";
+import { ProjectTag, useActiveProject } from "~/components/shipflow/project-context";
 import { GithubRepoDashboard, type ConnectedRepo } from "~/components/shipflow/github-repo-dashboard";
 import { trpc } from "~/trpc/client";
 import {
@@ -105,7 +105,7 @@ function ConnectedRepoRow({
   isDeletedOnGithub,
   onSelect,
 }: {
-  repo: { id: string; fullName: string; name: string; defaultBranch: string | null; installationId: number | null };
+  repo: { id: string; fullName: string; name: string; defaultBranch: string | null; installationId: number | null; projectId: string | null };
   isDeletedOnGithub: boolean;
   onSelect: () => void;
 }) {
@@ -133,15 +133,22 @@ function ConnectedRepoRow({
         </div>
       ) : (
         <button type="button" onClick={onSelect} className="flex-1 min-w-0 cursor-pointer text-left">
-          <p className="truncate text-sm font-medium text-foreground">{repo.fullName}</p>
+          <div className="flex items-center gap-2">
+            <p className="truncate text-sm font-medium text-foreground">{repo.fullName}</p>
+            <ProjectTag projectId={repo.projectId} className="shrink-0" />
+          </div>
           <p className="text-xs text-muted-foreground">branch: {repo.defaultBranch ?? "main"}</p>
         </button>
       )}
 
       {!isDeletedOnGithub && !confirming && (
-        <span className="pointer-events-none inline-flex shrink-0 items-center gap-1 text-xs text-primary">
+        <button
+          type="button"
+          onClick={onSelect}
+          className="inline-flex shrink-0 cursor-pointer items-center gap-1 text-xs text-primary transition hover:underline"
+        >
           View dashboard <ChevronRight className="size-3.5" />
-        </span>
+        </button>
       )}
 
       {confirming ? (
@@ -186,10 +193,15 @@ export default function GithubPage() {
   const utils = trpc.useUtils();
   const { data: installStatus = { installed: false, installation: null }, refetch } =
     trpc.github.getInstallationStatus.useQuery();
-  const { data: connectedRepos = [] } = trpc.github.repositories.useQuery(
-    { projectId: activeProjectId ?? undefined },
-    { enabled: Boolean(activeProjectId) },
-  );
+  // All repos connected anywhere in the org. We scope the displayed list to the
+  // active project below, and use the full set to hide already-connected repos
+  // from the "Available" pool (one repo → one project).
+  const { data: orgRepos = [] } = trpc.github.repositories.useQuery(undefined, {
+    enabled: installStatus.installed,
+  });
+  const connectedRepos = activeProjectId
+    ? orgRepos.filter((r) => r.projectId === activeProjectId)
+    : orgRepos;
 
   const [githubRepos, setGithubRepos] = useState<GithubRepo[]>([]);
   const [loadingRepos, setLoadingRepos] = useState(false);
@@ -349,8 +361,9 @@ export default function GithubPage() {
     }, 700);
   }
 
-  const connectedFullNames = new Set(connectedRepos.map((r) => r.fullName));
-  const unconnectedRepos = githubRepos.filter((r) => !connectedFullNames.has(r.fullName));
+  // Hide repos already connected to ANY project in the org from the pool.
+  const connectedAnywhere = new Set(orgRepos.map((r) => r.fullName));
+  const unconnectedRepos = githubRepos.filter((r) => !connectedAnywhere.has(r.fullName));
   const githubFullNames = new Set(githubRepos.map((r) => r.fullName));
 
   // Repo search — only worth showing once there's more than one repo to sift.
