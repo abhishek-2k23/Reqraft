@@ -3,7 +3,6 @@ import {
   featureRequests,
   members,
   repositories,
-  reviewCycles,
   subscriptions,
 } from "@repo/database/schema";
 
@@ -67,12 +66,11 @@ export const billingRouter = router({
       .from(featureRequests)
       .where(eq(featureRequests.organizationId, ctx.org.id));
 
-    // AI review cycles are the credit-consuming action.
-    const [reviews] = await ctx.db
-      .select({ value: count() })
-      .from(reviewCycles)
-      .innerJoin(featureRequests, eq(reviewCycles.featureId, featureRequests.id))
-      .where(eq(featureRequests.organizationId, ctx.org.id));
+    // AI-review credits are metered on the subscription. Show 0 used once the
+    // period has rolled over (the consuming path persists the actual reset).
+    const periodExpired =
+      !subscription?.creditsResetAt || subscription.creditsResetAt.getTime() <= Date.now();
+    const creditsUsed = !subscription || periodExpired ? 0 : subscription.aiReviewCreditsUsed;
 
     return {
       plan: subscription?.plan ?? "free",
@@ -81,8 +79,10 @@ export const billingRouter = router({
       usage: {
         seatsUsed: seats?.value ?? 0,
         repositoriesUsed: repos?.value ?? 0,
+        repositoryLimit: subscription?.repositoryLimit ?? 1,
         featuresCreated: features?.value ?? 0,
-        aiReviewsUsed: reviews?.value ?? 0,
+        creditsUsed,
+        creditsIncluded: subscription?.aiReviewCredits ?? 100,
       },
     };
   }),
