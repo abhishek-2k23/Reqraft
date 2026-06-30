@@ -63,10 +63,10 @@ function timeAgo(value: string | Date | null) {
 
 function StatPill({ icon, label, value }: { icon: React.ReactNode; label: string; value: number | string }) {
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+    <div className="flex items-center gap-3 rounded-xl border border-foreground/10 bg-foreground/[0.03] px-4 py-3">
       <div className="text-zinc-400">{icon}</div>
       <div>
-        <p className="text-lg font-semibold text-white">{value}</p>
+        <p className="text-lg font-semibold text-foreground">{value}</p>
         <p className="text-[11px] uppercase tracking-wide text-zinc-500">{label}</p>
       </div>
     </div>
@@ -75,18 +75,18 @@ function StatPill({ icon, label, value }: { icon: React.ReactNode; label: string
 
 function ReviewBadge({ review }: { review: { status: string; overallVerdict: string | null; prdComplianceScore: number | null } | null }) {
   if (!review) {
-    return <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] text-slate-500">No review</span>;
+    return <span className="rounded-full border border-foreground/10 bg-foreground/5 px-2 py-0.5 text-[11px] text-muted-foreground">No review</span>;
   }
   if (review.status === "running") {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-2 py-0.5 text-[11px] font-medium text-cyan-300">
+      <span className="inline-flex items-center gap-1 rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
         <Loader2 className="size-3 animate-spin" /> Reviewing
       </span>
     );
   }
   if (review.overallVerdict === "approve") {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2 py-0.5 text-[11px] font-medium text-emerald-300">
+      <span className="inline-flex items-center gap-1 rounded-full border border-success/20 bg-success/10 px-2 py-0.5 text-[11px] font-medium text-success">
         <CheckCircle2 className="size-3" /> Approved{review.prdComplianceScore != null ? ` · ${review.prdComplianceScore}` : ""}
       </span>
     );
@@ -105,14 +105,14 @@ function PrStateBadge({ state }: { state: string }) {
   if (state === "closed") {
     return <span className="inline-flex items-center gap-1 rounded-full bg-red-500/15 px-2 py-0.5 text-[11px] font-medium text-red-300"><GitPullRequestClosed className="size-3" />Closed</span>;
   }
-  return <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-medium text-emerald-300"><GitPullRequest className="size-3" />Open</span>;
+  return <span className="inline-flex items-center gap-1 rounded-full bg-success/15 px-2 py-0.5 text-[11px] font-medium text-success"><GitPullRequest className="size-3" />Open</span>;
 }
 
 function Shimmer() {
   return (
     <div className="space-y-3">
       {Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} className="h-16 animate-pulse rounded-xl border border-white/10 bg-white/[0.03]" />
+        <div key={i} className="h-16 animate-pulse rounded-xl border border-foreground/10 bg-foreground/[0.03]" />
       ))}
     </div>
   );
@@ -190,7 +190,7 @@ function PrRow({
       <div className="flex flex-wrap items-center gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <a href={pr.url} target="_blank" rel="noreferrer" className="truncate text-sm font-medium text-white hover:text-cyan-300">
+            <a href={pr.url} target="_blank" rel="noreferrer" className="truncate text-sm font-medium text-foreground hover:text-primary">
               #{pr.number} {pr.title}
             </a>
             <PrStateBadge state={pr.state} />
@@ -200,7 +200,7 @@ function PrRow({
               </span>
             )}
           </div>
-          <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+          <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             {pr.authorLogin && <span>@{pr.authorLogin}</span>}
             <span className="inline-flex items-center gap-1 font-mono">
               <GitBranch className="size-3" />
@@ -213,7 +213,7 @@ function PrRow({
         {pr.featureId && (
           <Link
             href={`/features/${pr.featureId}?tab=review-history`}
-            className="inline-flex items-center gap-1 rounded-lg border border-cyan-300/20 bg-cyan-300/10 px-2.5 py-1 text-[11px] font-medium text-cyan-300 transition hover:bg-cyan-300/20"
+            className="inline-flex items-center gap-1 rounded-lg border border-primary/20 bg-primary/10 px-2.5 py-1 text-[11px] font-medium text-primary transition hover:bg-primary/20"
           >
             View review
           </Link>
@@ -227,7 +227,7 @@ function PrRow({
             type="button"
             onClick={handleRunReview}
             disabled={reviewing}
-            className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-cyan-300/20 bg-cyan-300/10 px-2.5 py-1.5 text-xs font-medium text-cyan-200 transition hover:bg-cyan-300/20 disabled:opacity-50"
+            className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-primary/20 bg-primary/10 px-2.5 py-1.5 text-xs font-medium text-primary transition hover:bg-primary/20 disabled:opacity-50"
           >
             {reviewing ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
             {pr.review ? "Re-run review" : "Run review"}
@@ -235,7 +235,7 @@ function PrRow({
           <button
             type="button"
             onClick={() => setRenaming((v) => !v)}
-            className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-slate-300 transition hover:bg-white/10"
+            className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-foreground/10 bg-foreground/5 px-2.5 py-1.5 text-xs text-foreground/80 transition hover:bg-foreground/10"
           >
             <Pencil className="size-3.5" />
             Rename branch
@@ -244,8 +244,8 @@ function PrRow({
       )}
 
       {renaming && (
-        <div className="mt-3 rounded-lg border border-white/10 bg-white/[0.03] p-3">
-          <p className="mb-2 text-xs text-slate-400">
+        <div className="mt-3 rounded-lg border border-foreground/10 bg-foreground/[0.03] p-3">
+          <p className="mb-2 text-xs text-muted-foreground">
             Rename the branch to match a feature. This renames the branch on GitHub, retargets this PR, and starts an AI review.
           </p>
           {features.length === 0 ? (
@@ -255,7 +255,7 @@ function PrRow({
               <select
                 value={selectedFeatureId}
                 onChange={(e) => setSelectedFeatureId(e.target.value)}
-                className="max-w-[260px] flex-1 cursor-pointer rounded-lg border border-white/10 bg-zinc-900 px-2.5 py-1.5 text-xs text-slate-200 outline-none focus:border-cyan-300/40"
+                className="max-w-[260px] flex-1 cursor-pointer rounded-lg border border-foreground/10 bg-zinc-900 px-2.5 py-1.5 text-xs text-foreground outline-none focus:border-primary/40"
               >
                 {features.map((f) => (
                   <option key={f.id} value={f.id}>
@@ -263,12 +263,12 @@ function PrRow({
                   </option>
                 ))}
               </select>
-              <span className="break-all font-mono text-[11px] text-slate-500">→ feature/{selectedFeatureId}</span>
+              <span className="break-all font-mono text-[11px] text-muted-foreground">→ feature/{selectedFeatureId}</span>
               <button
                 type="button"
                 onClick={handleRename}
                 disabled={renamePending}
-                className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-cyan-300 px-2.5 py-1.5 text-xs font-semibold text-slate-950 transition hover:bg-cyan-200 disabled:opacity-50"
+                className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-primary px-2.5 py-1.5 text-xs font-semibold text-primary-foreground transition hover:bg-primary disabled:opacity-50"
               >
                 {renamePending && <Loader2 className="size-3.5 animate-spin" />}
                 Rename & review
@@ -276,7 +276,7 @@ function PrRow({
               <button
                 type="button"
                 onClick={() => setRenaming(false)}
-                className="cursor-pointer rounded-lg border border-white/10 px-2.5 py-1.5 text-xs text-slate-400 transition hover:bg-white/5"
+                className="cursor-pointer rounded-lg border border-foreground/10 px-2.5 py-1.5 text-xs text-muted-foreground transition hover:bg-foreground/5"
               >
                 Cancel
               </button>
@@ -346,13 +346,13 @@ export function GithubRepoDashboard({ repo, onBack }: { repo: ConnectedRepo; onB
           <button
             type="button"
             onClick={onBack}
-            className="grid size-9 place-items-center rounded-lg border border-white/10 bg-white/5 text-slate-400 transition hover:bg-white/10 hover:text-white"
+            className="grid size-9 place-items-center rounded-lg border border-foreground/10 bg-foreground/5 text-muted-foreground transition hover:bg-foreground/10 hover:text-foreground"
           >
             <ArrowLeft className="size-4" />
           </button>
           <div>
-            <h2 className="text-lg font-semibold text-white">{repo.fullName}</h2>
-            <p className="text-xs text-slate-500">
+            <h2 className="text-lg font-semibold text-foreground">{repo.fullName}</h2>
+            <p className="text-xs text-muted-foreground">
               {overview?.private ? "Private" : "Public"} · default {overview?.defaultBranch ?? repo.defaultBranch ?? "main"}
             </p>
           </div>
@@ -362,7 +362,7 @@ export function GithubRepoDashboard({ repo, onBack }: { repo: ConnectedRepo; onB
             type="button"
             onClick={handleSync}
             disabled={syncing}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-300 transition hover:bg-white/10 disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-foreground/10 bg-foreground/5 px-3 py-1.5 text-xs text-foreground/80 transition hover:bg-foreground/10 disabled:opacity-50"
           >
             <RefreshCw className={cn("size-3.5", syncing && "animate-spin")} />
             Sync
@@ -372,7 +372,7 @@ export function GithubRepoDashboard({ repo, onBack }: { repo: ConnectedRepo; onB
               href={overview.htmlUrl}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-300 transition hover:bg-white/10"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-foreground/10 bg-foreground/5 px-3 py-1.5 text-xs text-foreground/80 transition hover:bg-foreground/10"
             >
               <ExternalLink className="size-3.5" />
               Open on GitHub
@@ -382,11 +382,11 @@ export function GithubRepoDashboard({ repo, onBack }: { repo: ConnectedRepo; onB
       </div>
 
       <Tabs defaultValue="overview" className="gap-5">
-        <TabsList className="h-auto flex-wrap justify-start rounded-lg border border-white/10 bg-white/[0.045] p-1">
-          <TabsTrigger value="overview" className="data-[state=active]:bg-cyan-300 data-[state=active]:text-slate-950">Overview</TabsTrigger>
-          <TabsTrigger value="prs" className="data-[state=active]:bg-cyan-300 data-[state=active]:text-slate-950">Pull Requests ({prs.length})</TabsTrigger>
-          <TabsTrigger value="commits" className="data-[state=active]:bg-cyan-300 data-[state=active]:text-slate-950">Commits</TabsTrigger>
-          <TabsTrigger value="contributors" className="data-[state=active]:bg-cyan-300 data-[state=active]:text-slate-950">Contributors</TabsTrigger>
+        <TabsList className="h-auto flex-wrap justify-start rounded-lg border border-foreground/10 bg-foreground/[0.045] p-1">
+          <TabsTrigger value="overview" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Overview</TabsTrigger>
+          <TabsTrigger value="prs" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Pull Requests ({prs.length})</TabsTrigger>
+          <TabsTrigger value="commits" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Commits</TabsTrigger>
+          <TabsTrigger value="contributors" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Contributors</TabsTrigger>
         </TabsList>
 
         {/* Overview */}
@@ -394,12 +394,12 @@ export function GithubRepoDashboard({ repo, onBack }: { repo: ConnectedRepo; onB
           {loading ? (
             <Shimmer />
           ) : !overview ? (
-            <p className="rounded-xl border border-white/10 bg-white/[0.03] p-8 text-center text-sm text-slate-500">
+            <p className="rounded-xl border border-foreground/10 bg-foreground/[0.03] p-8 text-center text-sm text-muted-foreground">
               Couldn&apos;t load repository details. Try syncing.
             </p>
           ) : (
             <div className="space-y-5">
-              {overview.description && <p className="text-sm leading-6 text-slate-300">{overview.description}</p>}
+              {overview.description && <p className="text-sm leading-6 text-foreground/80">{overview.description}</p>}
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <StatPill icon={<Star className="size-5" />} label="Stars" value={overview.stars} />
                 <StatPill icon={<GitFork className="size-5" />} label="Forks" value={overview.forks} />
@@ -407,17 +407,17 @@ export function GithubRepoDashboard({ repo, onBack }: { repo: ConnectedRepo; onB
                 <StatPill icon={<Eye className="size-5" />} label="Watchers" value={overview.watchers} />
               </div>
               <div className="grid gap-3 sm:grid-cols-3">
-                <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-                  <p className="text-xs text-slate-500">Language</p>
-                  <p className="mt-1 text-sm font-medium text-white">{overview.language ?? "—"}</p>
+                <div className="rounded-xl border border-foreground/10 bg-foreground/[0.03] p-4">
+                  <p className="text-xs text-muted-foreground">Language</p>
+                  <p className="mt-1 text-sm font-medium text-foreground">{overview.language ?? "—"}</p>
                 </div>
-                <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-                  <p className="text-xs text-slate-500">Default branch</p>
-                  <p className="mt-1 font-mono text-sm font-medium text-white">{overview.defaultBranch}</p>
+                <div className="rounded-xl border border-foreground/10 bg-foreground/[0.03] p-4">
+                  <p className="text-xs text-muted-foreground">Default branch</p>
+                  <p className="mt-1 font-mono text-sm font-medium text-foreground">{overview.defaultBranch}</p>
                 </div>
-                <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-                  <p className="text-xs text-slate-500">Last push</p>
-                  <p className="mt-1 text-sm font-medium text-white">{timeAgo(overview.pushedAt)}</p>
+                <div className="rounded-xl border border-foreground/10 bg-foreground/[0.03] p-4">
+                  <p className="text-xs text-muted-foreground">Last push</p>
+                  <p className="mt-1 text-sm font-medium text-foreground">{timeAgo(overview.pushedAt)}</p>
                 </div>
               </div>
             </div>
@@ -429,11 +429,11 @@ export function GithubRepoDashboard({ repo, onBack }: { repo: ConnectedRepo; onB
           {prsQuery.isLoading || loading ? (
             <Shimmer />
           ) : prs.length === 0 ? (
-            <p className="rounded-xl border border-white/10 bg-white/[0.03] p-8 text-center text-sm text-slate-500">
-              No pull requests yet. Open a PR (use a <span className="font-mono text-slate-400">feature/&#123;id&#125;</span> branch to trigger AI review).
+            <p className="rounded-xl border border-foreground/10 bg-foreground/[0.03] p-8 text-center text-sm text-muted-foreground">
+              No pull requests yet. Open a PR (use a <span className="font-mono text-muted-foreground">feature/&#123;id&#125;</span> branch to trigger AI review).
             </p>
           ) : (
-            <div className="divide-y divide-white/5 overflow-hidden rounded-xl border border-white/10">
+            <div className="divide-y divide-foreground/5 overflow-hidden rounded-xl border border-foreground/10">
               {prs.map((pr) => (
                 <PrRow key={pr.id} pr={pr} features={features} onChanged={refreshPrs} />
               ))}
@@ -446,29 +446,29 @@ export function GithubRepoDashboard({ repo, onBack }: { repo: ConnectedRepo; onB
           {loading ? (
             <Shimmer />
           ) : commits.length === 0 ? (
-            <p className="rounded-xl border border-white/10 bg-white/[0.03] p-8 text-center text-sm text-slate-500">No commits found.</p>
+            <p className="rounded-xl border border-foreground/10 bg-foreground/[0.03] p-8 text-center text-sm text-muted-foreground">No commits found.</p>
           ) : (
-            <div className="divide-y divide-white/5 overflow-hidden rounded-xl border border-white/10">
+            <div className="divide-y divide-foreground/5 overflow-hidden rounded-xl border border-foreground/10">
               {commits.map((c) => (
                 <div key={c.sha} className="flex items-center gap-3 px-5 py-3.5">
-                  <GitCommitHorizontal className="size-4 shrink-0 text-slate-500" />
+                  <GitCommitHorizontal className="size-4 shrink-0 text-muted-foreground" />
                   {c.authorAvatar ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={c.authorAvatar} alt={c.authorLogin ?? ""} className="size-6 shrink-0 rounded-full" />
                   ) : (
-                    <div className="grid size-6 shrink-0 place-items-center rounded-full bg-white/10 text-[10px] text-slate-300">
+                    <div className="grid size-6 shrink-0 place-items-center rounded-full bg-foreground/10 text-[10px] text-foreground/80">
                       {(c.authorName ?? "?")[0]}
                     </div>
                   )}
                   <div className="min-w-0 flex-1">
-                    <a href={c.htmlUrl} target="_blank" rel="noreferrer" className="block truncate text-sm text-slate-200 hover:text-cyan-300">
+                    <a href={c.htmlUrl} target="_blank" rel="noreferrer" className="block truncate text-sm text-foreground hover:text-primary">
                       {c.message}
                     </a>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-muted-foreground">
                       {c.authorLogin ?? c.authorName ?? "unknown"} · {timeAgo(c.date)}
                     </p>
                   </div>
-                  <span className="shrink-0 font-mono text-[11px] text-slate-600">{c.sha.slice(0, 7)}</span>
+                  <span className="shrink-0 font-mono text-[11px] text-muted-foreground">{c.sha.slice(0, 7)}</span>
                 </div>
               ))}
             </div>
@@ -480,8 +480,8 @@ export function GithubRepoDashboard({ repo, onBack }: { repo: ConnectedRepo; onB
           {loading ? (
             <Shimmer />
           ) : contributors.length === 0 ? (
-            <p className="rounded-xl border border-white/10 bg-white/[0.03] p-8 text-center text-sm text-slate-500">
-              <Users className="mx-auto mb-2 size-5 text-slate-600" />
+            <p className="rounded-xl border border-foreground/10 bg-foreground/[0.03] p-8 text-center text-sm text-muted-foreground">
+              <Users className="mx-auto mb-2 size-5 text-muted-foreground" />
               No contributors found.
             </p>
           ) : (
@@ -492,17 +492,17 @@ export function GithubRepoDashboard({ repo, onBack }: { repo: ConnectedRepo; onB
                   href={c.htmlUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 transition hover:border-cyan-300/30 hover:bg-white/[0.06]"
+                  className="flex items-center gap-3 rounded-xl border border-foreground/10 bg-foreground/[0.03] px-4 py-3 transition hover:border-primary/30 hover:bg-foreground/[0.06]"
                 >
                   {c.avatar ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={c.avatar} alt={c.login} className="size-9 rounded-full" />
                   ) : (
-                    <div className="grid size-9 place-items-center rounded-full bg-white/10 text-sm text-slate-300">{c.login[0]}</div>
+                    <div className="grid size-9 place-items-center rounded-full bg-foreground/10 text-sm text-foreground/80">{c.login[0]}</div>
                   )}
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-white">{c.login}</p>
-                    <p className="text-xs text-slate-500">{c.contributions} commits</p>
+                    <p className="truncate text-sm font-medium text-foreground">{c.login}</p>
+                    <p className="text-xs text-muted-foreground">{c.contributions} commits</p>
                   </div>
                 </a>
               ))}

@@ -40,7 +40,7 @@ export function OrgSettingsForm() {
   });
 
   if (isLoading) {
-    return <div className="h-24 animate-pulse rounded-lg bg-white/5" />;
+    return <div className="h-24 animate-pulse rounded-lg bg-foreground/5" />;
   }
 
   if (!org) return null;
@@ -50,23 +50,23 @@ export function OrgSettingsForm() {
   return (
     <div className="grid gap-4">
       <div className="grid gap-1.5">
-        <Label htmlFor="org-name" className="text-xs text-slate-400">Organization name</Label>
+        <Label htmlFor="org-name" className="text-xs text-muted-foreground">Organization name</Label>
         <Input
           id="org-name"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-600"
+          className="border-foreground/10 bg-foreground/5 text-foreground placeholder:text-muted-foreground"
         />
       </div>
       <div className="grid gap-1.5">
-        <Label htmlFor="org-slug" className="text-xs text-slate-400">Slug</Label>
+        <Label htmlFor="org-slug" className="text-xs text-muted-foreground">Slug</Label>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-500">reqraft.in/</span>
+          <span className="text-xs text-muted-foreground">reqraft.in/</span>
           <Input
             id="org-slug"
             value={slug}
             onChange={(e) => setSlug(toSlug(e.target.value))}
-            className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-600"
+            className="border-foreground/10 bg-foreground/5 text-foreground placeholder:text-muted-foreground"
           />
         </div>
       </div>
@@ -74,7 +74,7 @@ export function OrgSettingsForm() {
         <Button
           onClick={() => update.mutate({ name, slug })}
           disabled={!dirty || !name.trim() || !slug.trim() || update.isPending}
-          className="bg-cyan-300 text-slate-950 hover:bg-cyan-200 disabled:opacity-40"
+          className="bg-primary text-primary-foreground hover:bg-primary disabled:opacity-40"
         >
           {update.isPending ? <Loader2 className="size-4 animate-spin" /> : "Save changes"}
         </Button>

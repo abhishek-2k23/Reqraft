@@ -83,16 +83,16 @@ function InvitePageContent() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#090b10] px-4">
-      <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#0d1118] p-10 text-center shadow-2xl">
+      <div className="w-full max-w-md rounded-2xl border border-foreground/10 bg-[#0d1118] p-10 text-center shadow-2xl">
         <div className="mb-8 flex items-center justify-center gap-2">
           <Image src="/icons/reqraft-icon-transparent-512.png" alt="Reqraft" width={32} height={32} className="size-8" priority />
-          <span className="text-xl font-bold tracking-tight text-cyan-300">Reqraft</span>
+          <span className="text-xl font-bold tracking-tight text-primary">Reqraft</span>
         </div>
 
         {(state.status === "loading" || state.status === "accepting") && (
           <div className="flex flex-col items-center gap-4">
-            <Loader2 className="size-10 animate-spin text-cyan-300" />
-            <p className="text-slate-400">
+            <Loader2 className="size-10 animate-spin text-primary" />
+            <p className="text-muted-foreground">
               {state.status === "accepting" ? "Accepting invitation…" : "Verifying your invitation…"}
             </p>
           </div>
@@ -100,23 +100,23 @@ function InvitePageContent() {
 
         {state.status === "needs-signin" && invite && (
           <div className="flex flex-col items-center gap-6">
-            <div className="flex size-16 items-center justify-center rounded-full bg-cyan-300/10">
-              <Mail className="size-8 text-cyan-300" />
+            <div className="flex size-16 items-center justify-center rounded-full bg-primary/10">
+              <Mail className="size-8 text-primary" />
             </div>
             <div>
-              <p className="text-xl font-semibold text-white">You&apos;re invited to join</p>
-              <p className="mt-1 text-2xl font-bold text-cyan-300">{invite.orgName}</p>
-              <p className="mt-3 text-sm text-slate-400">
-                as a <span className="font-medium text-slate-300">{invite.role}</span>
+              <p className="text-xl font-semibold text-foreground">You&apos;re invited to join</p>
+              <p className="mt-1 text-2xl font-bold text-primary">{invite.orgName}</p>
+              <p className="mt-3 text-sm text-muted-foreground">
+                as a <span className="font-medium text-foreground/80">{invite.role}</span>
               </p>
             </div>
             <Button
               onClick={handleSignIn}
-              className="w-full bg-cyan-300 text-slate-950 hover:bg-cyan-200"
+              className="w-full bg-primary text-primary-foreground hover:bg-primary"
             >
               Sign in to accept
             </Button>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-muted-foreground">
               Don&apos;t have an account? You can sign up on the next page.
             </p>
           </div>
@@ -124,10 +124,10 @@ function InvitePageContent() {
 
         {state.status === "success" && (
           <div className="flex flex-col items-center gap-4">
-            <CheckCircle2 className="size-14 text-emerald-400" />
-            <p className="text-xl font-semibold text-white">You&apos;re in!</p>
-            <p className="text-sm text-slate-400">
-              Welcome to <span className="text-slate-200">{state.orgName}</span>. Redirecting to your dashboard…
+            <CheckCircle2 className="size-14 text-success" />
+            <p className="text-xl font-semibold text-foreground">You&apos;re in!</p>
+            <p className="text-sm text-muted-foreground">
+              Welcome to <span className="text-foreground">{state.orgName}</span>. Redirecting to your dashboard…
             </p>
           </div>
         )}
@@ -135,12 +135,12 @@ function InvitePageContent() {
         {state.status === "error" && (
           <div className="flex flex-col items-center gap-4">
             <XCircle className="size-14 text-red-400" />
-            <p className="text-xl font-semibold text-white">Invitation invalid</p>
-            <p className="text-sm text-slate-400">{state.message}</p>
+            <p className="text-xl font-semibold text-foreground">Invitation invalid</p>
+            <p className="text-sm text-muted-foreground">{state.message}</p>
             <Button
               variant="ghost"
               onClick={() => router.push("/")}
-              className="text-slate-400 hover:text-white"
+              className="text-muted-foreground hover:text-foreground"
             >
               Go to homepage
             </Button>

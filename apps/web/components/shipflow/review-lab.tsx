@@ -28,16 +28,16 @@ export function ReviewLab() {
   const reviewMutation = trpc.shipflow.reviewPullRequest.useMutation();
 
   return (
-    <div className="rounded-lg border border-cyan-300/20 bg-cyan-300/10 p-5">
+    <div className="rounded-lg border border-primary/20 bg-primary/10 p-5">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <p className="text-lg font-semibold text-white">tRPC PR review lab</p>
-          <p className="text-sm text-cyan-50/75">
+          <p className="text-lg font-semibold text-foreground">tRPC PR review lab</p>
+          <p className="text-sm text-primary/75">
             Runs the Reqraft PRD-aware reviewer through `shipflow.reviewPullRequest`.
           </p>
         </div>
         <button
-          className="inline-flex items-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-100 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition hover:bg-primary disabled:cursor-not-allowed disabled:opacity-60"
           disabled={reviewMutation.isPending}
           onClick={() => {
             setEnabled(true);
@@ -54,22 +54,22 @@ export function ReviewLab() {
       </div>
 
       {enabled ? (
-        <div className="mt-5 rounded-md border border-white/10 bg-black/30 p-4">
+        <div className="mt-5 rounded-md border border-foreground/10 bg-muted p-4">
           {reviewMutation.data ? (
             <>
-              <p className="text-sm font-medium text-white">{reviewMutation.data.summary}</p>
+              <p className="text-sm font-medium text-foreground">{reviewMutation.data.summary}</p>
               <div className="mt-3 space-y-2">
                 {reviewMutation.data.findings.map((finding) => (
-                  <div key={`${finding.file}-${finding.message}`} className="rounded-md bg-white/5 p-3 text-sm text-slate-200">
-                    <span className="text-cyan-200">{finding.severity}</span> · {finding.file}: {finding.message}
+                  <div key={`${finding.file}-${finding.message}`} className="rounded-md bg-foreground/5 p-3 text-sm text-foreground">
+                    <span className="text-primary">{finding.severity}</span> · {finding.file}: {finding.message}
                   </div>
                 ))}
               </div>
             </>
           ) : reviewMutation.error ? (
-            <p className="text-sm text-rose-200">{reviewMutation.error.message}</p>
+            <p className="text-sm text-destructive">{reviewMutation.error.message}</p>
           ) : (
-            <p className="text-sm text-slate-300">Waiting for review result...</p>
+            <p className="text-sm text-foreground/80">Waiting for review result...</p>
           )}
         </div>
       ) : null}

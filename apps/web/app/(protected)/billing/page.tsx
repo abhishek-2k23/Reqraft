@@ -29,23 +29,23 @@ function UsageBar({ label, used, limit }: { label: string; used: number; limit: 
   const hasLimit = typeof limit === "number" && limit > 0;
   const pct = hasLimit ? Math.min(Math.round((used / limit) * 100), 100) : 0;
   const tone = !hasLimit
-    ? "bg-cyan-300"
+    ? "bg-primary"
     : pct >= 100
       ? "bg-red-400"
       : pct >= 80
         ? "bg-amber-400"
-        : "bg-cyan-300";
+        : "bg-primary";
 
   return (
     <div>
       <div className="mb-1.5 flex items-baseline justify-between">
-        <p className="text-xs text-slate-400">{label}</p>
-        <p className="font-mono text-xs text-slate-300">
+        <p className="text-xs text-muted-foreground">{label}</p>
+        <p className="font-mono text-xs text-foreground/80">
           {INR.format(used)}
-          {hasLimit ? <span className="text-slate-500"> / {INR.format(limit)}</span> : null}
+          {hasLimit ? <span className="text-muted-foreground"> / {INR.format(limit)}</span> : null}
         </p>
       </div>
-      <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/[0.06]">
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-foreground/[0.06]">
         <div className={cn("h-full rounded-full transition-all", tone)} style={{ width: `${hasLimit ? pct : 6}%` }} />
       </div>
     </div>
@@ -72,13 +72,13 @@ export default async function BillingPage() {
 
       <div className="grid gap-6">
         {/* Current plan + real usage */}
-        <div className="rounded-lg border border-white/10 bg-white/[0.045] p-5">
+        <div className="rounded-lg border border-foreground/10 bg-foreground/[0.045] p-5">
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="text-sm font-semibold text-white">Current usage</h2>
-              <p className="mt-1 text-xs text-slate-500">
+              <h2 className="text-sm font-semibold text-foreground">Current usage</h2>
+              <p className="mt-1 text-xs text-muted-foreground">
                 You&apos;re on the{" "}
-                <span className="font-medium capitalize text-cyan-300">{details.label}</span> plan
+                <span className="font-medium capitalize text-primary">{details.label}</span> plan
                 {data?.currentPeriodEnd
                   ? ` — renews ${new Date(data.currentPeriodEnd).toLocaleDateString("en-IN")}`
                   : ""}
@@ -86,7 +86,7 @@ export default async function BillingPage() {
               </p>
             </div>
             <div className="flex items-center gap-3">
-              <span className="rounded-full border border-cyan-300/30 bg-cyan-300/10 px-3 py-1 text-xs font-semibold text-cyan-300">
+              <span className="rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
                 {details.monthlyPriceInr === 0 ? "Free" : `₹${INR.format(details.monthlyPriceInr)}/mo`}
               </span>
               {isPaid ? <CancelButton /> : null}
@@ -113,26 +113,26 @@ export default async function BillingPage() {
                 key={planId}
                 className={cn(
                   "flex flex-col rounded-lg border p-5",
-                  highlight ? "border-cyan-300/40 bg-cyan-300/5" : "border-white/10 bg-white/[0.03]",
-                  isCurrent && "ring-1 ring-cyan-300/50",
+                  highlight ? "border-primary/40 bg-primary/5" : "border-foreground/10 bg-foreground/[0.03]",
+                  isCurrent && "ring-1 ring-primary/50",
                 )}
               >
                 {isCurrent ? (
-                  <span className="mb-3 inline-block w-fit rounded-full border border-cyan-300/30 bg-cyan-300/10 px-2.5 py-0.5 text-[10px] font-semibold text-cyan-300">
+                  <span className="mb-3 inline-block w-fit rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 text-[10px] font-semibold text-primary">
                     Current plan
                   </span>
                 ) : null}
-                <h3 className="mb-1 text-sm font-semibold text-slate-300">{plan.label}</h3>
+                <h3 className="mb-1 text-sm font-semibold text-foreground/80">{plan.label}</h3>
                 <div className="mb-4 flex items-baseline gap-1">
-                  <span className="text-2xl font-bold text-white">
+                  <span className="text-2xl font-bold text-foreground">
                     {plan.monthlyPriceInr === 0 ? "₹0" : `₹${INR.format(plan.monthlyPriceInr)}`}
                   </span>
-                  <span className="text-xs text-slate-500">/month</span>
+                  <span className="text-xs text-muted-foreground">/month</span>
                 </div>
                 <ul className="mb-5 space-y-2">
                   {planFeatures(planId).map((feature) => (
-                    <li key={feature} className="flex items-center gap-2 text-xs text-slate-300">
-                      <CheckCircle2 className="size-3 shrink-0 text-cyan-300" />
+                    <li key={feature} className="flex items-center gap-2 text-xs text-foreground/80">
+                      <CheckCircle2 className="size-3 shrink-0 text-primary" />
                       {feature}
                     </li>
                   ))}
@@ -141,9 +141,9 @@ export default async function BillingPage() {
                   {!isCurrent && planId !== "free" ? (
                     <UpgradeButton plan={planId as "pro" | "scale"} label={plan.label} highlight={highlight} />
                   ) : isCurrent ? (
-                    <p className="text-center text-xs text-slate-500">Your active plan</p>
+                    <p className="text-center text-xs text-muted-foreground">Your active plan</p>
                   ) : (
-                    <p className="text-center text-xs text-slate-500">No charge</p>
+                    <p className="text-center text-xs text-muted-foreground">No charge</p>
                   )}
                 </div>
               </div>

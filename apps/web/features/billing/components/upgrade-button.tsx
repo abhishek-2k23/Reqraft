@@ -86,8 +86,8 @@ export function UpgradeButton({
         className={cn(
           "w-full rounded-md py-2 text-sm font-semibold transition disabled:opacity-50",
           highlight
-            ? "bg-cyan-300 text-slate-950 hover:bg-cyan-200"
-            : "border border-white/10 text-slate-300 hover:border-white/20",
+            ? "bg-primary text-primary-foreground hover:bg-primary"
+            : "border border-foreground/10 text-foreground/80 hover:border-foreground/20",
         )}
       >
         {isPending ? "Preparing checkout…" : `Upgrade to ${label}`}

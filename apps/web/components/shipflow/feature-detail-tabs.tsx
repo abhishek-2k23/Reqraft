@@ -239,18 +239,18 @@ function ListBlock({
   accent?: string;
 }) {
   return (
-    <div className={cn("rounded-lg border bg-white/[0.03] p-4", accent ?? "border-white/10")}>
-      <p className="flex items-center gap-2 text-sm font-semibold text-white">
+    <div className={cn("rounded-lg border bg-foreground/[0.03] p-4", accent ?? "border-foreground/10")}>
+      <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
         {icon}
         {title}
       </p>
       {items.length === 0 ? (
-        <p className="mt-3 text-sm text-slate-500">No entries.</p>
+        <p className="mt-3 text-sm text-muted-foreground">No entries.</p>
       ) : (
         <ul className="mt-3 space-y-2">
           {items.map((item, i) => (
-            <li key={i} className="flex gap-2 text-sm leading-6 text-slate-300">
-              <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-slate-600" />
+            <li key={i} className="flex gap-2 text-sm leading-6 text-foreground/80">
+              <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-muted-foreground" />
               {item}
             </li>
           ))}
@@ -270,37 +270,37 @@ function PrdGeneratingCard({
   cancelling: boolean;
 }) {
   return (
-    <div className="relative overflow-hidden rounded-xl border border-purple-400/25 bg-gradient-to-br from-purple-950/50 via-slate-950/70 to-cyan-950/40 p-6 shadow-[0_0_40px_rgba(168,85,247,0.08)]">
+    <div className="relative overflow-hidden rounded-xl border border-purple-400/25 bg-gradient-to-br from-purple-950/50 via-primary-foreground/70 to-primary/40 p-6 shadow-[0_0_40px_rgba(168,85,247,0.08)]">
       <div className="pointer-events-none absolute -left-20 -top-20 size-60 rounded-full bg-purple-500/10 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-10 -right-10 size-40 rounded-full bg-cyan-500/10 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-10 -right-10 size-40 rounded-full bg-primary/10 blur-3xl" />
       <div className="relative flex items-center gap-4">
         <div className="relative grid size-11 shrink-0 place-items-center rounded-full bg-purple-400/10 ring-1 ring-purple-400/20">
           <Sparkles className="size-5 text-purple-300" />
           <span className="absolute inset-0 animate-ping rounded-full bg-purple-400/10" />
         </div>
         <div className="flex-1">
-          <p className="text-sm font-semibold text-white">AI is writing your PRD</p>
-          <p className="text-xs text-slate-500">Usually takes 15–30 seconds</p>
+          <p className="text-sm font-semibold text-foreground">AI is writing your PRD</p>
+          <p className="text-xs text-muted-foreground">Usually takes 15–30 seconds</p>
         </div>
         <button
           type="button"
           onClick={onCancel}
           disabled={cancelling}
-          className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-400 transition hover:border-red-400/30 hover:bg-red-400/10 hover:text-red-300 disabled:opacity-50"
+          className="flex items-center gap-1.5 rounded-lg border border-foreground/10 bg-foreground/5 px-3 py-1.5 text-xs text-muted-foreground transition hover:border-red-400/30 hover:bg-red-400/10 hover:text-red-300 disabled:opacity-50"
         >
           {cancelling ? <Loader2 className="size-3 animate-spin" /> : <X className="size-3" />}
           {cancelling ? "Cancelling…" : "Cancel"}
         </button>
       </div>
       <div className="relative mt-5">
-        <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/[0.06]">
+        <div className="h-1.5 w-full overflow-hidden rounded-full bg-foreground/[0.06]">
           <div
-            className="h-full rounded-full bg-gradient-to-r from-purple-400 via-cyan-400 to-purple-400 bg-[length:200%_100%] transition-all duration-1000 ease-out"
+            className="h-full rounded-full bg-gradient-to-r from-purple-400 via-primary to-purple-400 bg-[length:200%_100%] transition-all duration-1000 ease-out"
             style={{ width: `${progress}%`, animation: "shimmer 2s linear infinite" }}
           />
         </div>
         <style>{`@keyframes shimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}`}</style>
-        <p className="mt-1.5 text-right font-mono text-[10px] text-slate-600">{progress}%</p>
+        <p className="mt-1.5 text-right font-mono text-[10px] text-muted-foreground">{progress}%</p>
       </div>
       <div className="mt-4 space-y-2.5">
         {PRD_AI_STEPS.map((step, i) => {
@@ -310,13 +310,13 @@ function PrdGeneratingCard({
           return (
             <div key={step.label} className="flex items-center gap-2.5">
               {done ? (
-                <CheckCircle2 className="size-3.5 shrink-0 text-emerald-400" />
+                <CheckCircle2 className="size-3.5 shrink-0 text-success" />
               ) : active ? (
                 <Loader2 className="size-3.5 shrink-0 animate-spin text-purple-300" />
               ) : (
-                <Circle className="size-3.5 shrink-0 text-white/10" />
+                <Circle className="size-3.5 shrink-0 text-foreground/10" />
               )}
-              <span className={cn("text-xs transition-colors", done ? "text-slate-500" : active ? "text-slate-200" : "text-white/20")}>
+              <span className={cn("text-xs transition-colors", done ? "text-muted-foreground" : active ? "text-foreground" : "text-foreground/20")}>
                 {step.label}
               </span>
             </div>
@@ -329,19 +329,19 @@ function PrdGeneratingCard({
 
 function TasksGeneratingBanner({ onCancel }: { onCancel?: () => void }) {
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-cyan-400/20 bg-cyan-400/5 px-5 py-4">
-      <div className="relative grid size-8 shrink-0 place-items-center rounded-full bg-cyan-400/10">
-        <Zap className="size-4 text-cyan-300" />
-        <span className="absolute inset-0 animate-ping rounded-full bg-cyan-400/10" />
+    <div className="flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 px-5 py-4">
+      <div className="relative grid size-8 shrink-0 place-items-center rounded-full bg-primary/10">
+        <Zap className="size-4 text-primary" />
+        <span className="absolute inset-0 animate-ping rounded-full bg-primary/10" />
       </div>
       <div>
-        <p className="text-sm font-semibold text-white">Generating engineering tasks</p>
-        <p className="text-xs text-slate-500">AI is breaking the PRD into developer-ready tasks — this takes about 30 seconds</p>
+        <p className="text-sm font-semibold text-foreground">Generating engineering tasks</p>
+        <p className="text-xs text-muted-foreground">AI is breaking the PRD into developer-ready tasks — this takes about 30 seconds</p>
       </div>
       <div className="ml-auto flex items-center gap-3">
-        <Loader2 className="size-4 shrink-0 animate-spin text-cyan-400" />
+        <Loader2 className="size-4 shrink-0 animate-spin text-primary" />
         {onCancel && (
-          <button type="button" onClick={onCancel} className="text-xs text-slate-500 underline-offset-2 hover:text-slate-300 hover:underline">
+          <button type="button" onClick={onCancel} className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground/80 hover:underline">
             Cancel
           </button>
         )}
@@ -404,13 +404,13 @@ function EstimateEditor({
           if (e.key === "Enter") commit();
           if (e.key === "Escape") setEditing(false);
         }}
-        className="w-20 rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-slate-200"
+        className="w-20 rounded-md border border-foreground/10 bg-foreground/5 px-2 py-1 text-xs text-foreground"
       />
-      <span className="text-xs text-slate-500">h</span>
-      <button type="button" onClick={commit} disabled={pending} className="grid size-6 place-items-center rounded text-emerald-400 hover:bg-white/10">
+      <span className="text-xs text-muted-foreground">h</span>
+      <button type="button" onClick={commit} disabled={pending} className="grid size-6 place-items-center rounded text-success hover:bg-foreground/10">
         {pending ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3.5" />}
       </button>
-      <button type="button" onClick={() => setEditing(false)} className="grid size-6 place-items-center rounded text-slate-500 hover:bg-white/10">
+      <button type="button" onClick={() => setEditing(false)} className="grid size-6 place-items-center rounded text-muted-foreground hover:bg-foreground/10">
         <X className="size-3.5" />
       </button>
     </span>
@@ -421,9 +421,9 @@ type Task = Feature["tasks"][number];
 type TaskStatus = "todo" | "in_progress" | "done" | "blocked";
 
 const KANBAN_COLUMNS: { key: TaskStatus; label: string; tone: string }[] = [
-  { key: "todo", label: "Todo", tone: "border-slate-500/30" },
-  { key: "in_progress", label: "In progress", tone: "border-cyan-400/30" },
-  { key: "done", label: "Done", tone: "border-emerald-400/30" },
+  { key: "todo", label: "Todo", tone: "border-muted-foreground/30" },
+  { key: "in_progress", label: "In progress", tone: "border-primary/30" },
+  { key: "done", label: "Done", tone: "border-success/30" },
   { key: "blocked", label: "Blocked", tone: "border-red-400/30" },
 ];
 
@@ -555,22 +555,22 @@ function KanbanBoard({
               onDragLeave={() => setDragOverCol((c) => (c === col.key ? null : c))}
               onDrop={(e) => { e.preventDefault(); handleDropOn(col.key, null); }}
               className={cn(
-                "rounded-lg border bg-white/[0.03] p-4 transition-colors",
+                "rounded-lg border bg-foreground/[0.03] p-4 transition-colors",
                 col.tone,
-                isOver && "border-cyan-300/60 bg-cyan-300/[0.06]",
+                isOver && "border-primary/60 bg-primary/[0.06]",
               )}
             >
               <div className="flex items-center justify-between">
-                <h2 className="flex items-center gap-1.5 text-sm font-semibold text-white">
+                <h2 className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
                   {col.key === "blocked" && <Ban className="size-3.5 text-red-400" />}
                   {col.label}
                 </h2>
-                <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs text-slate-400">{colTasks.length}</span>
+                <span className="rounded-full bg-foreground/10 px-2 py-0.5 text-xs text-muted-foreground">{colTasks.length}</span>
               </div>
 
               <div className="mt-4 space-y-3">
                 {colTasks.length === 0 ? (
-                  <p className="rounded-md border border-dashed border-white/10 bg-black/20 p-3 text-center text-xs text-slate-600">
+                  <p className="rounded-md border border-dashed border-foreground/10 bg-muted p-3 text-center text-xs text-muted-foreground">
                     {generating ? "Generating…" : "Drop tasks here"}
                   </p>
                 ) : (
@@ -583,15 +583,15 @@ function KanbanBoard({
                       onDragOver={(e) => { e.preventDefault(); setDragOverCol(col.key); }}
                       onDrop={(e) => { e.stopPropagation(); e.preventDefault(); handleDropOn(col.key, task.id); }}
                       className={cn(
-                        "group cursor-grab rounded-md border border-white/10 bg-black/30 p-3 transition active:cursor-grabbing",
+                        "group cursor-grab rounded-md border border-foreground/10 bg-muted p-3 transition active:cursor-grabbing",
                         dragId === task.id && "opacity-40",
                       )}
                     >
                       <div className="flex items-start gap-2">
-                        <GripVertical className="mt-0.5 size-4 shrink-0 text-slate-600 transition group-hover:text-slate-400" />
+                        <GripVertical className="mt-0.5 size-4 shrink-0 text-muted-foreground transition group-hover:text-muted-foreground" />
                         <div className="min-w-0 flex-1">
                           <div className="flex items-start justify-between gap-2">
-                            <p className="text-sm font-medium text-slate-100">{task.title}</p>
+                            <p className="text-sm font-medium text-foreground">{task.title}</p>
                             {task.estimatedHours ? (
                               <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-sky-400/20 bg-sky-400/10 px-2 py-0.5 text-[10px] font-medium text-sky-300">
                                 <Clock className="size-2.5" />
@@ -599,7 +599,7 @@ function KanbanBoard({
                               </span>
                             ) : null}
                           </div>
-                          {task.description ? <p className="mt-1.5 text-xs leading-5 text-slate-400">{task.description}</p> : null}
+                          {task.description ? <p className="mt-1.5 text-xs leading-5 text-muted-foreground">{task.description}</p> : null}
 
                           {task.status === "blocked" && task.blockedReason ? (
                             <div className="mt-2 flex items-start gap-1.5 rounded border border-red-400/20 bg-red-400/5 px-2 py-1.5">
@@ -615,39 +615,39 @@ function KanbanBoard({
                                   <>
                                     {task.assigneeImage ? (
                                       // eslint-disable-next-line @next/next/no-img-element
-                                      <img src={task.assigneeImage} alt={task.assigneeName} className="size-5 rounded-full object-cover ring-1 ring-white/10" />
+                                      <img src={task.assigneeImage} alt={task.assigneeName} className="size-5 rounded-full object-cover ring-1 ring-foreground/10" />
                                     ) : (
-                                      <div className="grid size-5 place-items-center rounded-full bg-cyan-300/20 text-[9px] font-bold text-cyan-300 ring-1 ring-white/10">
+                                      <div className="grid size-5 place-items-center rounded-full bg-primary/20 text-[9px] font-bold text-primary ring-1 ring-foreground/10">
                                         {task.assigneeName[0]}
                                       </div>
                                     )}
-                                    <span className="text-[11px] text-slate-400">{task.assigneeName}</span>
+                                    <span className="text-[11px] text-muted-foreground">{task.assigneeName}</span>
                                   </>
                                 ) : (
-                                  <div className="flex items-center gap-1 rounded border border-dashed border-white/15 px-1.5 py-0.5 text-[10px] text-slate-600 hover:border-white/30 hover:text-slate-400">
+                                  <div className="flex items-center gap-1 rounded border border-dashed border-foreground/15 px-1.5 py-0.5 text-[10px] text-muted-foreground hover:border-foreground/30 hover:text-muted-foreground">
                                     <Users className="size-3" />
                                     Assign
                                   </div>
                                 )}
                               </button>
                             </PopoverTrigger>
-                            <PopoverContent className="w-48 border-white/10 bg-[#0d1118] p-1" align="start">
-                              <p className="px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-slate-500">Reassign to</p>
+                            <PopoverContent className="w-48 border-foreground/10 bg-[#0d1118] p-1" align="start">
+                              <p className="px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Reassign to</p>
                               {orgMembers.map((m) => (
                                 <button
                                   key={m.userId}
                                   type="button"
                                   onClick={() => assignTo.mutate({ taskId: task.id, userId: m.userId })}
                                   className={cn(
-                                    "flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs transition hover:bg-white/10",
-                                    task.assignedTo === m.userId ? "text-cyan-300" : "text-slate-300",
+                                    "flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs transition hover:bg-foreground/10",
+                                    task.assignedTo === m.userId ? "text-primary" : "text-foreground/80",
                                   )}
                                 >
                                   {m.image ? (
                                     // eslint-disable-next-line @next/next/no-img-element
                                     <img src={m.image} alt={m.name ?? ""} className="size-5 rounded-full object-cover" />
                                   ) : (
-                                    <div className="grid size-5 place-items-center rounded-full bg-cyan-300/20 text-[9px] font-bold text-cyan-300">
+                                    <div className="grid size-5 place-items-center rounded-full bg-primary/20 text-[9px] font-bold text-primary">
                                       {(m.name ?? "?")[0]}
                                     </div>
                                   )}
@@ -673,7 +673,7 @@ function KanbanBoard({
                                     commitMove(task.id, target.key, null, null);
                                   }
                                 }}
-                                className="rounded-full border border-white/10 px-2 py-0.5 text-[10px] text-slate-400 transition hover:bg-white/10 hover:text-white disabled:opacity-40"
+                                className="rounded-full border border-foreground/10 px-2 py-0.5 text-[10px] text-muted-foreground transition hover:bg-foreground/10 hover:text-foreground disabled:opacity-40"
                               >
                                 → {target.label}
                               </button>
@@ -692,13 +692,13 @@ function KanbanBoard({
 
       {/* Blocked reason dialog */}
       <AlertDialog open={pendingBlock !== null} onOpenChange={(open) => { if (!open) setPendingBlock(null); }}>
-        <AlertDialogContent className="border-white/10 bg-[#0d1118]">
+        <AlertDialogContent className="border-foreground/10 bg-[#0d1118]">
           <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 text-white">
+            <AlertDialogTitle className="flex items-center gap-2 text-foreground">
               <Ban className="size-4 text-red-400" />
               Why is this task blocked?
             </AlertDialogTitle>
-            <AlertDialogDescription className="text-slate-400">
+            <AlertDialogDescription className="text-muted-foreground">
               Add a short reason so the team knows what needs to be resolved before work can continue.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -707,13 +707,13 @@ function KanbanBoard({
             value={blockReason}
             onChange={(e) => setBlockReason(e.target.value)}
             placeholder="e.g. Waiting on design approval / blocked by API change in #1234"
-            className="min-h-24 border-white/10 bg-white/5 text-sm text-slate-100 placeholder:text-slate-600"
+            className="min-h-24 border-foreground/10 bg-foreground/5 text-sm text-foreground placeholder:text-muted-foreground"
           />
           <AlertDialogFooter>
-            <AlertDialogCancel className="border-white/10 bg-white/5 text-slate-300 hover:bg-white/10">
+            <AlertDialogCancel className="border-foreground/10 bg-foreground/5 text-foreground/80 hover:bg-foreground/10">
               Cancel
             </AlertDialogCancel>
-            <AlertDialogAction className="bg-red-500 text-white hover:bg-red-400" onClick={confirmBlock}>
+            <AlertDialogAction className="bg-red-500 text-foreground hover:bg-red-400" onClick={confirmBlock}>
               Mark as blocked
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -820,16 +820,16 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
       wasGeneratingRef.current = true;
       toast.custom(
         (tid) => (
-          <div className="flex items-center gap-3 rounded-xl border border-purple-400/20 bg-[#0d1118] px-4 py-3 shadow-2xl ring-1 ring-white/5">
+          <div className="flex items-center gap-3 rounded-xl border border-purple-400/20 bg-[#0d1118] px-4 py-3 shadow-2xl ring-1 ring-foreground/5">
             <div className="relative grid size-7 shrink-0 place-items-center rounded-full bg-purple-400/10">
               <Sparkles className="size-3.5 text-purple-300" />
               <span className="absolute inset-0 animate-ping rounded-full bg-purple-400/10" />
             </div>
             <div className="flex-1">
-              <p className="text-xs font-semibold text-white">Generating PRD</p>
-              <p className="text-[10px] text-slate-500">AI is writing your product requirements</p>
+              <p className="text-xs font-semibold text-foreground">Generating PRD</p>
+              <p className="text-[10px] text-muted-foreground">AI is writing your product requirements</p>
             </div>
-            <button type="button" onClick={() => toast.dismiss(tid)} className="grid size-6 place-items-center rounded-md text-slate-500 hover:bg-white/10 hover:text-white">
+            <button type="button" onClick={() => toast.dismiss(tid)} className="grid size-6 place-items-center rounded-md text-muted-foreground hover:bg-foreground/10 hover:text-foreground">
               <X className="size-3.5" />
             </button>
           </div>
@@ -1041,40 +1041,40 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
 
       {/* ── Clarify ──────────────────────────────────────── */}
       <TabsContent value="clarify">
-        <div className="rounded-lg border border-white/10 bg-white/[0.045] p-5">
-          <div className="flex items-center gap-2 text-sm font-semibold text-white">
-            <MessageSquareText className="size-4 text-cyan-200" />
+        <div className="rounded-lg border border-foreground/10 bg-foreground/[0.045] p-5">
+          <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+            <MessageSquareText className="size-4 text-primary" />
             Clarification conversation
           </div>
           <div className="mt-5 max-h-[440px] space-y-3 overflow-y-auto pr-1">
             {messages.length === 0 ? (
-              <p className="rounded-lg border border-white/10 bg-black/20 p-4 text-sm text-slate-500">No messages yet.</p>
+              <p className="rounded-lg border border-foreground/10 bg-muted p-4 text-sm text-muted-foreground">No messages yet.</p>
             ) : messages.map((item) => (
-              <div key={item.id} className={cn("max-w-[88%] rounded-lg p-3 text-sm", item.role === "assistant" ? "bg-cyan-300 text-slate-950" : "ml-auto bg-white/10 text-slate-100")}>
+              <div key={item.id} className={cn("max-w-[88%] rounded-lg p-3 text-sm", item.role === "assistant" ? "bg-primary text-primary-foreground" : "ml-auto bg-foreground/10 text-foreground")}>
                 {item.content}
               </div>
             ))}
           </div>
           <div className="mt-5 grid gap-3">
-            <Textarea value={inputMessage} onChange={(e) => setInputMessage(e.target.value)} placeholder="Add context or answer the AI's question…" className="min-h-24 border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-600" />
+            <Textarea value={inputMessage} onChange={(e) => setInputMessage(e.target.value)} placeholder="Add context or answer the AI's question…" className="min-h-24 border-foreground/10 bg-foreground/5 text-foreground placeholder:text-muted-foreground" />
             <div className="flex flex-wrap gap-3">
-              <Button type="button" onClick={handleSendMessage} disabled={!inputMessage.trim() || sendMessage.isPending} className="bg-cyan-300 text-slate-950 hover:bg-cyan-200">
+              <Button type="button" onClick={handleSendMessage} disabled={!inputMessage.trim() || sendMessage.isPending} className="bg-primary text-primary-foreground hover:bg-primary">
                 {sendMessage.isPending ? <Loader2 className="size-4 animate-spin" /> : <SendHorizontal className="size-4" />}
                 Send
               </Button>
-              <Button type="button" variant="outline" disabled={!canGeneratePrd} onClick={() => triggerPrd.mutate({ featureId: feature.id })} className="border-white/10 bg-white/5 text-slate-100 hover:bg-white/10 disabled:opacity-50">
+              <Button type="button" variant="outline" disabled={!canGeneratePrd} onClick={() => triggerPrd.mutate({ featureId: feature.id })} className="border-foreground/10 bg-foreground/5 text-foreground hover:bg-foreground/10 disabled:opacity-50">
                 {isGeneratingPrd ? <><Loader2 className="size-4 animate-spin" />Generating PRD…</> : prdButtonLabel}
               </Button>
             </div>
             {prd && !prd.approvedAt && !clarificationChangedSincePrd && !isGeneratingPrd ? (
-              <p className="flex items-center gap-1.5 text-xs text-slate-500">
-                <Sparkles className="size-3 text-cyan-300/70" />
+              <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Sparkles className="size-3 text-primary/70" />
                 A PRD (v{prd.version}) already exists. Add a new clarification message above to regenerate it as v{prd.version + 1}.
               </p>
             ) : null}
             {prd?.approvedAt ? (
-              <p className="flex items-center gap-1.5 text-xs text-slate-500">
-                <ShieldCheck className="size-3 text-emerald-400/70" />
+              <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <ShieldCheck className="size-3 text-success/70" />
                 The PRD is approved and locked — clarifications no longer regenerate it.
               </p>
             ) : null}
@@ -1092,9 +1092,9 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
               cancelling={cancelPrd.isPending}
             />
           ) : !prd ? (
-            <div className="rounded-lg border border-white/10 bg-white/[0.045] p-10 text-center">
-              <p className="text-sm text-slate-500">No PRD generated yet.</p>
-              <Button type="button" variant="outline" disabled={!canGeneratePrd} onClick={() => triggerPrd.mutate({ featureId: feature.id })} className="mt-4 border-white/10 bg-white/5 text-slate-100 hover:bg-white/10 disabled:opacity-50">
+            <div className="rounded-lg border border-foreground/10 bg-foreground/[0.045] p-10 text-center">
+              <p className="text-sm text-muted-foreground">No PRD generated yet.</p>
+              <Button type="button" variant="outline" disabled={!canGeneratePrd} onClick={() => triggerPrd.mutate({ featureId: feature.id })} className="mt-4 border-foreground/10 bg-foreground/5 text-foreground hover:bg-foreground/10 disabled:opacity-50">
                 {triggerPrd.isPending ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
                 Generate PRD
               </Button>
@@ -1102,19 +1102,19 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
           ) : (
             <>
               {/* PRD Header */}
-              <div className="rounded-lg border border-white/10 bg-white/[0.045] p-5">
+              <div className="rounded-lg border border-foreground/10 bg-foreground/[0.045] p-5">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="flex-1">
-                    <p className="text-xs uppercase tracking-widest text-cyan-300">Product Requirements Document</p>
-                    <h2 className="mt-1 text-xl font-bold text-white">{feature.title}</h2>
-                    <p className="mt-3 text-sm leading-7 text-slate-300">{prd.problem}</p>
+                    <p className="text-xs uppercase tracking-widest text-primary">Product Requirements Document</p>
+                    <h2 className="mt-1 text-xl font-bold text-foreground">{feature.title}</h2>
+                    <p className="mt-3 text-sm leading-7 text-foreground/80">{prd.problem}</p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-400">
+                    <span className="rounded-full border border-foreground/10 bg-foreground/5 px-3 py-1 text-xs text-muted-foreground">
                       v{prd.version}
                     </span>
                     {prd.approvedAt ? (
-                      <span className="flex items-center gap-1.5 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1 text-xs font-medium text-emerald-300">
+                      <span className="flex items-center gap-1.5 rounded-full border border-success/30 bg-success/10 px-3 py-1 text-xs font-medium text-success">
                         <CheckCircle2 className="size-3" />
                         Approved
                       </span>
@@ -1123,11 +1123,11 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
                 </div>
 
                 {/* Meta row: estimate + deadline */}
-                <div className="mt-4 grid gap-4 border-t border-white/5 pt-4 sm:grid-cols-2">
+                <div className="mt-4 grid gap-4 border-t border-foreground/5 pt-4 sm:grid-cols-2">
                   {/* Estimated effort */}
                   <div className="flex items-center gap-3">
                     <Clock className="size-4 shrink-0 text-sky-400" />
-                    <span className="text-xs text-slate-500">Estimated effort:</span>
+                    <span className="text-xs text-muted-foreground">Estimated effort:</span>
                     {prd.approvedAt ? (
                       <span className="text-xs font-medium text-sky-300">
                         {prd.estimatedTotalHours ? `~${prd.estimatedTotalHours}h` : "Not estimated"}
@@ -1145,9 +1145,9 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
                   {/* Target deadline */}
                   <div className="flex items-center gap-3">
                     <CalendarClock className="size-4 shrink-0 text-purple-300" />
-                    <span className="text-xs text-slate-500">Target deadline:</span>
+                    <span className="text-xs text-muted-foreground">Target deadline:</span>
                     {prd.approvedAt ? (
-                      <span className="text-xs font-medium text-slate-300">
+                      <span className="text-xs font-medium text-foreground/80">
                         {prd.targetDeadline ? formatDate(prd.targetDeadline) : "Not set"}
                       </span>
                     ) : (
@@ -1161,7 +1161,7 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
                         onChange={(e) =>
                           setDeadline.mutate({ prdId: prd.id, targetDeadline: e.target.value || null })
                         }
-                        className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-slate-200 [color-scheme:dark]"
+                        className="rounded-md border border-foreground/10 bg-foreground/5 px-2 py-1 text-xs text-foreground [color-scheme:dark]"
                       />
                     )}
                   </div>
@@ -1169,12 +1169,12 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
               </div>
 
               {/* Manager view */}
-              <div className="rounded-lg border border-white/10 bg-white/[0.03] p-5">
-                <p className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-slate-400">
+              <div className="rounded-lg border border-foreground/10 bg-foreground/[0.03] p-5">
+                <p className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                   <Users className="size-3.5" /> For Managers
                 </p>
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <ListBlock title="Goals" items={prd.goals} accent="border-emerald-400/15" icon={<span className="size-2 rounded-full bg-emerald-400" />} />
+                  <ListBlock title="Goals" items={prd.goals} accent="border-success/15" icon={<span className="size-2 rounded-full bg-success" />} />
                   <ListBlock title="Non-goals" items={prd.nonGoals} accent="border-red-400/15" icon={<span className="size-2 rounded-full bg-red-400" />} />
                   <ListBlock title="User stories" items={prd.userStories} />
                   <ListBlock title="Success metrics" items={prd.successMetrics} accent="border-sky-400/15" icon={<Zap className="size-3.5 text-sky-400" />} />
@@ -1182,13 +1182,13 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
               </div>
 
               {/* Developer view */}
-              <div className="rounded-lg border border-white/10 bg-white/[0.03] p-5">
-                <p className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-slate-400">
+              <div className="rounded-lg border border-foreground/10 bg-foreground/[0.03] p-5">
+                <p className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                   <Code2 className="size-3.5" /> For Developers
                 </p>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <ListBlock title="Technical requirements" items={prd.technicalRequirements} accent="border-purple-400/15" icon={<Code2 className="size-3.5 text-purple-400" />} />
-                  <ListBlock title="Acceptance criteria" items={prd.acceptanceCriteria} accent="border-cyan-400/15" icon={<CheckCircle2 className="size-3.5 text-cyan-400" />} />
+                  <ListBlock title="Acceptance criteria" items={prd.acceptanceCriteria} accent="border-primary/15" icon={<CheckCircle2 className="size-3.5 text-primary" />} />
                   <ListBlock title="Dependencies" items={prd.dependencies} accent="border-amber-400/15" icon={<FolderGit2 className="size-3.5 text-amber-400" />} />
                   <ListBlock title="Edge cases" items={prd.edgeCases} />
                 </div>
@@ -1201,8 +1201,8 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
 
               {/* AI Edit panel — only before approval */}
               {!prd.approvedAt && (
-                <div className="rounded-lg border border-white/10 bg-white/[0.03] p-5">
-                  <p className="mb-3 flex items-center gap-2 text-sm font-semibold text-white">
+                <div className="rounded-lg border border-foreground/10 bg-foreground/[0.03] p-5">
+                  <p className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground">
                     <Wand2 className="size-4 text-purple-300" />
                     Edit with AI
                   </p>
@@ -1210,17 +1210,17 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
                     value={editPrompt}
                     onChange={(e) => setEditPrompt(e.target.value)}
                     placeholder='Describe what to change — e.g. "Add a section about offline support" or "Make the acceptance criteria more specific"'
-                    className="min-h-20 border-white/10 bg-white/5 text-sm text-slate-100 placeholder:text-slate-600"
+                    className="min-h-20 border-foreground/10 bg-foreground/5 text-sm text-foreground placeholder:text-muted-foreground"
                   />
                   <div className="mt-3 flex items-center justify-between">
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-muted-foreground">
                       AI will apply your changes and bump the version. Content before approval is never locked.
                     </p>
                     <Button
                       type="button"
                       disabled={!editPrompt.trim() || aiBusy}
                       onClick={() => editPrd.mutate({ prdId: prd.id, featureId: feature.id, prompt: editPrompt })}
-                      className="shrink-0 bg-purple-500 text-white hover:bg-purple-400"
+                      className="shrink-0 bg-purple-500 text-foreground hover:bg-purple-400"
                     >
                       {editPrd.isPending ? <Loader2 className="size-4 animate-spin" /> : <Wand2 className="size-4" />}
                       {editPrd.isPending ? "Editing…" : "Apply changes"}
@@ -1232,22 +1232,22 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
               {/* Approve / locked */}
               <div className="flex items-center gap-3">
                 {prd.approvedAt ? (
-                  <div className="flex items-center gap-2 rounded-lg border border-emerald-400/20 bg-emerald-400/5 px-4 py-3 text-sm text-emerald-300">
+                  <div className="flex items-center gap-2 rounded-lg border border-success/20 bg-success/5 px-4 py-3 text-sm text-success">
                     <ShieldCheck className="size-4" />
                     PRD approved on {formatDate(prd.approvedAt)} — editing is locked
                   </div>
                 ) : (
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
-                      <Button type="button" disabled={aiBusy} className="bg-cyan-300 text-slate-950 hover:bg-cyan-200 disabled:opacity-50">
+                      <Button type="button" disabled={aiBusy} className="bg-primary text-primary-foreground hover:bg-primary disabled:opacity-50">
                         {approvePrd.isPending ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
                         Approve PRD
                       </Button>
                     </AlertDialogTrigger>
-                    <AlertDialogContent className="border-white/10 bg-[#0d1118] sm:max-w-lg">
+                    <AlertDialogContent className="border-foreground/10 bg-[#0d1118] sm:max-w-lg">
                       <AlertDialogHeader>
-                        <AlertDialogTitle className="text-white">Team coverage before task generation</AlertDialogTitle>
-                        <AlertDialogDescription className="text-slate-400">
+                        <AlertDialogTitle className="text-foreground">Team coverage before task generation</AlertDialogTitle>
+                        <AlertDialogDescription className="text-muted-foreground">
                           AI will assign tasks based on each developer&apos;s specialty. Fill in missing slots or add team members.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
@@ -1256,22 +1256,22 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
                         {relevantSlots.map((slot) => {
                           const covered = memberBySpecialty[slot.key];
                           return (
-                            <div key={slot.key} className="flex items-center gap-3 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2.5">
-                              <span className={cn("size-2 shrink-0 rounded-full", covered ? "bg-emerald-400" : "bg-amber-400")} />
-                              <span className="w-40 shrink-0 text-sm text-slate-300">{slot.label}</span>
+                            <div key={slot.key} className="flex items-center gap-3 rounded-lg border border-foreground/10 bg-foreground/[0.03] px-3 py-2.5">
+                              <span className={cn("size-2 shrink-0 rounded-full", covered ? "bg-success" : "bg-amber-400")} />
+                              <span className="w-40 shrink-0 text-sm text-foreground/80">{slot.label}</span>
                               {covered ? (
-                                <span className="text-sm text-slate-400">{covered.name}</span>
+                                <span className="text-sm text-muted-foreground">{covered.name}</span>
                               ) : (
                                 <Select
                                   value={specialtyOverrides[slot.key] ?? ""}
                                   onValueChange={(v) => setSpecialtyOverrides((prev) => ({ ...prev, [slot.key]: v }))}
                                 >
-                                  <SelectTrigger className="h-7 border-white/10 bg-white/5 text-xs text-slate-300">
+                                  <SelectTrigger className="h-7 border-foreground/10 bg-foreground/5 text-xs text-foreground/80">
                                     <SelectValue placeholder="Assign to…" />
                                   </SelectTrigger>
-                                  <SelectContent className="border-white/10 bg-[#0d1118]">
+                                  <SelectContent className="border-foreground/10 bg-[#0d1118]">
                                     {orgMembers.data?.map((m) => (
-                                      <SelectItem key={m.userId} value={m.userId} className="text-slate-300 focus:bg-white/10 focus:text-white text-xs">
+                                      <SelectItem key={m.userId} value={m.userId} className="text-foreground/80 focus:bg-foreground/10 focus:text-foreground text-xs">
                                         {m.name}
                                       </SelectItem>
                                     ))}
@@ -1284,11 +1284,11 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
                       </div>
 
                       {missingSpecialties.length > 0 && (
-                        <p className="text-xs text-slate-500">
+                        <p className="text-xs text-muted-foreground">
                           Missing specialties without an assignment will be left unassigned.{" "}
                           <button
                             type="button"
-                            className="text-cyan-400 underline-offset-2 hover:underline"
+                            className="text-primary underline-offset-2 hover:underline"
                             onClick={() => router.push("/settings/team")}
                           >
                             Add team members →
@@ -1297,11 +1297,11 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
                       )}
 
                       <AlertDialogFooter>
-                        <AlertDialogCancel className="border-white/10 bg-white/5 text-slate-300 hover:bg-white/10">
+                        <AlertDialogCancel className="border-foreground/10 bg-foreground/5 text-foreground/80 hover:bg-foreground/10">
                           Cancel
                         </AlertDialogCancel>
                         <AlertDialogAction
-                          className="bg-cyan-300 text-slate-950 hover:bg-cyan-200"
+                          className="bg-primary text-primary-foreground hover:bg-primary"
                           onClick={() => approvePrd.mutate({
                             prdId: prd.id,
                             featureId: feature.id,
@@ -1329,22 +1329,22 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
             />
           )}
           {feature.tasks.length === 0 && !isGeneratingTasks ? (
-            <div className="rounded-lg border border-white/10 bg-white/[0.045] p-10 text-center">
+            <div className="rounded-lg border border-foreground/10 bg-foreground/[0.045] p-10 text-center">
               {feature.prd?.approvedAt ? (
                 <div className="flex flex-col items-center gap-4">
                   {taskCountdown > 0 ? (
                     <>
-                      <Loader2 className="size-6 animate-spin text-cyan-300" />
+                      <Loader2 className="size-6 animate-spin text-primary" />
                       <div className="space-y-1">
-                        <p className="text-sm text-slate-300">
+                        <p className="text-sm text-foreground/80">
                           PRD approved — engineering task generation starts automatically in{" "}
-                          <span className="font-mono font-semibold text-cyan-300">{taskCountdown}s</span>.
+                          <span className="font-mono font-semibold text-primary">{taskCountdown}s</span>.
                         </p>
-                        <p className="text-xs text-slate-500">Hang tight — this happens on its own.</p>
+                        <p className="text-xs text-muted-foreground">Hang tight — this happens on its own.</p>
                       </div>
                     </>
                   ) : (
-                    <p className="text-sm text-slate-400">
+                    <p className="text-sm text-muted-foreground">
                       Auto-start didn&apos;t kick in. Generate the engineering tasks manually.
                     </p>
                   )}
@@ -1352,7 +1352,7 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
                     type="button"
                     disabled={aiBusy || taskCountdown > 0}
                     onClick={() => setTaskGenDialogOpen(true)}
-                    className="bg-cyan-300 text-slate-950 hover:bg-cyan-200 disabled:opacity-50"
+                    className="bg-primary text-primary-foreground hover:bg-primary disabled:opacity-50"
                   >
                     <Zap className="size-4" />
                     Generate tasks
@@ -1360,14 +1360,14 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
                 </div>
               ) : (
                 <div className="flex flex-col items-center gap-3">
-                  <p className="text-sm text-slate-500">Tasks can only be generated after the PRD is approved.</p>
+                  <p className="text-sm text-muted-foreground">Tasks can only be generated after the PRD is approved.</p>
                   <button
                     type="button"
                     onClick={() => {
                       const el = document.querySelector('[data-value="prd"]') as HTMLElement | null;
                       el?.click();
                     }}
-                    className="text-xs text-cyan-400 underline-offset-2 hover:underline"
+                    className="text-xs text-primary underline-offset-2 hover:underline"
                   >
                     Go to PRD tab to review and approve →
                   </button>
@@ -1376,7 +1376,7 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
             </div>
           ) : (
             <>
-              <p className="flex items-center gap-2 text-xs text-slate-500">
+              <p className="flex items-center gap-2 text-xs text-muted-foreground">
                 <GripVertical className="size-3.5" />
                 Drag tasks between columns or use the quick-move buttons. Moving a task to <span className="font-medium text-red-300">Blocked</span> asks for a reason.
               </p>
@@ -1388,10 +1388,10 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
 
       {/* ── Generate tasks dialog (triggered from tasks tab) ── */}
       <AlertDialog open={taskGenDialogOpen} onOpenChange={setTaskGenDialogOpen}>
-        <AlertDialogContent className="border-white/10 bg-[#0d1118] sm:max-w-lg">
+        <AlertDialogContent className="border-foreground/10 bg-[#0d1118] sm:max-w-lg">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-white">Team coverage before task generation</AlertDialogTitle>
-            <AlertDialogDescription className="text-slate-400">
+            <AlertDialogTitle className="text-foreground">Team coverage before task generation</AlertDialogTitle>
+            <AlertDialogDescription className="text-muted-foreground">
               AI will assign tasks based on each developer&apos;s specialty. Fill in missing slots or add team members.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -1400,22 +1400,22 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
             {SPECIALTY_SLOTS.map((slot) => {
               const covered = memberBySpecialty[slot.key];
               return (
-                <div key={slot.key} className="flex items-center gap-3 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2.5">
-                  <span className={cn("size-2 shrink-0 rounded-full", covered ? "bg-emerald-400" : "bg-amber-400")} />
-                  <span className="w-40 shrink-0 text-sm text-slate-300">{slot.label}</span>
+                <div key={slot.key} className="flex items-center gap-3 rounded-lg border border-foreground/10 bg-foreground/[0.03] px-3 py-2.5">
+                  <span className={cn("size-2 shrink-0 rounded-full", covered ? "bg-success" : "bg-amber-400")} />
+                  <span className="w-40 shrink-0 text-sm text-foreground/80">{slot.label}</span>
                   {covered ? (
-                    <span className="text-sm text-slate-400">{covered.name}</span>
+                    <span className="text-sm text-muted-foreground">{covered.name}</span>
                   ) : (
                     <Select
                       value={specialtyOverrides[slot.key] ?? ""}
                       onValueChange={(v) => setSpecialtyOverrides((prev) => ({ ...prev, [slot.key]: v }))}
                     >
-                      <SelectTrigger className="h-7 border-white/10 bg-white/5 text-xs text-slate-300">
+                      <SelectTrigger className="h-7 border-foreground/10 bg-foreground/5 text-xs text-foreground/80">
                         <SelectValue placeholder="Assign to…" />
                       </SelectTrigger>
-                      <SelectContent className="border-white/10 bg-[#0d1118]">
+                      <SelectContent className="border-foreground/10 bg-[#0d1118]">
                         {orgMembers.data?.map((m) => (
-                          <SelectItem key={m.userId} value={m.userId} className="text-slate-300 focus:bg-white/10 focus:text-white text-xs">
+                          <SelectItem key={m.userId} value={m.userId} className="text-foreground/80 focus:bg-foreground/10 focus:text-foreground text-xs">
                             {m.name}
                           </SelectItem>
                         ))}
@@ -1428,11 +1428,11 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
           </div>
 
           {missingSpecialties.length > 0 && (
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-muted-foreground">
               Missing specialties without an assignment will be left unassigned.{" "}
               <button
                 type="button"
-                className="text-cyan-400 underline-offset-2 hover:underline"
+                className="text-primary underline-offset-2 hover:underline"
                 onClick={() => { setTaskGenDialogOpen(false); router.push("/settings/team"); }}
               >
                 Add team members →
@@ -1441,11 +1441,11 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
           )}
 
           <AlertDialogFooter>
-            <AlertDialogCancel className="border-white/10 bg-white/5 text-slate-300 hover:bg-white/10">
+            <AlertDialogCancel className="border-foreground/10 bg-foreground/5 text-foreground/80 hover:bg-foreground/10">
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
-              className="bg-cyan-300 text-slate-950 hover:bg-cyan-200 disabled:opacity-50"
+              className="bg-primary text-primary-foreground hover:bg-primary disabled:opacity-50"
               disabled={aiBusy}
               onClick={() => triggerTaskGeneration.mutate({
                 featureId: feature.id,
@@ -1461,71 +1461,71 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
 
       {/* ── Reviews ──────────────────────────────────────── */}
       <TabsContent value="review-history">
-        <div className="rounded-lg border border-white/10 bg-white/[0.045] p-5">
+        <div className="rounded-lg border border-foreground/10 bg-foreground/[0.045] p-5">
           {hasRunningReview && (
-            <div className="mb-4 flex items-center gap-3 rounded-lg border border-cyan-400/20 bg-cyan-400/5 px-4 py-3">
-              <Loader2 className="size-4 animate-spin text-cyan-400" />
-              <p className="text-sm text-cyan-200">AI is reviewing the latest pull request against the PRD…</p>
+            <div className="mb-4 flex items-center gap-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+              <Loader2 className="size-4 animate-spin text-primary" />
+              <p className="text-sm text-primary">AI is reviewing the latest pull request against the PRD…</p>
             </div>
           )}
           {feature.reviewCycles.length === 0 ? (
             <div className="py-6 text-center">
-              <p className="text-sm text-slate-500">No reviews yet. Open a pull request from a branch named:</p>
-              <div className="mt-3 inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2">
-                <span className="font-mono text-xs text-slate-300">feature/{feature.id}</span>
+              <p className="text-sm text-muted-foreground">No reviews yet. Open a pull request from a branch named:</p>
+              <div className="mt-3 inline-flex items-center gap-2 rounded-lg border border-foreground/10 bg-foreground/[0.04] px-3 py-2">
+                <span className="font-mono text-xs text-foreground/80">feature/{feature.id}</span>
                 <button
                   type="button"
                   onClick={() => {
                     void navigator.clipboard.writeText(`feature/${feature.id}`);
                     toast.success("Branch name copied");
                   }}
-                  className="text-slate-500 transition hover:text-cyan-300"
+                  className="text-muted-foreground transition hover:text-primary"
                   title="Copy branch name"
                 >
                   <Copy className="size-3.5" />
                 </button>
               </div>
-              <p className="mt-2 text-xs text-slate-600">The full feature ID is required — the branch name must match exactly.</p>
+              <p className="mt-2 text-xs text-muted-foreground">The full feature ID is required — the branch name must match exactly.</p>
             </div>
           ) : (
             <div className="space-y-4">
               {feature.reviewCycles.map((cycle) => (
-                <div key={cycle.id} className="rounded-lg border border-white/10 bg-white/[0.02] p-4">
+                <div key={cycle.id} className="rounded-lg border border-foreground/10 bg-foreground/[0.02] p-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">
-                    <span className="text-sm font-medium text-slate-200">Review #{cycle.cycleNumber}</span>
+                    <span className="text-sm font-medium text-foreground">Review #{cycle.cycleNumber}</span>
                     <span className={cn("inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium",
-                      cycle.overallVerdict === "approve" ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+                      cycle.overallVerdict === "approve" ? "border-success/30 bg-success/10 text-success"
                         : cycle.overallVerdict === "request_changes" ? "border-red-500/30 bg-red-500/10 text-red-400"
-                          : "border-white/10 bg-white/5 text-slate-400",
+                          : "border-foreground/10 bg-foreground/5 text-muted-foreground",
                     )}>
                       {cycle.status === "running" && <Loader2 className="size-3 animate-spin" />}
                       {cycle.overallVerdict === "approve" ? "Approved" : cycle.overallVerdict === "request_changes" ? "Changes requested" : cycle.status}
                     </span>
                   </div>
                   {cycle.prdComplianceScore != null && (
-                    <p className="mt-3 text-xs text-slate-500">
-                      PRD compliance: <span className={cycle.prdComplianceScore >= 80 ? "text-emerald-400" : "text-amber-400"}>{cycle.prdComplianceScore}/100</span>
+                    <p className="mt-3 text-xs text-muted-foreground">
+                      PRD compliance: <span className={cycle.prdComplianceScore >= 80 ? "text-success" : "text-amber-400"}>{cycle.prdComplianceScore}/100</span>
                     </p>
                   )}
-                  {cycle.summary && <p className="mt-3 text-xs leading-5 text-slate-400">{cycle.summary}</p>}
+                  {cycle.summary && <p className="mt-3 text-xs leading-5 text-muted-foreground">{cycle.summary}</p>}
 
                   {cycle.issues.length > 0 && (
-                    <div className="mt-4 space-y-2 border-t border-white/5 pt-3">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <div className="mt-4 space-y-2 border-t border-foreground/5 pt-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                         Findings ({cycle.issues.length})
                       </p>
                       {cycle.issues.map((issue) => (
-                        <div key={issue.id} className="rounded-md border border-white/10 bg-black/20 p-3">
+                        <div key={issue.id} className="rounded-md border border-foreground/10 bg-muted p-3">
                           <div className="flex items-start justify-between gap-2">
-                            <p className="text-sm text-slate-200">{issue.title}</p>
+                            <p className="text-sm text-foreground">{issue.title}</p>
                             <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium",
                               issue.severity === "blocking" ? "bg-red-500/15 text-red-300" : "bg-amber-500/15 text-amber-300",
                             )}>
                               {issue.severity === "blocking" ? "Blocking" : "Non-blocking"}
                             </span>
                           </div>
-                          {issue.filePath && <p className="mt-1 font-mono text-[11px] text-slate-500">{issue.filePath}{issue.lineNumber ? `:${issue.lineNumber}` : ""}</p>}
-                          {issue.suggestion && <p className="mt-2 text-xs leading-5 text-slate-400">{issue.suggestion}</p>}
+                          {issue.filePath && <p className="mt-1 font-mono text-[11px] text-muted-foreground">{issue.filePath}{issue.lineNumber ? `:${issue.lineNumber}` : ""}</p>}
+                          {issue.suggestion && <p className="mt-2 text-xs leading-5 text-muted-foreground">{issue.suggestion}</p>}
                         </div>
                       ))}
                     </div>
@@ -1539,12 +1539,12 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
 
       {/* ── Release ──────────────────────────────────────── */}
       <TabsContent value="release">
-        <div className="rounded-lg border border-white/10 bg-white/[0.045] p-5">
+        <div className="rounded-lg border border-foreground/10 bg-foreground/[0.045] p-5">
           {feature.status === "shipped" ? (
-            <div className="rounded-lg border border-emerald-500/20 bg-gradient-to-r from-emerald-500/10 to-cyan-500/10 p-8 text-center">
-              <Rocket className="mx-auto size-10 text-emerald-300" />
-              <h2 className="mt-4 text-xl font-bold text-white">Feature shipped</h2>
-              <p className="mt-2 text-sm text-slate-400">This feature has been approved and shipped to production.</p>
+            <div className="rounded-lg border border-success/20 bg-gradient-to-r from-success/10 to-primary/10 p-8 text-center">
+              <Rocket className="mx-auto size-10 text-success" />
+              <h2 className="mt-4 text-xl font-bold text-foreground">Feature shipped</h2>
+              <p className="mt-2 text-sm text-muted-foreground">This feature has been approved and shipped to production.</p>
             </div>
           ) : (
             <div className="space-y-5">
@@ -1555,21 +1555,21 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
                   { label: "Pull request linked", done: feature.pullRequests.length > 0 },
                   { label: "AI review passed", done: feature.reviewCycles.some((c) => c.overallVerdict === "approve") },
                 ].map((check) => (
-                  <div key={check.label} className="flex items-center gap-3 rounded-lg border border-white/5 bg-white/[0.02] px-4 py-3">
-                    {check.done ? <CheckCircle2 className="size-4 shrink-0 text-emerald-400" /> : <Circle className="size-4 shrink-0 text-slate-600" />}
-                    <span className={cn("text-sm", check.done ? "text-slate-200" : "text-slate-500")}>{check.label}</span>
+                  <div key={check.label} className="flex items-center gap-3 rounded-lg border border-foreground/5 bg-foreground/[0.02] px-4 py-3">
+                    {check.done ? <CheckCircle2 className="size-4 shrink-0 text-success" /> : <Circle className="size-4 shrink-0 text-muted-foreground" />}
+                    <span className={cn("text-sm", check.done ? "text-foreground" : "text-muted-foreground")}>{check.label}</span>
                   </div>
                 ))}
               </div>
               {feature.status === "in_review" || feature.status === "approved" ? (
                 <div className="flex flex-wrap gap-3">
                   {feature.status !== "approved" ? (
-                    <Button type="button" onClick={() => approveRelease.mutate({ featureId: feature.id })} disabled={approveRelease.isPending} className="bg-cyan-300 text-slate-950 hover:bg-cyan-200">
+                    <Button type="button" onClick={() => approveRelease.mutate({ featureId: feature.id })} disabled={approveRelease.isPending} className="bg-primary text-primary-foreground hover:bg-primary">
                       <ShieldCheck className="size-4" />
                       {approveRelease.isPending ? "Approving…" : "Approve release"}
                     </Button>
                   ) : (
-                    <Button type="button" onClick={() => shipFeature.mutate({ featureId: feature.id })} disabled={shipFeature.isPending} className="bg-emerald-400 text-slate-950 hover:bg-emerald-300">
+                    <Button type="button" onClick={() => shipFeature.mutate({ featureId: feature.id })} disabled={shipFeature.isPending} className="bg-success text-primary-foreground hover:bg-success">
                       <Rocket className="size-4" />
                       {shipFeature.isPending ? "Shipping…" : "Mark as shipped"}
                     </Button>

@@ -61,12 +61,12 @@ function RepoRow({
 
   return (
     <div className="flex items-center gap-4 px-5 py-3.5">
-      <div className="text-slate-400">
+      <div className="text-muted-foreground">
         {repo.private ? <Lock className="size-4" /> : <Globe className="size-4" />}
       </div>
       <div className="flex-1 min-w-0">
-        <p className="truncate text-sm font-medium text-white">{repo.fullName}</p>
-        <p className="text-xs text-slate-500">default: {repo.defaultBranch}</p>
+        <p className="truncate text-sm font-medium text-foreground">{repo.fullName}</p>
+        <p className="text-xs text-muted-foreground">default: {repo.defaultBranch}</p>
       </div>
       <Button
         size="sm"
@@ -79,7 +79,7 @@ function RepoRow({
             installationId,
           })
         }
-        className="shrink-0 bg-cyan-300 text-slate-950 hover:bg-cyan-200 disabled:opacity-40"
+        className="shrink-0 bg-primary text-primary-foreground hover:bg-primary disabled:opacity-40"
       >
         {connectRepo.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Link2 className="size-3.5" />}
         Connect
@@ -109,32 +109,32 @@ function ConnectedRepoRow({
   });
 
   return (
-    <div className={cn("flex w-full items-center gap-4 px-5 py-3.5 transition hover:bg-white/[0.03]", !isDeletedOnGithub && "cursor-pointer")}>
-      <CheckCircle2 className={cn("size-4 shrink-0", isDeletedOnGithub ? "text-red-400/60" : "text-emerald-400")} />
+    <div className={cn("flex w-full items-center gap-4 px-5 py-3.5 transition hover:bg-foreground/[0.03]", !isDeletedOnGithub && "cursor-pointer")}>
+      <CheckCircle2 className={cn("size-4 shrink-0", isDeletedOnGithub ? "text-red-400/60" : "text-success")} />
 
       {isDeletedOnGithub ? (
         <div className="flex-1 min-w-0 text-left">
-          <p className="truncate text-sm font-medium text-white/40 line-through decoration-white">
+          <p className="truncate text-sm font-medium text-foreground/40 line-through decoration-foreground/40">
             {repo.fullName}
           </p>
           <p className="text-xs text-red-400/70">Deleted from GitHub account</p>
         </div>
       ) : (
         <button type="button" onClick={onSelect} className="flex-1 min-w-0 cursor-pointer text-left">
-          <p className="truncate text-sm font-medium text-white">{repo.fullName}</p>
-          <p className="text-xs text-slate-500">branch: {repo.defaultBranch ?? "main"}</p>
+          <p className="truncate text-sm font-medium text-foreground">{repo.fullName}</p>
+          <p className="text-xs text-muted-foreground">branch: {repo.defaultBranch ?? "main"}</p>
         </button>
       )}
 
       {!isDeletedOnGithub && !confirming && (
-        <span className="pointer-events-none inline-flex shrink-0 items-center gap-1 text-xs text-cyan-300">
+        <span className="pointer-events-none inline-flex shrink-0 items-center gap-1 text-xs text-primary">
           View dashboard <ChevronRight className="size-3.5" />
         </span>
       )}
 
       {confirming ? (
         <div className="flex shrink-0 items-center gap-2">
-          <span className="text-xs text-slate-400">Disconnect?</span>
+          <span className="text-xs text-muted-foreground">Disconnect?</span>
           <button
             type="button"
             onClick={() => disconnect.mutate({ repoId: repo.id })}
@@ -147,7 +147,7 @@ function ConnectedRepoRow({
           <button
             type="button"
             onClick={() => setConfirming(false)}
-            className="rounded border border-white/10 px-2 py-1 text-xs font-medium text-slate-400 transition hover:bg-white/5"
+            className="rounded border border-foreground/10 px-2 py-1 text-xs font-medium text-muted-foreground transition hover:bg-foreground/5"
           >
             Cancel
           </button>
@@ -156,7 +156,7 @@ function ConnectedRepoRow({
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); setConfirming(true); }}
-          className="shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-slate-400 transition hover:border-red-400/30 hover:bg-red-400/5 hover:text-red-400"
+          className="shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-foreground/10 bg-foreground/5 px-2.5 py-1.5 text-xs text-muted-foreground transition hover:border-red-400/30 hover:bg-red-400/5 hover:text-red-400"
         >
           <Unlink2 className="size-3.5" />
           {isDeletedOnGithub ? "Remove" : "Disconnect"}
@@ -343,39 +343,39 @@ export default function GithubPage() {
         className="mt-6 grid max-w-5xl gap-6 lg:grid-cols-[0.9fr_1.1fr]"
       >
         {/* Connection status card */}
-        <motion.div variants={FADE_UP} className="group relative overflow-hidden rounded-2xl border border-white/10 bg-zinc-950/40 p-8 shadow-2xl backdrop-blur-xl">
-          <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-white/5 blur-3xl group-hover:bg-orange-500/20 transition-all" />
+        <motion.div variants={FADE_UP} className="group relative overflow-hidden rounded-2xl border border-foreground/10 bg-zinc-950/40 p-8 shadow-2xl backdrop-blur-xl">
+          <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-foreground/5 blur-3xl group-hover:bg-orange-500/20 transition-all" />
 
           <div className="mb-8 flex items-center gap-4">
-            <div className="grid size-12 place-items-center rounded-xl bg-white/5 text-zinc-400 group-hover:bg-orange-500/20 group-hover:text-orange-400 transition-colors">
+            <div className="grid size-12 place-items-center rounded-xl bg-foreground/5 text-zinc-400 group-hover:bg-orange-500/20 group-hover:text-orange-400 transition-colors">
               <Github className="size-6" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-white">GitHub App</h2>
+              <h2 className="text-lg font-semibold text-foreground">GitHub App</h2>
               <p className="text-sm text-zinc-500">Repository access</p>
             </div>
           </div>
 
           {saveInstallation.isPending ? (
-            <div className="flex items-center gap-3 rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-4">
-              <Loader2 className="size-5 animate-spin text-cyan-400" />
-              <p className="text-sm font-medium text-cyan-400">Saving installation…</p>
+            <div className="flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/10 p-4">
+              <Loader2 className="size-5 animate-spin text-primary" />
+              <p className="text-sm font-medium text-primary">Saving installation…</p>
             </div>
           ) : installStatus.installed ? (
             <div className="space-y-4">
-              <div className="flex items-center gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-4">
-                <ShieldCheck className="size-5 text-emerald-400" />
+              <div className="flex items-center gap-3 rounded-xl border border-success/20 bg-success/10 p-4">
+                <ShieldCheck className="size-5 text-success" />
                 <div>
-                  <p className="font-medium text-emerald-400">Connected</p>
+                  <p className="font-medium text-success">Connected</p>
                   {installStatus.installation?.accountLogin && (
-                    <p className="text-xs text-emerald-300/70">@{installStatus.installation.accountLogin}</p>
+                    <p className="text-xs text-success/70">@{installStatus.installation.accountLogin}</p>
                   )}
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => openGithubPopup(getInstallUrl())}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-300 transition hover:bg-white/10"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-foreground/10 bg-foreground/5 px-3 py-1.5 text-xs text-foreground/80 transition hover:bg-foreground/10"
               >
                 <Settings className="size-3.5" />
                 Manage repositories
@@ -389,7 +389,7 @@ export default function GithubPage() {
               <button
                 type="button"
                 onClick={() => openGithubPopup(getInstallUrl())}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-orange-500 px-5 py-3 font-semibold text-white shadow-[0_0_20px_rgba(249,115,22,0.2)] transition-all hover:scale-[1.02] hover:bg-orange-400 active:scale-[0.98]"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-orange-500 px-5 py-3 font-semibold text-foreground shadow-[0_0_20px_rgba(249,115,22,0.2)] transition-all hover:scale-[1.02] hover:bg-orange-400 active:scale-[0.98]"
               >
                 Install / Connect GitHub App
                 <ExternalLink className="size-4" />
@@ -398,33 +398,33 @@ export default function GithubPage() {
                 href={getInstallUrl()}
                 target="_blank"
                 rel="noreferrer"
-                className="block text-center text-xs text-slate-500 underline-offset-2 hover:text-slate-300 hover:underline"
+                className="block text-center text-xs text-muted-foreground underline-offset-2 hover:text-foreground/80 hover:underline"
               >
                 Popup blocked? Open in a new tab instead
               </a>
 
               {/* Fallback: already installed but GitHub didn't redirect back */}
-              <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
-                <p className="text-xs font-medium text-slate-300">Already installed the app?</p>
-                <p className="mt-1 text-xs text-slate-500">
+              <div className="rounded-xl border border-foreground/10 bg-foreground/[0.02] p-4">
+                <p className="text-xs font-medium text-foreground/80">Already installed the app?</p>
+                <p className="mt-1 text-xs text-muted-foreground">
                   If GitHub didn&apos;t bring you back automatically, detect your existing installation here.
                 </p>
 
                 {detecting ? (
-                  <div className="mt-3 flex items-center gap-2 text-xs text-slate-400">
+                  <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
                     <Loader2 className="size-3.5 animate-spin" /> Looking for installations…
                   </div>
                 ) : detectedInstalls.length > 0 ? (
                   <div className="mt-3 space-y-2">
                     {detectedInstalls.map((inst) => (
-                      <div key={inst.installationId} className="flex items-center gap-3 rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+                      <div key={inst.installationId} className="flex items-center gap-3 rounded-lg border border-foreground/10 bg-foreground/5 px-3 py-2">
                         {inst.avatarUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img src={inst.avatarUrl} alt={inst.accountLogin ?? ""} className="size-6 rounded-full" />
                         ) : (
-                          <Github className="size-5 text-slate-400" />
+                          <Github className="size-5 text-muted-foreground" />
                         )}
-                        <span className="flex-1 truncate text-sm text-white">
+                        <span className="flex-1 truncate text-sm text-foreground">
                           {inst.accountLogin ?? `Installation ${inst.installationId}`}
                         </span>
                         <Button
@@ -437,7 +437,7 @@ export default function GithubPage() {
                               accountType: inst.accountType ?? undefined,
                             })
                           }
-                          className="bg-cyan-300 text-slate-950 hover:bg-cyan-200"
+                          className="bg-primary text-primary-foreground hover:bg-primary"
                         >
                           {saveInstallation.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Link2 className="size-3.5" />}
                           Connect
@@ -449,7 +449,7 @@ export default function GithubPage() {
                   <button
                     type="button"
                     onClick={() => detectInstallations(false)}
-                    className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-300 transition hover:bg-white/10"
+                    className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-foreground/10 bg-foreground/5 px-3 py-1.5 text-xs text-foreground/80 transition hover:bg-foreground/10"
                   >
                     <Github className="size-3.5" />
                     Detect installation
@@ -461,12 +461,12 @@ export default function GithubPage() {
         </motion.div>
 
         {/* How it works */}
-        <motion.div variants={FADE_UP} className="rounded-2xl border border-white/10 bg-zinc-950/40 p-8 shadow-2xl backdrop-blur-xl">
+        <motion.div variants={FADE_UP} className="rounded-2xl border border-foreground/10 bg-zinc-950/40 p-8 shadow-2xl backdrop-blur-xl">
           <div className="mb-6 flex items-center gap-3">
             <GitBranch className="size-5 text-zinc-400" />
-            <h2 className="text-base font-semibold text-white">How it works</h2>
+            <h2 className="text-base font-semibold text-foreground">How it works</h2>
           </div>
-          <div className="relative border-l border-white/10 pl-6 space-y-8">
+          <div className="relative border-l border-foreground/10 pl-6 space-y-8">
             {[
               { title: "Install the GitHub App", desc: "Grant access to your selected repositories." },
               { title: "Connect a repo to this project", desc: `Repos connect to ${activeProject?.name ?? "the active project"}.` },
@@ -503,11 +503,11 @@ export default function GithubPage() {
           {/* Connected repos — clickable into the dashboard */}
           {connectedRepos.length > 0 && (
             <div>
-              <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-white">
-                <CheckCircle2 className="size-4 text-emerald-400" />
+              <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground">
+                <CheckCircle2 className="size-4 text-success" />
                 Connected repositories ({connectedRepos.length})
               </h2>
-              <div className="divide-y divide-white/5 overflow-hidden rounded-xl border border-white/10">
+              <div className="divide-y divide-foreground/5 overflow-hidden rounded-xl border border-foreground/10">
                 {connectedRepos.map((r) => (
                   <ConnectedRepoRow
                     key={r.id}
@@ -531,12 +531,12 @@ export default function GithubPage() {
           {/* Available repos to connect */}
           <div>
             <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <h2 className="text-sm font-semibold text-white">
+              <h2 className="text-sm font-semibold text-foreground">
                 {loadingRepos ? "Loading repositories…" : `Available repositories (${unconnectedRepos.length})`}
               </h2>
               {activeProject && (
-                <span className="text-xs text-slate-400">
-                  Connecting to <span className="font-medium text-cyan-300">{activeProject.name}</span>
+                <span className="text-xs text-muted-foreground">
+                  Connecting to <span className="font-medium text-primary">{activeProject.name}</span>
                 </span>
               )}
             </div>
@@ -544,15 +544,15 @@ export default function GithubPage() {
             {loadingRepos ? (
               <div className="space-y-2">
                 {Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="h-14 animate-pulse rounded-xl border border-white/10 bg-white/[0.03]" />
+                  <div key={i} className="h-14 animate-pulse rounded-xl border border-foreground/10 bg-foreground/[0.03]" />
                 ))}
               </div>
             ) : unconnectedRepos.length === 0 ? (
-              <div className="rounded-xl border border-white/10 py-12 text-center text-sm text-slate-500">
+              <div className="rounded-xl border border-foreground/10 py-12 text-center text-sm text-muted-foreground">
                 All accessible repositories are already connected.
               </div>
             ) : (
-              <div className="overflow-hidden rounded-xl border border-white/10 divide-y divide-white/5">
+              <div className="overflow-hidden rounded-xl border border-foreground/10 divide-y divide-foreground/5">
                 {unconnectedRepos.map((repo) => (
                   <RepoRow
                     key={repo.id}

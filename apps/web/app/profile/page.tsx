@@ -54,18 +54,18 @@ export default function ProfilePage() {
     <div className="mx-auto max-w-3xl space-y-8 px-4 py-10">
       {/* Header */}
       <div className="flex items-center gap-5">
-        <Avatar className="size-20 ring-2 ring-white/10">
+        <Avatar className="size-20 ring-2 ring-foreground/10">
           {user.image ? <AvatarImage src={user.image} alt={displayName} /> : null}
           <AvatarFallback className="text-2xl">{getInitials(user)}</AvatarFallback>
         </Avatar>
         <div className="flex-1 min-w-0">
-          <h1 className="text-2xl font-bold text-white truncate">{displayName}</h1>
-          {user.email ? <p className="text-sm text-slate-400 truncate">{user.email}</p> : null}
+          <h1 className="text-2xl font-bold text-foreground truncate">{displayName}</h1>
+          {user.email ? <p className="text-sm text-muted-foreground truncate">{user.email}</p> : null}
         </div>
         <Button
           variant="ghost"
           size="sm"
-          className="shrink-0 text-slate-400 hover:text-red-400"
+          className="shrink-0 text-muted-foreground hover:text-red-400"
           onClick={handleSignOut}
           disabled={signingOut}
         >
@@ -87,14 +87,14 @@ export default function ProfilePage() {
                 key={m.orgId}
                 type="button"
                 onClick={() => router.push("/dashboard")}
-                className="flex items-center gap-4 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-left transition hover:bg-white/[0.06]"
+                className="flex items-center gap-4 rounded-xl border border-foreground/10 bg-foreground/[0.03] px-4 py-3 text-left transition hover:bg-foreground/[0.06]"
               >
-                <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-cyan-300/10 text-lg font-bold text-cyan-300">
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-lg font-bold text-primary">
                   {m.orgName?.[0]?.toUpperCase() ?? "?"}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium text-white truncate">{m.orgName}</p>
-                  <p className="text-xs text-slate-500 capitalize">{m.plan} plan · {m.memberCount} members</p>
+                  <p className="font-medium text-foreground truncate">{m.orgName}</p>
+                  <p className="text-xs text-muted-foreground capitalize">{m.plan} plan · {m.memberCount} members</p>
                 </div>
                 <RoleBadge role={m.role} />
               </button>
@@ -114,14 +114,14 @@ export default function ProfilePage() {
             {myTasks.data?.map((task) => (
               <div
                 key={task.id}
-                className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3"
+                className="flex items-start gap-3 rounded-xl border border-foreground/10 bg-foreground/[0.03] px-4 py-3"
               >
                 <TaskStatusIcon status={task.status} />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-slate-200 truncate">{task.title}</p>
-                  <p className="text-xs text-slate-500 mt-0.5">{task.orgName} · {task.featureTitle}</p>
+                  <p className="text-sm font-medium text-foreground truncate">{task.title}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{task.orgName} · {task.featureTitle}</p>
                 </div>
-                <span className="shrink-0 text-xs capitalize text-slate-500">{task.status.replace("_", " ")}</span>
+                <span className="shrink-0 text-xs capitalize text-muted-foreground">{task.status.replace("_", " ")}</span>
               </div>
             ))}
           </div>
@@ -142,7 +142,7 @@ function Section({
 }) {
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2 text-slate-400">
+      <div className="flex items-center gap-2 text-muted-foreground">
         {icon}
         <h2 className="text-sm font-semibold uppercase tracking-wider">{title}</h2>
       </div>
@@ -156,25 +156,25 @@ function RoleBadge({ role }: { role: string }) {
     owner: "bg-amber-400/10 text-amber-300 border-amber-400/20",
     admin: "bg-purple-400/10 text-purple-300 border-purple-400/20",
     manager: "bg-blue-400/10 text-blue-300 border-blue-400/20",
-    developer: "bg-emerald-400/10 text-emerald-300 border-emerald-400/20",
+    developer: "bg-success/10 text-success border-success/20",
   };
   return (
-    <span className={`rounded-full border px-2.5 py-0.5 text-xs font-medium capitalize ${colors[role] ?? "bg-white/5 text-slate-400 border-white/10"}`}>
+    <span className={`rounded-full border px-2.5 py-0.5 text-xs font-medium capitalize ${colors[role] ?? "bg-foreground/5 text-muted-foreground border-foreground/10"}`}>
       {role}
     </span>
   );
 }
 
 function TaskStatusIcon({ status }: { status: string }) {
-  if (status === "done") return <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-400" />;
-  if (status === "in_progress") return <Clock className="mt-0.5 size-4 shrink-0 text-cyan-400" />;
-  return <div className="mt-1 size-3 shrink-0 rounded-full border border-slate-600" />;
+  if (status === "done") return <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-success" />;
+  if (status === "in_progress") return <Clock className="mt-0.5 size-4 shrink-0 text-primary" />;
+  return <div className="mt-1 size-3 shrink-0 rounded-full border border-muted-foreground" />;
 }
 
 function EmptyState({ text }: { text: string }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-8 text-center">
-      <p className="text-sm text-slate-500">{text}</p>
+    <div className="rounded-xl border border-foreground/10 bg-foreground/[0.03] px-4 py-8 text-center">
+      <p className="text-sm text-muted-foreground">{text}</p>
     </div>
   );
 }

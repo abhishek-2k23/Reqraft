@@ -46,14 +46,14 @@ export function ActionBoard() {
   );
 
   return (
-    <div className="rounded-lg border border-cyan-300/20 bg-cyan-300/10 p-5">
+    <div className="rounded-lg border border-primary/20 bg-primary/10 p-5">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <p className="text-lg font-semibold text-white">Interactive workflow demo</p>
-          <p className="text-sm text-cyan-50/75">Click actions to see how Reqraft gates release quality.</p>
+          <p className="text-lg font-semibold text-foreground">Interactive workflow demo</p>
+          <p className="text-sm text-primary/75">Click actions to see how Reqraft gates release quality.</p>
         </div>
         <button
-          className="rounded-md bg-white px-3 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-100"
+          className="rounded-md bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground transition hover:bg-primary"
           onClick={() => setRuns((value) => (value >= actions.length ? 1 : value + 1))}
         >
           Run next step
@@ -70,8 +70,8 @@ export function ActionBoard() {
               key={action.id}
               className={`rounded-md border px-3 py-3 text-left text-sm transition ${
                 active
-                  ? "border-cyan-200 bg-cyan-200 text-slate-950"
-                  : "border-white/10 bg-black/20 text-slate-200 hover:bg-white/10"
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-foreground/10 bg-muted text-foreground hover:bg-foreground/10"
               }`}
               onClick={() => setSelectedAction(action)}
             >
@@ -82,14 +82,14 @@ export function ActionBoard() {
         })}
       </div>
 
-      <div className="mt-5 rounded-md border border-white/10 bg-black/30 p-4">
-        <p className="text-xs uppercase tracking-[0.22em] text-cyan-200">Current result</p>
-        <p className="mt-2 text-sm leading-6 text-slate-100">{selectedAction.result}</p>
+      <div className="mt-5 rounded-md border border-foreground/10 bg-muted p-4">
+        <p className="text-xs uppercase tracking-[0.22em] text-primary">Current result</p>
+        <p className="mt-2 text-sm leading-6 text-foreground">{selectedAction.result}</p>
       </div>
 
       <div className="mt-5 flex flex-wrap gap-2">
         {history.map((item) => (
-          <span key={item.id} className="rounded-full bg-white/10 px-3 py-1 text-xs text-slate-200">
+          <span key={item.id} className="rounded-full bg-foreground/10 px-3 py-1 text-xs text-foreground">
             {item.label}
           </span>
         ))}

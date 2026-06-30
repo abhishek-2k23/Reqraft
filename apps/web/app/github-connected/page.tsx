@@ -66,16 +66,16 @@ export default function GithubConnectedPage() {
   }, []);
 
   return (
-    <main className="grid min-h-screen place-items-center bg-[#090b10] text-slate-100">
+    <main className="grid min-h-screen place-items-center bg-[#090b10] text-foreground">
       <div className="flex flex-col items-center gap-4 text-center">
-        <div className="grid size-12 place-items-center rounded-xl bg-white/5 text-cyan-300">
+        <div className="grid size-12 place-items-center rounded-xl bg-foreground/5 text-primary">
           <Github className="size-6" />
         </div>
-        <div className="flex items-center gap-2 text-sm text-slate-400">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Loader2 className="size-4 animate-spin" />
           {closing ? "Finishing GitHub connection…" : "Redirecting…"}
         </div>
-        <p className="text-xs text-slate-600">You can close this window if it doesn&apos;t close automatically.</p>
+        <p className="text-xs text-muted-foreground">You can close this window if it doesn&apos;t close automatically.</p>
       </div>
     </main>
   );

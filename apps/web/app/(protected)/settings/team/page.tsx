@@ -59,9 +59,9 @@ function RoleBadge({ role }: { role: MemberRole }) {
   const colors: Record<MemberRole, string> = {
     owner:     "border-amber-400/30 bg-amber-400/10 text-amber-300",
     admin:     "border-purple-400/30 bg-purple-400/10 text-purple-300",
-    manager:   "border-cyan-400/30 bg-cyan-400/10 text-cyan-300",
-    developer: "border-emerald-400/30 bg-emerald-400/10 text-emerald-300",
-    viewer:    "border-slate-400/30 bg-slate-400/10 text-slate-400",
+    manager:   "border-primary/30 bg-primary/10 text-primary",
+    developer: "border-success/30 bg-success/10 text-success",
+    viewer:    "border-muted-foreground/30 bg-muted-foreground/10 text-muted-foreground",
   };
 
   return (
@@ -92,18 +92,18 @@ function InviteForm() {
         e.preventDefault();
         invite.mutate({ email, role });
       }}
-      className="rounded-xl border border-white/10 bg-white/[0.03] p-5"
+      className="rounded-xl border border-foreground/10 bg-foreground/[0.03] p-5"
     >
-      <h2 className="mb-1 flex items-center gap-2 text-sm font-semibold text-white">
-        <UserPlus className="size-4 text-cyan-300" />
+      <h2 className="mb-1 flex items-center gap-2 text-sm font-semibold text-foreground">
+        <UserPlus className="size-4 text-primary" />
         Invite a team member
       </h2>
-      <p className="mb-4 text-xs text-slate-500">
+      <p className="mb-4 text-xs text-muted-foreground">
         They will receive an email with a link to accept the invitation and join your organization.
       </p>
       <div className="grid gap-4 sm:grid-cols-[1fr_auto_auto]">
         <div className="grid gap-1.5">
-          <Label htmlFor="add-email" className="text-xs text-slate-400">Email address</Label>
+          <Label htmlFor="add-email" className="text-xs text-muted-foreground">Email address</Label>
           <Input
             id="add-email"
             type="email"
@@ -111,18 +111,18 @@ function InviteForm() {
             onChange={(e) => setEmail(e.target.value)}
             placeholder="colleague@company.com"
             required
-            className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-600"
+            className="border-foreground/10 bg-foreground/5 text-foreground placeholder:text-muted-foreground"
           />
         </div>
         <div className="grid gap-1.5">
-          <Label className="text-xs text-slate-400">Role</Label>
+          <Label className="text-xs text-muted-foreground">Role</Label>
           <Select value={role} onValueChange={(v) => setRole(v as MemberRole)}>
-            <SelectTrigger className="w-36 border-white/10 bg-white/5 text-slate-100">
+            <SelectTrigger className="w-36 border-foreground/10 bg-foreground/5 text-foreground">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent className="border-white/10 bg-[#0d1118]">
+            <SelectContent className="border-foreground/10 bg-[#0d1118]">
               {MEMBER_ROLES.filter((r) => r !== "owner").map((r) => (
-                <SelectItem key={r} value={r} className="text-slate-300 focus:bg-white/10 focus:text-white capitalize">
+                <SelectItem key={r} value={r} className="text-foreground/80 focus:bg-foreground/10 focus:text-foreground capitalize">
                   {ROLE_META[r].label}
                 </SelectItem>
               ))}
@@ -133,7 +133,7 @@ function InviteForm() {
           <Button
             type="submit"
             disabled={invite.isPending || !email}
-            className="bg-cyan-300 text-slate-950 hover:bg-cyan-200"
+            className="bg-primary text-primary-foreground hover:bg-primary"
           >
             {invite.isPending ? <Loader2 className="size-4 animate-spin" /> : "Send invite"}
           </Button>
@@ -183,10 +183,10 @@ function RemoveMemberModal({
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onCancel(); }}>
-      <DialogContent className="border-white/10 bg-[#0d1118] text-slate-100 sm:max-w-md">
+      <DialogContent className="border-foreground/10 bg-[#0d1118] text-foreground sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-white">Remove {pending.name}</DialogTitle>
-          <DialogDescription className="text-slate-400">
+          <DialogTitle className="text-foreground">Remove {pending.name}</DialogTitle>
+          <DialogDescription className="text-muted-foreground">
             {hasTasks
               ? `${pending.name} has ${assignedTasks.length} assigned task${assignedTasks.length !== 1 ? "s" : ""}. Choose what to do with them before removing.`
               : `Remove ${pending.name} from the organization? This cannot be undone.`}
@@ -195,33 +195,33 @@ function RemoveMemberModal({
 
         {loadingTasks ? (
           <div className="flex items-center justify-center py-6">
-            <Loader2 className="size-5 animate-spin text-slate-500" />
+            <Loader2 className="size-5 animate-spin text-muted-foreground" />
           </div>
         ) : hasTasks ? (
           <div className="grid gap-4">
             {/* Task list */}
-            <div className="max-h-48 overflow-y-auto rounded-lg border border-white/10 divide-y divide-white/5">
+            <div className="max-h-48 overflow-y-auto rounded-lg border border-foreground/10 divide-y divide-foreground/5">
               {assignedTasks.map((task) => (
                 <div key={task.id} className="flex items-center justify-between px-3 py-2.5 gap-3">
-                  <p className="text-sm text-slate-200 truncate flex-1">{task.title}</p>
-                  <span className="shrink-0 text-xs text-slate-500">{STATUS_LABEL[task.status] ?? task.status}</span>
+                  <p className="text-sm text-foreground truncate flex-1">{task.title}</p>
+                  <span className="shrink-0 text-xs text-muted-foreground">{STATUS_LABEL[task.status] ?? task.status}</span>
                 </div>
               ))}
             </div>
 
             {/* Reassign dropdown */}
             <div className="grid gap-1.5">
-              <Label className="text-xs text-slate-400">Reassign tasks to</Label>
+              <Label className="text-xs text-muted-foreground">Reassign tasks to</Label>
               <Select value={reassignTo} onValueChange={setReassignTo}>
-                <SelectTrigger className="border-white/10 bg-white/5 text-slate-100">
+                <SelectTrigger className="border-foreground/10 bg-foreground/5 text-foreground">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="border-white/10 bg-[#0d1118]">
-                  <SelectItem value="unassigned" className="text-slate-400 focus:bg-white/10 focus:text-white">
+                <SelectContent className="border-foreground/10 bg-[#0d1118]">
+                  <SelectItem value="unassigned" className="text-muted-foreground focus:bg-foreground/10 focus:text-foreground">
                     Leave unassigned
                   </SelectItem>
                   {reassignOptions.map((m) => (
-                    <SelectItem key={m.userId} value={m.userId} className="text-slate-300 focus:bg-white/10 focus:text-white">
+                    <SelectItem key={m.userId} value={m.userId} className="text-foreground/80 focus:bg-foreground/10 focus:text-foreground">
                       {m.name}
                     </SelectItem>
                   ))}
@@ -246,7 +246,7 @@ function RemoveMemberModal({
             variant="ghost"
             onClick={onCancel}
             disabled={isPending}
-            className="text-slate-400 hover:text-white hover:bg-white/5"
+            className="text-muted-foreground hover:text-foreground hover:bg-foreground/5"
           >
             Cancel
           </Button>
@@ -302,14 +302,14 @@ export default function TeamPage() {
 
         {/* Members + pending invitations list */}
         <div>
-          <h2 className="mb-3 text-sm font-semibold text-white">Members ({totalCount})</h2>
-          <div className="overflow-hidden rounded-xl border border-white/10">
+          <h2 className="mb-3 text-sm font-semibold text-foreground">Members ({totalCount})</h2>
+          <div className="overflow-hidden rounded-xl border border-foreground/10">
             {isLoading || isLoadingInvitations ? (
               <div className="flex items-center justify-center py-12">
-                <Loader2 className="size-5 animate-spin text-slate-500" />
+                <Loader2 className="size-5 animate-spin text-muted-foreground" />
               </div>
             ) : (
-              <div className="divide-y divide-white/5">
+              <div className="divide-y divide-foreground/5">
                 {/* Active members */}
                 {members.map((m) => (
                   <div key={m.memberId} className="flex items-center gap-4 px-5 py-4">
@@ -317,29 +317,29 @@ export default function TeamPage() {
                       // eslint-disable-next-line @next/next/no-img-element -- avatar URLs come from arbitrary OAuth providers; next/image would require remotePatterns config
                       <img src={m.image} alt={m.name} className="size-9 rounded-full object-cover" />
                     ) : (
-                      <div className="grid size-9 place-items-center rounded-full bg-white/10 text-sm font-semibold text-white">
+                      <div className="grid size-9 place-items-center rounded-full bg-foreground/10 text-sm font-semibold text-foreground">
                         {m.name[0]}
                       </div>
                     )}
 
                     <div className="flex-1 min-w-0">
-                      <p className="truncate text-sm font-medium text-white">{m.name}</p>
-                      <p className="truncate text-xs text-slate-500">{m.email}</p>
+                      <p className="truncate text-sm font-medium text-foreground">{m.name}</p>
+                      <p className="truncate text-xs text-muted-foreground">{m.email}</p>
                     </div>
 
                     <RoleBadge role={m.role as MemberRole} />
 
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="size-8 text-slate-500 hover:text-white">
+                        <Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-foreground">
                           <MoreHorizontal className="size-4" />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="border-white/10 bg-[#0d1118] w-48">
+                      <DropdownMenuContent align="end" className="border-foreground/10 bg-[#0d1118] w-48">
                         {MEMBER_ROLES.filter((r) => r !== "owner" && r !== m.role).map((r) => (
                           <DropdownMenuItem
                             key={r}
-                            className="cursor-pointer text-sm text-slate-300 focus:bg-white/10 focus:text-white"
+                            className="cursor-pointer text-sm text-foreground/80 focus:bg-foreground/10 focus:text-foreground"
                             onSelect={() => updateRole.mutate({ memberId: m.memberId, role: r })}
                           >
                             Set as {ROLE_META[r].label}
@@ -372,8 +372,8 @@ export default function TeamPage() {
                     </div>
 
                     <div className="flex-1 min-w-0">
-                      <p className="truncate text-sm font-medium text-slate-300">{inv.email}</p>
-                      <p className="truncate text-xs text-slate-500">
+                      <p className="truncate text-sm font-medium text-foreground/80">{inv.email}</p>
+                      <p className="truncate text-xs text-muted-foreground">
                         Invite expires {new Date(inv.expiresAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                       </p>
                     </div>
@@ -386,11 +386,11 @@ export default function TeamPage() {
 
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="size-8 text-slate-500 hover:text-white">
+                        <Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-foreground">
                           <MoreHorizontal className="size-4" />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="border-white/10 bg-[#0d1118] w-48">
+                      <DropdownMenuContent align="end" className="border-foreground/10 bg-[#0d1118] w-48">
                         <DropdownMenuItem
                           className="cursor-pointer text-sm text-red-400 focus:bg-red-400/10 focus:text-red-300"
                           onSelect={() => cancelInvitation.mutate({ invitationId: inv.id })}
@@ -403,7 +403,7 @@ export default function TeamPage() {
                 ))}
 
                 {members.length === 0 && invitations.length === 0 && (
-                  <div className="px-5 py-10 text-center text-sm text-slate-500">
+                  <div className="px-5 py-10 text-center text-sm text-muted-foreground">
                     No members yet. Invite your team above.
                   </div>
                 )}

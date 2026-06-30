@@ -55,44 +55,44 @@ export default function NewFeaturePage() {
         title="New feature request"
         description="Start with the messy real-world ask. Reqraft will turn it into a structured delivery workflow."
       />
-      <div className="max-w-3xl rounded-lg border border-white/10 bg-white/[0.045] p-5">
+      <div className="max-w-3xl rounded-lg border border-foreground/10 bg-foreground/[0.045] p-5">
         <div className="grid gap-5">
           <div className="grid gap-2">
-            <Label htmlFor="title" className="text-slate-300">Feature title</Label>
+            <Label htmlFor="title" className="text-foreground/80">Feature title</Label>
             <Input
               id="title"
               value={title}
               onChange={(event) => setTitle(event.target.value)}
               placeholder="AI release approval gate"
-              className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-600"
+              className="border-foreground/10 bg-foreground/5 text-foreground placeholder:text-muted-foreground"
             />
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="description" className="text-slate-300">Raw client request</Label>
+            <Label htmlFor="description" className="text-foreground/80">Raw client request</Label>
             <Textarea
               id="description"
               value={description}
               onChange={(event) => setDescription(event.target.value)}
               placeholder="Explain what the client or team wants, what problem it solves, and any known constraints."
-              className="min-h-44 border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-600"
+              className="min-h-44 border-foreground/10 bg-foreground/5 text-foreground placeholder:text-muted-foreground"
             />
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
-              <Label className="text-slate-300">Project</Label>
+              <Label className="text-foreground/80">Project</Label>
               <Select
                 value={projectId}
                 onValueChange={setProjectId}
                 disabled={loadingProjects}
               >
-                <SelectTrigger className="w-full border-white/10 bg-white/5 text-slate-100">
+                <SelectTrigger className="w-full border-foreground/10 bg-foreground/5 text-foreground">
                   <SelectValue placeholder={loadingProjects ? "Loading…" : "Select project"} />
                 </SelectTrigger>
-                <SelectContent className="border-white/10 bg-[#0d1118]">
+                <SelectContent className="border-foreground/10 bg-[#0d1118]">
                   {projects.map((p) => (
-                    <SelectItem key={p.id} value={p.id} className="text-slate-300 focus:bg-white/10 focus:text-white">
+                    <SelectItem key={p.id} value={p.id} className="text-foreground/80 focus:bg-foreground/10 focus:text-foreground">
                       {p.name}
                     </SelectItem>
                   ))}
@@ -104,9 +104,9 @@ export default function NewFeaturePage() {
             </div>
 
             <div className="grid gap-2">
-              <Label className="text-slate-300">Priority</Label>
+              <Label className="text-foreground/80">Priority</Label>
               <Select value={priority} onValueChange={(value) => setPriority(value as Priority)}>
-                <SelectTrigger className="w-full border-white/10 bg-white/5 text-slate-100">
+                <SelectTrigger className="w-full border-foreground/10 bg-foreground/5 text-foreground">
                   <SelectValue placeholder="Select priority" />
                 </SelectTrigger>
                 <SelectContent>
@@ -123,7 +123,7 @@ export default function NewFeaturePage() {
             type="button"
             disabled={!title.trim() || !description.trim() || !projectId.trim() || createFeature.isPending}
             onClick={() => createFeature.mutate({ title, description, projectId, priority })}
-            className="w-fit bg-cyan-300 text-slate-950 hover:bg-cyan-200"
+            className="w-fit bg-primary text-primary-foreground hover:bg-primary"
           >
             {createFeature.isPending ? <Loader2 className="size-4 animate-spin" /> : <SendHorizontal className="size-4" />}
             Create feature
