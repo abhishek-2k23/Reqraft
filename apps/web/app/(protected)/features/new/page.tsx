@@ -16,7 +16,7 @@ import {
   SelectValue,
 } from "~/components/ui/select";
 import { Textarea } from "~/components/ui/textarea";
-import { ShipFlowShell } from "~/components/shipflow/shell";
+import { PageHeader } from "~/components/shipflow/ui-kit";
 import { useActiveProject } from "~/components/shipflow/project-context";
 import { trpc } from "~/trpc/client";
 
@@ -50,11 +50,11 @@ export default function NewFeaturePage() {
   });
 
   return (
-    <ShipFlowShell
-      active="/features"
-      title="New feature request"
-      description="Start with the messy real-world ask. Reqraft will turn it into a structured delivery workflow."
-    >
+    <div className="space-y-6">
+      <PageHeader
+        title="New feature request"
+        description="Start with the messy real-world ask. Reqraft will turn it into a structured delivery workflow."
+      />
       <div className="max-w-3xl rounded-lg border border-white/10 bg-white/[0.045] p-5">
         <div className="grid gap-5">
           <div className="grid gap-2">
@@ -130,6 +130,6 @@ export default function NewFeaturePage() {
           </Button>
         </div>
       </div>
-    </ShipFlowShell>
+    </div>
   );
 }

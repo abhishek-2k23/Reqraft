@@ -2,6 +2,7 @@ import { db, eq } from "@repo/database";
 import { members, organizations, sessionsTable } from "@repo/database/schema";
 import { requireAuth } from "@/features/auth/session";
 import { ProjectProvider } from "~/components/shipflow/project-context";
+import { ShipFlowShell } from "~/components/shipflow/shell";
 
 export default async function ProtectedLayout({
   children,
@@ -47,5 +48,9 @@ export default async function ProtectedLayout({
       .where(eq(sessionsTable.id, session.session.id));
   }
 
-  return <ProjectProvider>{children}</ProjectProvider>;
+  return (
+    <ProjectProvider>
+      <ShipFlowShell>{children}</ShipFlowShell>
+    </ProjectProvider>
+  );
 }

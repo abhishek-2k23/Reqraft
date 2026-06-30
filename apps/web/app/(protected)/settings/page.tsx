@@ -4,7 +4,7 @@ import { getServerSession } from "@/features/auth/session";
 import { CreateOrgForm } from "~/components/shipflow/create-org-form";
 import { OrgSettingsForm } from "~/components/shipflow/org-settings-form";
 import { ProjectsSection } from "~/components/shipflow/projects-section";
-import { ShipFlowShell } from "~/components/shipflow/shell";
+import { PageHeader } from "~/components/shipflow/ui-kit";
 import { api } from "~/trpc/server";
 
 export const dynamic = "force-dynamic";
@@ -15,11 +15,8 @@ export default async function SettingsPage() {
   const currentOrg = await api.org.current.query().catch(() => null);
 
   return (
-    <ShipFlowShell
-      active="/settings"
-      title="Settings"
-      description="Manage your account, organization, and projects."
-    >
+    <div className="space-y-6">
+      <PageHeader title="Settings" description="Manage your account, organization, and projects." />
       <div className="max-w-2xl space-y-6">
 
         {/* Account */}
@@ -74,6 +71,6 @@ export default async function SettingsPage() {
         </div>
 
       </div>
-    </ShipFlowShell>
+    </div>
   );
 }

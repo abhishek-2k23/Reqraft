@@ -34,13 +34,7 @@ function SubmitButton() {
   const { pending } = useFormStatus();
 
   return (
-    <Button
-      type="submit"
-      size="lg"
-      variant="outline"
-      className="w-full border-white/15 bg-white/5 text-slate-100 hover:bg-white/10 hover:text-white"
-      disabled={pending}
-    >
+    <Button type="submit" size="lg" variant="outline" className="w-full" disabled={pending}>
       {pending ? <Spinner className="size-4" /> : <GoogleIcon />}
       {pending ? "Redirecting to Google..." : "Continue with Google"}
     </Button>

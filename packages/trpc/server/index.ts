@@ -11,6 +11,7 @@ import { prdRouter } from "./routes/prd/route";
 import { profileRouter } from "./routes/profile/route";
 import { projectRouter } from "./routes/project/route";
 import { reviewRouter } from "./routes/review/route";
+import { searchRouter } from "./routes/search/route";
 import { shipflowRouter } from "./routes/shipflow/route";
 import { taskRouter } from "./routes/task/route";
 
@@ -26,6 +27,7 @@ export const serverRouter = router({
   profile: profileRouter,
   project: projectRouter,
   review: reviewRouter,
+  search: searchRouter,
   shipflow: shipflowRouter,
   task: taskRouter,
 });

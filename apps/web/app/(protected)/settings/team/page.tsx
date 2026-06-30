@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Crown, Shield, Briefcase, Code2, Eye, MoreHorizontal, UserPlus, Loader2, AlertTriangle, Mail } from "lucide-react";
 import { toast } from "sonner";
 
-import { ShipFlowShell } from "~/components/shipflow/shell";
+import { PageHeader } from "~/components/shipflow/ui-kit";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
@@ -295,11 +295,8 @@ export default function TeamPage() {
   const totalCount = members.length + invitations.length;
 
   return (
-    <ShipFlowShell
-      active="/settings"
-      title="Team"
-      description="Manage members, roles, and invitations for your organization."
-    >
+    <div className="space-y-6">
+      <PageHeader title="Team" description="Manage members, roles, and invitations for your organization." />
       <div className="grid max-w-4xl gap-8">
         <InviteForm />
 
@@ -427,6 +424,6 @@ export default function TeamPage() {
           isPending={removeMember.isPending}
         />
       )}
-    </ShipFlowShell>
+    </div>
   );
 }

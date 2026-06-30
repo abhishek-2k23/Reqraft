@@ -43,7 +43,7 @@ export function EmailSignInForm({ callbackUrl }: { callbackUrl?: string }) {
         )}
 
         <div className="grid gap-1.5">
-          <Label htmlFor="email" className="text-xs text-slate-400">
+          <Label htmlFor="email" className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
             Email
           </Label>
           <Input
@@ -55,12 +55,11 @@ export function EmailSignInForm({ callbackUrl }: { callbackUrl?: string }) {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="you@company.com"
-            className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-600 transition-all duration-300"
           />
         </div>
 
         <div className="grid gap-1.5">
-          <Label htmlFor="password" className="text-xs text-slate-400">
+          <Label htmlFor="password" className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
             Password
           </Label>
           <div className="relative">
@@ -73,12 +72,12 @@ export function EmailSignInForm({ callbackUrl }: { callbackUrl?: string }) {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
-              className="border-white/10 bg-white/5 pr-9 text-slate-100 placeholder:text-slate-600 transition-all duration-300"
+              className="pr-9"
             />
             <button
               type="button"
               onClick={() => setShowPassword((v) => !v)}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
               tabIndex={-1}
             >
               {showPassword ? (
@@ -93,8 +92,9 @@ export function EmailSignInForm({ callbackUrl }: { callbackUrl?: string }) {
         <Button
           type="submit"
           size="lg"
+          variant="secondary"
           disabled={isPending || fillingDemo || !email || !password}
-          className="w-full bg-white/10 text-slate-100 hover:bg-white/20"
+          className="w-full"
         >
           {isPending ? (
             <Loader2 className="size-4 animate-spin" />
@@ -108,7 +108,7 @@ export function EmailSignInForm({ callbackUrl }: { callbackUrl?: string }) {
         type="button"
         onClick={handleDemoClick}
         disabled={fillingDemo || isPending}
-        className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-amber-400/40 bg-amber-400/5 py-2.5 text-sm font-medium text-amber-300 transition hover:border-amber-400/60 hover:bg-amber-400/10 disabled:cursor-not-allowed disabled:opacity-60"
+        className="flex w-full items-center justify-center gap-2 border border-dashed border-primary/40 bg-primary/5 py-2.5 text-sm font-medium text-primary transition-colors hover:border-primary/60 hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-60"
       >
         {fillingDemo ? (
           <Loader2 className="size-4 animate-spin" />
