@@ -29,6 +29,38 @@ test("calculateCreditUsage protects percentage math when credits are empty", () 
   });
 });
 
+test("calculateCreditUsage reports healthy / attention / over_limit thresholds", () => {
+  const healthy = calculateCreditUsage({ usedCredits: 10, includedCredits: 100 });
+  assert.equal(healthy.status, "healthy");
+  assert.equal(healthy.usedPercent, 10);
+  assert.equal(healthy.remainingCredits, 90);
+
+  const attention = calculateCreditUsage({ usedCredits: 80, includedCredits: 100 });
+  assert.equal(attention.status, "attention");
+  assert.equal(attention.usedPercent, 80);
+
+  const over = calculateCreditUsage({ usedCredits: 120, includedCredits: 100 });
+  assert.equal(over.status, "over_limit");
+  assert.equal(over.usedPercent, 100); // capped
+  assert.equal(over.remainingCredits, 0); // floored
+});
+
+test("getPlanDetails exposes the free and scale tiers", () => {
+  assert.equal(getPlanDetails("free").monthlyPriceInr, 0);
+  assert.equal(getPlanDetails("free").repositoryLimit, 1);
+  assert.equal(getPlanDetails("scale").monthlyPriceInr, 1999);
+  assert.equal(getPlanDetails("scale").includedCredits, 5000);
+});
+
+test("normalizeRazorpaySubscriptionEvent ignores unknown events", () => {
+  const update = normalizeRazorpaySubscriptionEvent({
+    event: "subscription.pending",
+    subscriptionId: "sub_x",
+  });
+  assert.equal(update.handled, false);
+  assert.equal(update.plan, "free");
+});
+
 test("normalizeRazorpaySubscriptionEvent returns a stable subscription update", () => {
   assert.deepEqual(
     normalizeRazorpaySubscriptionEvent({

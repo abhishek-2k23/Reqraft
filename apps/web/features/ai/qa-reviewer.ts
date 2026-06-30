@@ -2,7 +2,11 @@ export { reviewImplementationAgainstCriteria } from "@repo/services/shipflow/age
 import { generateObject } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import { z } from 'zod';
-import type { PullRequestReviewResult } from '@repo/services/shipflow/code-review';
+import {
+  clampScore,
+  scoreFromCriteria,
+  type PullRequestReviewResult,
+} from '@repo/services/shipflow/code-review';
 
 export type ReviewCommit = { sha: string; message: string };
 
@@ -34,21 +38,6 @@ const findingSchema = z.object({
     .string()
     .describe('The concrete change to make to fix this. Empty string for positive findings.'),
 });
-
-// met = full credit, partial = half, not_met = none. Deriving the score from the
-// per-criterion verdicts (rather than trusting a single number from the model)
-// is what makes it actually track the PR instead of landing on a constant.
-const CRITERION_WEIGHT = { met: 1, partial: 0.5, not_met: 0 } as const;
-
-function scoreFromCriteria(
-  criteria: Array<{ status: 'met' | 'partial' | 'not_met' }>,
-): number | null {
-  if (criteria.length === 0) return null;
-  const earned = criteria.reduce((sum, c) => sum + CRITERION_WEIGHT[c.status], 0);
-  return Math.round((earned / criteria.length) * 100);
-}
-
-const clampScore = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
 
 export async function reviewPullRequestAgainstPrd(
   input: ReviewInput,

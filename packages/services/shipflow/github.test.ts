@@ -34,3 +34,26 @@ test("toReviewRequestedEvent normalizes a GitHub pull request webhook", () => {
     },
   );
 });
+
+test("shouldReviewPullRequestAction covers reopened and ready_for_review, rejects noise", () => {
+  assert.equal(shouldReviewPullRequestAction("reopened"), true);
+  assert.equal(shouldReviewPullRequestAction("ready_for_review"), true);
+  assert.equal(shouldReviewPullRequestAction("labeled"), false);
+  assert.equal(shouldReviewPullRequestAction("assigned"), false);
+  assert.equal(shouldReviewPullRequestAction(""), false);
+});
+
+test("toReviewRequestedEvent falls back to 'unknown' when the PR has no author", () => {
+  const event = toReviewRequestedEvent({
+    repository: { full_name: "kaiser/shipflow" },
+    pull_request: {
+      number: 7,
+      title: "Bot PR",
+      head: { sha: "deadbeef" },
+      base: { ref: "develop" },
+      user: null,
+    },
+  });
+  assert.equal(event.authorLogin, "unknown");
+  assert.equal(event.baseBranch, "develop");
+});

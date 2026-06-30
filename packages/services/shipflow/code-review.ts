@@ -34,6 +34,35 @@ export function formatPullRequestFilesForReview(files: PullRequestFilePatch[]) {
     .join("\n\n");
 }
 
+export type CriterionStatus = "met" | "partial" | "not_met";
+
+// met = full credit, partial = half, not_met = none. Deriving the PRD-compliance
+// score from per-criterion verdicts (rather than a single number from the model)
+// is what makes it track the PR instead of landing on a constant.
+const CRITERION_WEIGHT: Record<CriterionStatus, number> = {
+  met: 1,
+  partial: 0.5,
+  not_met: 0,
+};
+
+/**
+ * Weighted share (0–100) of acceptance criteria a PR satisfies. Returns `null`
+ * when there are no criteria to score against (e.g. a non-PRD review).
+ */
+export function scoreFromCriteria(
+  criteria: ReadonlyArray<{ status: CriterionStatus }>,
+): number | null {
+  if (criteria.length === 0) return null;
+  const earned = criteria.reduce((sum, c) => sum + CRITERION_WEIGHT[c.status], 0);
+  return Math.round((earned / criteria.length) * 100);
+}
+
+/** Clamp any number into a whole 0–100 score. */
+export function clampScore(n: number): number {
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.min(100, Math.round(n)));
+}
+
 export function reviewPullRequestAgainstPrd(
   input: ReviewPullRequestInput,
 ): PullRequestReviewResult {

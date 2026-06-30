@@ -61,3 +61,46 @@ test("reviewPullRequestAgainstPrd passes when criteria are represented in the di
   assert.equal(review.status, "passed");
   assert.equal(review.findings.every((finding) => finding.severity !== "blocking"), true);
 });
+
+test("reviewPullRequestAgainstPrd scores 100 when all criteria are represented", () => {
+  const review = reviewPullRequestAgainstPrd({
+    repoFullName: "acme/web",
+    pullRequestTitle: "Add approval blocker",
+    prdTitle: "AI QA gate",
+    acceptanceCriteria: [
+      "Blocking findings prevent approval",
+      "Post review comment to GitHub",
+    ],
+    files: [
+      {
+        filePath: "features/reviews/review.ts",
+        patch:
+          "+block approval when blocking findings exist\n+post review comment to GitHub",
+      },
+    ],
+  });
+
+  assert.equal(review.complianceScore, 100);
+});
+
+test("reviewPullRequestAgainstPrd compliance score reflects the missing share", () => {
+  const review = reviewPullRequestAgainstPrd({
+    repoFullName: "acme/web",
+    pullRequestTitle: "Add QA gate",
+    prdTitle: "AI QA gate",
+    acceptanceCriteria: [
+      "Blocking findings prevent approval",
+      "Post review comment to GitHub",
+    ],
+    files: [
+      {
+        filePath: "features/reviews/post-comment.ts",
+        patch: "+export async function postComment() { return 'GitHub comment posted' }",
+      },
+    ],
+  });
+
+  // One of two criteria is missing → 50/100, and never the old constant 60.
+  assert.equal(review.complianceScore, 50);
+  assert.notEqual(review.complianceScore, 60);
+});

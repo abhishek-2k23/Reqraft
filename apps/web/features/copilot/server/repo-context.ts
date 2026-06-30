@@ -6,26 +6,9 @@ import { z } from "zod";
 
 import { db, eq } from "@repo/database";
 import { repoContexts, repositories } from "@repo/database/schema";
+import { filePriority, isIndexableSourcePath } from "@repo/services/shipflow/repo-index";
 
 import { getGithubApp } from "@/lib/github/app";
-
-// Directories/extensions that carry no useful context for an LLM.
-const SKIP_DIR_SEGMENTS = new Set([
-  "node_modules",
-  ".next",
-  ".turbo",
-  "dist",
-  "build",
-  "out",
-  "coverage",
-  ".git",
-  ".vercel",
-]);
-const SKIP_EXTENSIONS = [
-  ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".webp", ".avif",
-  ".woff", ".woff2", ".ttf", ".eot", ".map", ".lock", ".mp4", ".pdf",
-  ".lockb", ".bin", ".wasm",
-];
 
 const MAX_TREE_PATHS = 1500;
 const MAX_FILES_TO_SUMMARIZE = 24;
@@ -40,27 +23,6 @@ export type RepoContext = {
   lastSha: string | null;
   updatedAt: Date;
 };
-
-function isSourcePath(path: string, size: number | undefined): boolean {
-  if (path.split("/").some((seg) => SKIP_DIR_SEGMENTS.has(seg))) return false;
-  const lower = path.toLowerCase();
-  if (SKIP_EXTENSIONS.some((ext) => lower.endsWith(ext))) return false;
-  if (typeof size === "number" && size > 200_000) return false; // skip huge files
-  return true;
-}
-
-// Higher score = more worth reading for context. Config/entrypoints/docs first.
-function priority(path: string): number {
-  const lower = path.toLowerCase();
-  const depth = path.split("/").length;
-  let score = 100 - depth * 5; // shallower files first
-  if (/(^|\/)(package\.json|readme\.md|tsconfig\.json|schema\.(ts|prisma)|drizzle\.config\.ts)$/.test(lower)) score += 80;
-  if (/(^|\/)(index|main|app|route|layout)\.[tj]sx?$/.test(lower)) score += 30;
-  if (/\.(ts|tsx|js|jsx)$/.test(lower)) score += 15;
-  if (/(^|\/)(README|\.env\.example)/i.test(path)) score += 20;
-  if (/(test|spec|\.d\.ts)/.test(lower)) score -= 30;
-  return score;
-}
 
 const summarySchema = z.object({
   overview: z
@@ -114,14 +76,16 @@ export async function buildRepoContext(repositoryId: string): Promise<RepoContex
 
   const sourceBlobs = treeData.tree.filter(
     (node): node is typeof node & { path: string } =>
-      node.type === "blob" && typeof node.path === "string" && isSourcePath(node.path, node.size),
+      node.type === "blob" &&
+      typeof node.path === "string" &&
+      isIndexableSourcePath(node.path, node.size),
   );
   const allPaths = sourceBlobs.map((b) => b.path);
   const tree = allPaths.slice(0, MAX_TREE_PATHS);
 
   // Fetch contents of the highest-priority files for real summaries.
   const filesToRead = [...sourceBlobs]
-    .sort((a, b) => priority(b.path) - priority(a.path))
+    .sort((a, b) => filePriority(b.path) - filePriority(a.path))
     .slice(0, MAX_FILES_TO_SUMMARIZE);
 
   const fileContents = await Promise.all(

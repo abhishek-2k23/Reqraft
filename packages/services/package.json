@@ -8,6 +8,7 @@
     "./shipflow/code-review": "./shipflow/code-review.ts",
     "./shipflow/demo": "./shipflow/demo.ts",
     "./shipflow/github": "./shipflow/github.ts",
+    "./shipflow/repo-index": "./shipflow/repo-index.ts",
     "./shipflow/workflow": "./shipflow/workflow.ts"
   },
   "scripts": {
