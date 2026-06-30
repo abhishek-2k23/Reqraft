@@ -129,28 +129,43 @@ export const githubInstallations = pgTable("github_installation", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-export const featureRequests = pgTable("feature_request", {
-  id: text("id").primaryKey().$defaultFn(randomUUID),
-  projectId: text("project_id")
-    .notNull()
-    .references(() => projects.id, { onDelete: "cascade" }),
-  organizationId: text("organization_id")
-    .notNull()
-    .references(() => organizations.id, { onDelete: "cascade" }),
-  title: text("title").notNull(),
-  description: text("description").notNull(),
-  source: text("source").notNull().default("manual"),
-  status: text("status").notNull().default("intake"),
-  priority: text("priority").notNull().default("medium"),
-  createdBy: text("created_by")
-    .notNull()
-    .references(() => usersTable.id, { onDelete: "restrict" }),
-  assignedTo: text("assigned_to").references(() => usersTable.id, {
-    onDelete: "set null",
+export const featureRequests = pgTable(
+  "feature_request",
+  {
+    id: text("id").primaryKey().$defaultFn(randomUUID),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    description: text("description").notNull(),
+    source: text("source").notNull().default("manual"),
+    status: text("status").notNull().default("intake"),
+    priority: text("priority").notNull().default("medium"),
+    // Readable, org-unique branch slug used to auto-link a PR to this feature
+    // (e.g. "add-dark-mode" → branch "feature/add-dark-mode"). Nullable until
+    // generated; older branches still link via the raw feature id.
+    branchName: text("branch_name"),
+    createdBy: text("created_by")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "restrict" }),
+    assignedTo: text("assigned_to").references(() => usersTable.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    // Branch slug must be unique within an org so a PR branch maps to exactly
+    // one feature. NULLs are distinct in Postgres, so ungenerated rows are fine.
+    branchNameUnique: uniqueIndex("feature_request_org_branch_unique").on(
+      table.organizationId,
+      table.branchName,
+    ),
   }),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+);
 
 export const clarificationMessages = pgTable("clarification_message", {
   id: text("id").primaryKey().$defaultFn(randomUUID),
@@ -247,9 +262,14 @@ export const reviewCycles = pgTable("review_cycle", {
   pullRequestId: text("pull_request_id")
     .notNull()
     .references(() => pullRequests.id, { onDelete: "cascade" }),
-  featureId: text("feature_id")
-    .notNull()
-    .references(() => featureRequests.id, { onDelete: "cascade" }),
+  // Nullable: we store a cycle for every reviewed PR, even ones whose branch
+  // didn't match a feature. Such reviews can be linked to a feature later.
+  featureId: text("feature_id").references(() => featureRequests.id, {
+    onDelete: "cascade",
+  }),
+  // Head commit SHA this cycle reviewed — lets us skip re-reviewing a SHA that
+  // was already reviewed (webhook re-deliveries, no-op pushes).
+  headSha: text("head_sha"),
   cycleNumber: integer("cycle_number").notNull().default(1),
   status: text("status").notNull().default("running"),
   overallVerdict: text("overall_verdict"),

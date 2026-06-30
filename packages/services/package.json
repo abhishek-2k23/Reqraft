@@ -24,7 +24,6 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "@repo/database": "workspace:*",
     "@repo/logger": "workspace:*",
     "zod": "^4.3.5"
   }
