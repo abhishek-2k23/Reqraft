@@ -43,10 +43,14 @@ function UserMenu() {
   const user = session?.user;
 
   async function signOut() {
-    await authClient.signOut();
-    // Full document navigation (not router.push) so the Next.js router cache and
-    // any cached RSC payloads are dropped — back button can't restore the app.
-    window.location.href = "/sign-in";
+    try {
+      await authClient.signOut();
+    } finally {
+      // Full document navigation (not router.push) so the Next.js router cache and
+      // any cached RSC payloads are dropped — back button can't restore the app.
+      // Runs even if the request fails so the user is never stranded signed-in.
+      window.location.href = "/sign-in";
+    }
   }
 
   return (

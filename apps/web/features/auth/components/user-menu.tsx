@@ -49,11 +49,15 @@ export function UserMenu({
   const displayName = getDisplayName(user);
 
   async function handleSignOut() {
-    await authClient.signOut();
-    // Hard navigation so the router cache + cached RSC payloads are cleared —
-    // combined with no-store on protected routes this stops the back button
-    // from restoring the authenticated UI after sign-out.
-    window.location.href = SIGN_IN_PATH;
+    try {
+      await authClient.signOut();
+    } finally {
+      // Hard navigation so the router cache + cached RSC payloads are cleared —
+      // combined with no-store on protected routes this stops the back button
+      // from restoring the authenticated UI after sign-out. In `finally` so the
+      // user is redirected even if the sign-out request fails.
+      window.location.href = SIGN_IN_PATH;
+    }
   }
 
   return (
