@@ -3,6 +3,7 @@ import { CheckCircle2 } from "lucide-react";
 import { billingPlans, getPlanDetails, type BillingPlan } from "@repo/services/shipflow/billing";
 
 import { UpgradeButton } from "~/features/billing/components/upgrade-button";
+import { CancelButton } from "~/features/billing/components/cancel-button";
 import { PageHeader } from "~/components/shipflow/ui-kit";
 import { cn } from "~/lib/utils";
 import { api } from "~/trpc/server";
@@ -55,7 +56,15 @@ export default async function BillingPage() {
   const data = await api.billing.usage.query().catch(() => null);
   const currentPlan = (data?.plan ?? "free") as BillingPlan;
   const details = getPlanDetails(currentPlan);
-  const usage = data?.usage ?? { seatsUsed: 0, repositoriesUsed: 0, featuresCreated: 0, aiReviewsUsed: 0 };
+  const usage = data?.usage ?? {
+    seatsUsed: 0,
+    repositoriesUsed: 0,
+    repositoryLimit: details.repositoryLimit,
+    featuresCreated: 0,
+    creditsUsed: 0,
+    creditsIncluded: details.includedCredits,
+  };
+  const isPaid = currentPlan !== "free";
 
   return (
     <div className="space-y-6">
@@ -76,14 +85,17 @@ export default async function BillingPage() {
                 .
               </p>
             </div>
-            <span className="rounded-full border border-cyan-300/30 bg-cyan-300/10 px-3 py-1 text-xs font-semibold text-cyan-300">
-              {details.monthlyPriceInr === 0 ? "Free" : `₹${INR.format(details.monthlyPriceInr)}/mo`}
-            </span>
+            <div className="flex items-center gap-3">
+              <span className="rounded-full border border-cyan-300/30 bg-cyan-300/10 px-3 py-1 text-xs font-semibold text-cyan-300">
+                {details.monthlyPriceInr === 0 ? "Free" : `₹${INR.format(details.monthlyPriceInr)}/mo`}
+              </span>
+              {isPaid ? <CancelButton /> : null}
+            </div>
           </div>
 
           <div className="grid gap-5 sm:grid-cols-2">
-            <UsageBar label="AI review credits used" used={usage.aiReviewsUsed} limit={details.includedCredits} />
-            <UsageBar label="Repositories connected" used={usage.repositoriesUsed} limit={details.repositoryLimit} />
+            <UsageBar label="AI review credits used" used={usage.creditsUsed} limit={usage.creditsIncluded} />
+            <UsageBar label="Repositories connected" used={usage.repositoriesUsed} limit={usage.repositoryLimit} />
             <UsageBar label="Team seats" used={usage.seatsUsed} limit={details.seatsIncluded} />
             <UsageBar label="Feature requests created" used={usage.featuresCreated} limit={null} />
           </div>

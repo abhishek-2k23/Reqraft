@@ -1,13 +1,18 @@
-import { and, desc, eq } from "@repo/database";
+import { TRPCError } from "@trpc/server";
+import { and, count, desc, eq } from "@repo/database";
 import {
   githubInstallations,
   pullRequests,
   repositories,
   reviewCycles,
+  subscriptions,
 } from "@repo/database/schema";
 
 import { orgProcedure, protectedProcedure, router } from "../../trpc";
 import { z } from "../../schema";
+
+// Default repo cap for an org that has no subscription row yet (free plan).
+const DEFAULT_REPO_LIMIT = 1;
 
 const repoInput = z.object({
   projectId: z.string(),
@@ -154,6 +159,26 @@ export const githubRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      // Enforce the plan's repository limit (-1 = unlimited).
+      const [sub] = await ctx.db
+        .select({ repositoryLimit: subscriptions.repositoryLimit })
+        .from(subscriptions)
+        .where(eq(subscriptions.organizationId, ctx.org.id));
+      const repoLimit = sub?.repositoryLimit ?? DEFAULT_REPO_LIMIT;
+
+      if (repoLimit !== -1) {
+        const [used] = await ctx.db
+          .select({ value: count() })
+          .from(repositories)
+          .where(eq(repositories.organizationId, ctx.org.id));
+        if ((used?.value ?? 0) >= repoLimit) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: `Your plan allows ${repoLimit} ${repoLimit === 1 ? "repository" : "repositories"}. Upgrade to connect more.`,
+          });
+        }
+      }
+
       const [owner = "", name = input.fullName] = input.fullName.split("/");
       const [repo] = await ctx.db
         .insert(repositories)
