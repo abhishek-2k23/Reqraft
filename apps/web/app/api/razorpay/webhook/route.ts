@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 import { db, eq } from "@repo/database";
-import { subscriptions } from "@repo/database/schema";
+import { processedWebhookEvents, subscriptions } from "@repo/database/schema";
 import {
   getPlanDetails,
   normalizeRazorpaySubscriptionEvent,
@@ -49,6 +49,19 @@ export async function POST(request: Request) {
     return Response.json({ received: true, ignored: event.event });
   }
 
+  // Idempotency: Razorpay retries deliveries, so ignore an event id we've
+  // already applied (the id is stable across retries of the same event).
+  const eventId = request.headers.get("x-razorpay-event-id");
+  if (eventId) {
+    const [seen] = await db
+      .select({ id: processedWebhookEvents.id })
+      .from(processedWebhookEvents)
+      .where(eq(processedWebhookEvents.id, eventId));
+    if (seen) {
+      return Response.json({ received: true, duplicate: eventId });
+    }
+  }
+
   const subscription = event.payload?.subscription?.entity;
 
   if (!subscription) {
@@ -68,6 +81,14 @@ export async function POST(request: Request) {
     await applySubscriptionUpdate(update);
   }
 
+  // Record the event id so retries are no-ops.
+  if (eventId) {
+    await db
+      .insert(processedWebhookEvents)
+      .values({ id: eventId, provider: "razorpay" })
+      .onConflictDoNothing();
+  }
+
   return Response.json({ received: true, update });
 }
 
@@ -78,6 +99,10 @@ async function applySubscriptionUpdate(
 ) {
   const details = getPlanDetails(update.plan);
   const status = DOWNGRADE_STATUSES.has(update.status) ? "canceled" : "active";
+  const now = new Date();
+  // Each charge/activation starts a fresh credit window for the new period.
+  const creditsResetAt =
+    update.renewsAt ?? new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
   const matcher = update.organizationId
     ? eq(subscriptions.organizationId, update.organizationId)
@@ -91,8 +116,10 @@ async function applySubscriptionUpdate(
       razorpaySubscriptionId: update.subscriptionId,
       currentPeriodEnd: update.renewsAt,
       aiReviewCredits: details.includedCredits,
+      aiReviewCreditsUsed: 0,
+      creditsResetAt,
       repositoryLimit: details.repositoryLimit,
-      updatedAt: new Date(),
+      updatedAt: now,
     })
     .where(matcher);
 }
