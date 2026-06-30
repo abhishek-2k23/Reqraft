@@ -13,6 +13,11 @@ import {
 } from "~/components/ui/sheet";
 import { OrgSwitcher } from "./org-switcher";
 import { CommandPalette } from "./command-palette";
+import {
+  KeyboardShortcutsButton,
+  KeyboardShortcutsProvider,
+  ShortcutKeys,
+} from "./keyboard-shortcuts";
 import { TopNav } from "./top-nav";
 import { LinkPending } from "./link-pending";
 import { activeNavHref, navGroups, navItems } from "./nav-items";
@@ -73,6 +78,10 @@ function SidebarBody({
                       ) : null}
                       <Icon className="size-4 shrink-0" />
                       <span className="flex-1 truncate">{item.label}</span>
+                      <ShortcutKeys
+                        shortcut={item.shortcut}
+                        className="opacity-60 transition-opacity group-hover:opacity-100"
+                      />
                       <LinkPending className="size-3.5" />
                     </Link>
                   );
@@ -83,6 +92,7 @@ function SidebarBody({
       </nav>
 
       <div className="mt-4 border-t border-border pt-4">
+        <KeyboardShortcutsButton />
         <OrgSwitcher />
         <div className="mt-3 flex items-center gap-2 border border-border bg-foreground/[0.02] px-3 py-2">
           <span aria-hidden className="size-1.5 bg-success" />
@@ -102,6 +112,7 @@ export function ShipFlowShell({ children }: { children: React.ReactNode }) {
 
   return (
     <CommandPalette>
+      <KeyboardShortcutsProvider>
       <div className="grid min-h-screen bg-background text-foreground lg:grid-cols-[260px_1fr]">
         <aside className="hidden border-r border-border bg-sidebar lg:block">
           <div className="sticky top-0 h-screen">
@@ -124,6 +135,7 @@ export function ShipFlowShell({ children }: { children: React.ReactNode }) {
           <SidebarBody active={active} onNavigate={() => setMobileOpen(false)} />
         </SheetContent>
       </Sheet>
+      </KeyboardShortcutsProvider>
     </CommandPalette>
   );
 }
