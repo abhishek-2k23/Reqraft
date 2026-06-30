@@ -8,6 +8,7 @@ import {
   ScrollText,
   Settings,
   ShieldCheck,
+  Sparkles,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -26,6 +27,7 @@ export const navItems: NavItem[] = [
   { href: "/prd", label: "PRDs", icon: ScrollText, group: "Delivery" },
   { href: "/tasks", label: "Tasks", icon: ListChecks, group: "Delivery" },
   { href: "/reviews", label: "Reviews", icon: ShieldCheck, group: "Delivery" },
+  { href: "/copilot", label: "Copilot", icon: Sparkles, group: "Delivery" },
   { href: "/github", label: "GitHub", icon: GitBranch, group: "Delivery" },
   { href: "/projects", label: "Projects", icon: FolderKanban, group: "Workspace" },
   { href: "/billing", label: "Billing", icon: BadgeIndianRupee, group: "Workspace" },

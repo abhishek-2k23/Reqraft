@@ -4,32 +4,75 @@ import { openai } from '@ai-sdk/openai';
 import { z } from 'zod';
 import type { PullRequestReviewResult } from '@repo/services/shipflow/code-review';
 
+export type ReviewCommit = { sha: string; message: string };
+
 export type ReviewInput = {
   repoFullName: string;
   pullRequestTitle: string;
   prdTitle?: string | null;
   acceptanceCriteria?: string[] | null;
   files: Array<{ filePath: string; patch: string }>;
+  /** Commit messages on the PR branch — extra signal about intent. */
+  commits?: ReviewCommit[];
 };
+
+const criterionSchema = z.object({
+  criterion: z.string().describe('The acceptance criterion, quoted verbatim.'),
+  status: z
+    .enum(['met', 'partial', 'not_met'])
+    .describe('met = fully implemented in the diff; partial = started but incomplete; not_met = absent.'),
+  evidence: z
+    .string()
+    .describe('Cite the code in the diff that satisfies it, or explain precisely what is missing.'),
+});
+
+const findingSchema = z.object({
+  severity: z.enum(['blocking', 'non_blocking', 'positive']),
+  message: z.string().describe('What the issue is.'),
+  file: z.string().describe('The file path the finding refers to, or "general".'),
+  suggestion: z
+    .string()
+    .describe('The concrete change to make to fix this. Empty string for positive findings.'),
+});
+
+// met = full credit, partial = half, not_met = none. Deriving the score from the
+// per-criterion verdicts (rather than trusting a single number from the model)
+// is what makes it actually track the PR instead of landing on a constant.
+const CRITERION_WEIGHT = { met: 1, partial: 0.5, not_met: 0 } as const;
+
+function scoreFromCriteria(
+  criteria: Array<{ status: 'met' | 'partial' | 'not_met' }>,
+): number | null {
+  if (criteria.length === 0) return null;
+  const earned = criteria.reduce((sum, c) => sum + CRITERION_WEIGHT[c.status], 0);
+  return Math.round((earned / criteria.length) * 100);
+}
+
+const clampScore = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
 
 export async function reviewPullRequestAgainstPrd(
   input: ReviewInput,
 ): Promise<PullRequestReviewResult> {
-  const { repoFullName, pullRequestTitle, prdTitle, acceptanceCriteria, files } = input;
+  const { repoFullName, pullRequestTitle, prdTitle, acceptanceCriteria, files, commits } = input;
 
   const hasPrd = !!(prdTitle && acceptanceCriteria?.length);
-  const diffText = files.map(f => `File: ${f.filePath}\n\`\`\`diff\n${f.patch}\n\`\`\``).join('\n\n');
+  const diffText = files
+    .map((f) => `File: ${f.filePath}\n\`\`\`diff\n${f.patch}\n\`\`\``)
+    .join('\n\n');
+  const commitText = commits?.length
+    ? commits.map((c) => `- ${c.sha.slice(0, 7)} ${c.message.split('\n')[0]}`).join('\n')
+    : 'No commit messages available.';
 
   const system = hasPrd
-    ? `You are an expert AI code reviewer. Your job is to review a GitHub Pull Request against a Product Requirements Document (PRD).
-You will be provided with the PRD acceptance criteria and the PR code diff.
-Determine if the code diff satisfies all the acceptance criteria. If any criteria are missing or implemented incorrectly, flag them as 'blocking' findings and set status to 'changes_requested'.
-If the PR implements the criteria correctly, set status to 'passed'.
-Be constructive and specific.`
-    : `You are an expert AI code reviewer. Review this GitHub Pull Request for code quality, potential bugs, security issues, and best practices.
-Flag any serious issues (security vulnerabilities, crashes, data loss risks) as 'blocking' and set status to 'changes_requested'.
-Minor suggestions should be 'non_blocking'. If the code looks good overall, set status to 'passed'.
-Be constructive and specific.`;
+    ? `You are an exacting senior engineer reviewing a GitHub Pull Request against a Product Requirements Document (PRD).
+Work through the diff and every commit message carefully before judging.
+For EACH acceptance criterion, decide met / partial / not_met and cite the specific code (or its absence) as evidence — do not assume work that isn't in the diff.
+Raise a 'blocking' finding for each not_met or incorrectly implemented criterion, and a 'non_blocking' finding for partial or risky work; every non-positive finding MUST include a concrete, actionable suggestion describing exactly what to change.
+Set status to 'passed' only when every criterion is met; otherwise 'changes_requested'.
+Be specific and reference real file paths and symbols from the diff.`
+    : `You are an exacting senior engineer reviewing a GitHub Pull Request for code quality, correctness, security, and best practices.
+Work through the diff and commit messages carefully. Flag serious issues (security, crashes, data loss) as 'blocking', minor ones as 'non_blocking', and always include a concrete suggestion for what to change.
+Score overall quality 0–100. Set status to 'changes_requested' if there are blocking issues, otherwise 'passed'.`;
 
   const prompt = hasPrd
     ? `Repository: ${repoFullName}
@@ -39,51 +82,82 @@ PRD Feature: ${prdTitle}
 Acceptance Criteria:
 ${acceptanceCriteria!.map((c: string) => `- ${c}`).join('\n')}
 
-Code Diff:
+Commits on this PR:
+${commitText}
+
+Full PR Diff:
 ${diffText}`
     : `Repository: ${repoFullName}
 PR Title: ${pullRequestTitle}
 
-Code Diff:
+Commits on this PR:
+${commitText}
+
+Full PR Diff:
 ${diffText}`;
 
   const { object } = await generateObject({
     model: openai(process.env.OPENAI_MODEL ?? 'gpt-4o-mini'),
     schema: z.object({
       status: z.enum(['passed', 'changes_requested']),
-      summary: z.string().describe('A short summary of the review verdict.'),
-      findings: z.array(z.object({
-        severity: z.enum(['blocking', 'non_blocking', 'positive']),
-        message: z.string().describe('Detailed message about the finding.'),
-        file: z.string().describe('The file path associated with the finding, or "general" if it applies to the whole PR.')
-      }))
+      complianceScore: z
+        .number()
+        .min(0)
+        .max(100)
+        .describe('0–100 overall quality score; used only when there is no PRD to score against.'),
+      summary: z.string().describe('A short, specific summary of the review verdict.'),
+      criteria: z
+        .array(criterionSchema)
+        .describe('One entry per PRD acceptance criterion. Empty if there is no PRD.'),
+      findings: z.array(findingSchema),
     }),
     system,
     prompt,
   });
 
+  // For a PRD review the score is the criteria coverage; otherwise the model's
+  // overall-quality number. This is the fix for the "always 60/100" behaviour.
+  const derived = scoreFromCriteria(object.criteria);
+  const complianceScore = clampScore(
+    hasPrd && derived !== null ? derived : object.complianceScore,
+  );
+
+  const criteriaBlock = object.criteria.length
+    ? object.criteria
+        .map((c) => {
+          const icon = c.status === 'met' ? '✅' : c.status === 'partial' ? '🟡' : '❌';
+          return `- ${icon} **${c.criterion}** — ${c.evidence}`;
+        })
+        .join('\n')
+    : '';
+
   const formattedFindings = object.findings
-    .map(f => `- **${f.severity}** (${f.file}): ${f.message}`)
+    .map((f) => {
+      const head = `- **${f.severity}** (${f.file}): ${f.message}`;
+      return f.suggestion?.trim() ? `${head}\n  - _Suggestion:_ ${f.suggestion.trim()}` : head;
+    })
     .join('\n');
 
   const reviewMarkdown = `## Reqraft Review
 
 Repository: ${repoFullName}
 PR: ${pullRequestTitle}
-${hasPrd ? `PRD: ${prdTitle}\n` : ''}
-${object.summary}
+${hasPrd ? `PRD: ${prdTitle}\n` : ''}**PRD compliance: ${complianceScore}/100**
 
+${object.summary}
+${criteriaBlock ? `\n### Acceptance criteria\n${criteriaBlock}\n` : ''}
 ### Findings
-${formattedFindings || "- No findings."}
+${formattedFindings || '- No findings.'}
 
 ### Reviewed Diff
-${files.map(f => `#### ${f.filePath}\n\`\`\`diff\n${f.patch}\n\`\`\``).join('\n\n')}
+${files.map((f) => `#### ${f.filePath}\n\`\`\`diff\n${f.patch}\n\`\`\``).join('\n\n')}
 `;
 
   return {
     status: object.status,
     summary: object.summary,
     findings: object.findings,
+    complianceScore,
     reviewMarkdown,
   };
 }

@@ -306,6 +306,34 @@ export const processedWebhookEvents = pgTable("processed_webhook_event", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// Cached, AI-summarized snapshot of a connected repo so the Copilot agent has
+// repo-wide context without re-reading GitHub on every request. Refreshed on
+// connect and after each PR. JSON fields stored as text (like prd.* JSON cols).
+export const repoContexts = pgTable("repo_context", {
+  id: text("id").primaryKey().$defaultFn(randomUUID),
+  repositoryId: text("repository_id")
+    .notNull()
+    .unique()
+    .references(() => repositories.id, { onDelete: "cascade" }),
+  organizationId: text("organization_id")
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  // Plain-English overview of what the repo is and how it's organized.
+  overview: text("overview").notNull().default(""),
+  // Detected tech stack (e.g. "Next.js 15 + tRPC + Drizzle").
+  stack: text("stack").notNull().default(""),
+  // JSON string[] of source file paths in the repo tree.
+  tree: text("tree").notNull().default("[]"),
+  // JSON Record<path, one-line summary> for the key files we summarized.
+  summaries: text("summaries").notNull().default("{}"),
+  fileCount: integer("file_count").notNull().default(0),
+  // Commit sha the snapshot was built from, so we can skip redundant rebuilds.
+  lastSha: text("last_sha"),
+  status: text("status").notNull().default("ready"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 export const organizationsTable = organizations;
 export const organizationMembersTable = members;
 export const invitationsTable = invitations;

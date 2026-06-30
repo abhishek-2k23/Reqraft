@@ -15,6 +15,8 @@ export type PullRequestReviewFinding = {
   severity: "blocking" | "non_blocking" | "positive";
   message: string;
   file: string;
+  /** Concrete change the author should make to address the finding. */
+  suggestion?: string;
 };
 
 export type PullRequestReviewResult = {
@@ -22,6 +24,8 @@ export type PullRequestReviewResult = {
   summary: string;
   reviewMarkdown: string;
   findings: PullRequestReviewFinding[];
+  /** 0–100 share of the PRD acceptance criteria the diff satisfies. */
+  complianceScore: number;
 };
 
 export function formatPullRequestFilesForReview(files: PullRequestFilePatch[]) {
@@ -58,6 +62,10 @@ export function reviewPullRequestAgainstPrd(
 
   const status = blockingFindings.length > 0 ? "changes_requested" : "passed";
   const findings = [...blockingFindings, ...positiveFindings];
+  // Score = share of acceptance criteria the diff actually represents.
+  const totalCriteria = Math.max(input.acceptanceCriteria.length, 1);
+  const metCriteria = totalCriteria - blockingFindings.length;
+  const complianceScore = Math.round((metCriteria / totalCriteria) * 100);
   const summary =
     status === "passed"
       ? `${input.pullRequestTitle} satisfies ${input.prdTitle}.`
@@ -67,6 +75,7 @@ export function reviewPullRequestAgainstPrd(
     status,
     summary,
     findings,
+    complianceScore,
     reviewMarkdown: buildReviewMarkdown(input, summary, findings),
   };
 }

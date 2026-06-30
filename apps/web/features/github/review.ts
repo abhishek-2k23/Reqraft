@@ -60,13 +60,37 @@ export async function runReviewForPullRequest(pullRequestId: string) {
   }
 
   const octokit = await app.getInstallationOctokit(installationId);
-  const { data: diffData } = await octokit.rest.pulls.get({
+
+  // Per-file patches so the reviewer can attribute findings to real files.
+  const { data: prFiles } = await octokit.rest.pulls.listFiles({
     owner,
     repo,
     pull_number: pullRequest.number,
-    mediaType: { format: "diff" },
+    per_page: 100,
   });
-  const files = [{ filePath: "diff", patch: String(diffData) }];
+  let files = prFiles
+    .filter((f) => f.patch)
+    .map((f) => ({ filePath: f.filename, patch: f.patch as string }));
+
+  // Fall back to the unified diff if GitHub returned no per-file patches.
+  if (files.length === 0) {
+    const { data: diffData } = await octokit.rest.pulls.get({
+      owner,
+      repo,
+      pull_number: pullRequest.number,
+      mediaType: { format: "diff" },
+    });
+    files = [{ filePath: "diff", patch: String(diffData) }];
+  }
+
+  // Commit messages give the reviewer extra intent signal.
+  const { data: prCommits } = await octokit.rest.pulls.listCommits({
+    owner,
+    repo,
+    pull_number: pullRequest.number,
+    per_page: 100,
+  });
+  const commits = prCommits.map((c) => ({ sha: c.sha, message: c.commit.message }));
 
   // --- Open a DB review cycle (feature-linked PRs only) ---
   let reviewCycle: { id: string } | null = null;
@@ -104,6 +128,7 @@ export async function runReviewForPullRequest(pullRequestId: string) {
     prdTitle: prd?.problem ?? null,
     acceptanceCriteria: prd ? (JSON.parse(prd.acceptanceCriteria) as string[]) : null,
     files,
+    commits,
   });
 
   // --- Persist results + update feature status (feature-linked only) ---
@@ -123,7 +148,7 @@ export async function runReviewForPullRequest(pullRequestId: string) {
         status: review.status === "passed" ? "passed" : "failed",
         overallVerdict: review.status === "passed" ? "approve" : "request_changes",
         summary: review.summary,
-        prdComplianceScore: review.status === "passed" ? 100 : 60,
+        prdComplianceScore: review.complianceScore,
         completedAt: new Date(),
       })
       .where(eq(reviewCycles.id, reviewCycle.id));
@@ -137,7 +162,9 @@ export async function runReviewForPullRequest(pullRequestId: string) {
           severity: finding.severity === "blocking" ? "blocking" : "non_blocking",
           title: finding.message,
           description: finding.message,
-          suggestion: "Update the pull request to satisfy the linked PRD.",
+          suggestion:
+            finding.suggestion?.trim() ||
+            "Update the pull request to satisfy the linked PRD.",
           filePath: finding.file,
           assignedTo: finding.severity === "blocking" ? prAuthorUserId : null,
         })),
@@ -163,19 +190,22 @@ export async function runReviewForPullRequest(pullRequestId: string) {
         type: "review.completed",
         featureId,
         verdict: review.status === "passed" ? "approved" : "changes requested",
-        complianceScore: review.status === "passed" ? 100 : 60,
+        complianceScore: review.complianceScore,
       });
     }
   }
 
   // --- Always post a summary comment on the GitHub PR ---
   let markdownBody = `### Reqraft Review 🚢\n\n`;
-  markdownBody += `**Verdict:** ${review.status === "passed" ? "✅ Approved" : "❌ Changes Requested"}\n\n`;
+  markdownBody += `**Verdict:** ${review.status === "passed" ? "✅ Approved" : "❌ Changes Requested"} · **PRD compliance: ${review.complianceScore}/100**\n\n`;
   markdownBody += `${review.summary}\n\n`;
   if (review.findings.length > 0) {
     markdownBody += `#### Findings\n`;
     review.findings.forEach((f) => {
       markdownBody += `- **${f.severity.toUpperCase()}**: ${f.message}\n`;
+      if (f.suggestion?.trim()) {
+        markdownBody += `  - 💡 ${f.suggestion.trim()}\n`;
+      }
     });
   }
 
