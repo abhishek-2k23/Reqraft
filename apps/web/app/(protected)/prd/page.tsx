@@ -6,7 +6,7 @@ import { useEffect } from "react";
 import { motion } from "framer-motion";
 import { CheckCircle2, Clock, FileText, Loader2, Plus, Sparkles } from "lucide-react";
 
-import { useActiveProject } from "~/components/shipflow/project-context";
+import { ProjectTag, useActiveProject } from "~/components/shipflow/project-context";
 import { LinkPending } from "~/components/shipflow/link-pending";
 import { FADE_UP, PageHeader, STAGGER } from "~/components/shipflow/ui-kit";
 import { trpc } from "~/trpc/client";
@@ -67,7 +67,10 @@ export default function PrdListPage() {
                       {isGenerating ? <Sparkles className="size-5" /> : <FileText className="size-5" />}
                     </div>
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-foreground">{feature.title}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="truncate text-sm font-medium text-foreground">{feature.title}</p>
+                        <ProjectTag projectId={feature.projectId} className="shrink-0" />
+                      </div>
                       <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
                         {isGenerating ? <Loader2 className="size-3 animate-spin text-primary" /> : null}
                         {isGenerating

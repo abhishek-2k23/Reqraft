@@ -4,7 +4,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
 
-import { useActiveProject } from "~/components/shipflow/project-context";
+import { ProjectTag, useActiveProject } from "~/components/shipflow/project-context";
 import { TasksListSkeleton } from "~/components/shipflow/page-skeletons";
 import { FADE_UP, PageHeader, STAGGER, StatusBadge } from "~/components/shipflow/ui-kit";
 import { statusLabel } from "~/components/shipflow/status";
@@ -51,7 +51,10 @@ export default function TasksPage() {
                 >
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <h2 className="truncate text-sm font-medium text-foreground">{feature.title}</h2>
+                      <div className="flex items-center gap-2">
+                        <h2 className="truncate text-sm font-medium text-foreground">{feature.title}</h2>
+                        <ProjectTag projectId={feature.projectId} className="shrink-0" />
+                      </div>
                       <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">{feature.description}</p>
                     </div>
                     <StatusBadge status={status} />

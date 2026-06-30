@@ -4,7 +4,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { ArrowRight, Plus, Sparkles } from "lucide-react";
 
-import { useActiveProject } from "~/components/shipflow/project-context";
+import { ProjectTag, useActiveProject } from "~/components/shipflow/project-context";
 import { LinkPending } from "~/components/shipflow/link-pending";
 import { CardGridSkeleton } from "~/components/shipflow/page-skeletons";
 import { FADE_UP, PageHeader, STAGGER, StatusBadge } from "~/components/shipflow/ui-kit";
@@ -87,6 +87,7 @@ export default function FeaturesPage() {
                     <h2 className="text-base font-medium text-foreground">{feature.title}</h2>
                     <StatusBadge status={status} />
                   </div>
+                  <ProjectTag projectId={feature.projectId} className="mt-3 self-start" />
                   <p className="mt-3 line-clamp-3 flex-1 text-sm leading-6 text-muted-foreground">{feature.description}</p>
                   <div className="mt-5 flex items-center justify-between text-xs text-muted-foreground">
                     <span className="capitalize">{feature.priority} priority</span>

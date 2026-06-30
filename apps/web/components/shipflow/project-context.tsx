@@ -97,6 +97,37 @@ export function useActiveProject() {
   return ctx;
 }
 
+/**
+ * Small chip showing which project a record belongs to. Only renders while the
+ * org-wide ("All projects") scope is active — when a single project is selected
+ * every card already belongs to it, so the label would be redundant noise.
+ */
+export function ProjectTag({
+  projectId,
+  className,
+}: {
+  projectId: string | null;
+  className?: string;
+}) {
+  const { projects, activeProjectId } = useActiveProject();
+  if (activeProjectId !== null) return null;
+
+  const project = projects.find((p) => p.id === projectId);
+  if (!project) return null;
+
+  return (
+    <span
+      className={cn(
+        "inline-flex max-w-full items-center gap-1 border border-border bg-foreground/[0.04] px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground",
+        className,
+      )}
+    >
+      <FolderGit2 className="size-3 shrink-0" />
+      <span className="truncate">{project.name}</span>
+    </span>
+  );
+}
+
 export function ProjectSwitcher() {
   const router = useRouter();
   const { projects, activeProject, activeProjectId, setActiveProjectId, scopeLabel, isLoading } =
