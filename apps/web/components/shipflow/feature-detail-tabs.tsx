@@ -15,7 +15,9 @@ import {
   Copy,
   FileText,
   FolderGit2,
+  GitBranch,
   GripVertical,
+  Link2,
   ListChecks,
   Loader2,
   MessageSquareText,
@@ -764,6 +766,9 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
     },
   );
 
+  // Suggested PR branch for auto-linking — readable slug, id fallback.
+  const reviewBranch = `feature/${feature.branchName ?? feature.id}`;
+
   const isGeneratingPrd = feature.status === "prd_generating";
   const isGeneratingTasks = feature.status === "in_progress" && feature.tasks.length === 0;
   const status = feature.status as FeatureStatus;
@@ -847,6 +852,25 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
 
   const utils = trpc.useUtils();
   const refreshFeature = () => utils.feature.getById.invalidate({ featureId: feature.id });
+
+  // A feature that already has a PR (branch) or a review is fully linked — no
+  // need to offer the manual link control.
+  const alreadyLinked =
+    feature.pullRequests.length > 0 || feature.reviewCycles.length > 0;
+
+  // Unlinked PRs (with their branches) the user can attach to this feature.
+  const linkablePrs = trpc.github.listLinkablePullRequests.useQuery(
+    { projectId: feature.projectId },
+    { enabled: !alreadyLinked },
+  );
+  const linkPr = trpc.github.linkPullRequestToFeature.useMutation({
+    onSuccess: () => {
+      toast.success("Pull request linked to this feature.");
+      refreshFeature();
+      void utils.github.listLinkablePullRequests.invalidate();
+    },
+    onError: (error) => toast.error(error.message),
+  });
 
   const sendMessage = trpc.feature.sendClarificationMessage.useMutation({
     onSuccess: (result) => {
@@ -944,12 +968,12 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
   const [specialtyOverrides, setSpecialtyOverrides] = useState<Record<string, string>>({});
 
   const approveRelease = trpc.approval.approve.useMutation({
-    onSuccess: () => { toast.success("Release approved"); router.refresh(); },
+    onSuccess: () => { toast.success("Release approved"); refreshFeature(); router.refresh(); },
     onError: (error) => toast.error(error.message),
   });
 
   const shipFeature = trpc.approval.ship.useMutation({
-    onSuccess: () => { toast.success("Feature shipped"); router.refresh(); },
+    onSuccess: () => { toast.success("Feature shipped"); refreshFeature(); router.refresh(); },
     onError: (error) => toast.error(error.message),
   });
 
@@ -1462,6 +1486,72 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
       {/* ── Reviews ──────────────────────────────────────── */}
       <TabsContent value="review-history">
         <div className="rounded-lg border border-foreground/10 bg-foreground/[0.045] p-5">
+          {/* Branch hint + manual link control */}
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">Branch:</span>
+              <span className="font-mono text-xs text-foreground/80">{reviewBranch}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  void navigator.clipboard.writeText(reviewBranch);
+                  toast.success("Branch name copied");
+                }}
+                className="text-muted-foreground transition hover:text-primary"
+                title="Copy branch name"
+              >
+                <Copy className="size-3.5" />
+              </button>
+            </div>
+
+            {!alreadyLinked && (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button type="button" variant="outline" size="sm" className="gap-1.5">
+                    <Link2 className="size-3.5" />
+                    Link a PR
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-80 p-0">
+                  <div className="border-b border-foreground/10 px-3 py-2">
+                    <p className="text-xs font-medium text-foreground">Link a pull request</p>
+                    <p className="text-[11px] text-muted-foreground">Attach a PR whose branch didn&apos;t match this feature.</p>
+                  </div>
+                  <div className="max-h-64 overflow-y-auto p-1">
+                    {linkablePrs.isLoading ? (
+                      <div className="flex items-center justify-center py-6">
+                        <Loader2 className="size-4 animate-spin text-muted-foreground" />
+                      </div>
+                    ) : (linkablePrs.data?.length ?? 0) === 0 ? (
+                      <p className="px-3 py-6 text-center text-xs text-muted-foreground">No unlinked pull requests.</p>
+                    ) : (
+                      linkablePrs.data!.map((pr) => (
+                        <button
+                          key={pr.id}
+                          type="button"
+                          disabled={linkPr.isPending}
+                          onClick={() => linkPr.mutate({ pullRequestId: pr.id, featureId: feature.id })}
+                          className="flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left transition hover:bg-foreground/[0.05] disabled:opacity-50"
+                        >
+                          <span className="min-w-0">
+                            <span className="block truncate text-xs text-foreground/90">
+                              {pr.repoFullName} #{pr.number}
+                            </span>
+                            <span className="block truncate font-mono text-[11px] text-muted-foreground">
+                              <GitBranch className="mr-1 inline size-3" />
+                              {pr.headBranch}
+                            </span>
+                          </span>
+                          <Link2 className="size-3.5 shrink-0 text-muted-foreground" />
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </PopoverContent>
+              </Popover>
+            )}
+          </div>
+
           {hasRunningReview && (
             <div className="mb-4 flex items-center gap-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
               <Loader2 className="size-4 animate-spin text-primary" />
@@ -1472,11 +1562,11 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
             <div className="py-6 text-center">
               <p className="text-sm text-muted-foreground">No reviews yet. Open a pull request from a branch named:</p>
               <div className="mt-3 inline-flex items-center gap-2 rounded-lg border border-foreground/10 bg-foreground/[0.04] px-3 py-2">
-                <span className="font-mono text-xs text-foreground/80">feature/{feature.id}</span>
+                <span className="font-mono text-xs text-foreground/80">{reviewBranch}</span>
                 <button
                   type="button"
                   onClick={() => {
-                    void navigator.clipboard.writeText(`feature/${feature.id}`);
+                    void navigator.clipboard.writeText(reviewBranch);
                     toast.success("Branch name copied");
                   }}
                   className="text-muted-foreground transition hover:text-primary"
@@ -1485,7 +1575,9 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
                   <Copy className="size-3.5" />
                 </button>
               </div>
-              <p className="mt-2 text-xs text-muted-foreground">The full feature ID is required — the branch name must match exactly.</p>
+              <p className="mt-2 text-xs text-muted-foreground">
+                The PR auto-links when its branch matches — or attach a review manually above.
+              </p>
             </div>
           ) : (
             <div className="space-y-4">
