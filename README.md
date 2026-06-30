@@ -1,11 +1,21 @@
 <div align="center">
 
-# 🚀 Reqraft
+```text
+██████╗ ███████╗ ██████╗ ██████╗  █████╗ ███████╗████████╗
+██╔══██╗██╔════╝██╔═══██╗██╔══██╗██╔══██╗██╔════╝╚══██╔══╝
+██████╔╝█████╗  ██║   ██║██████╔╝███████║█████╗     ██║   
+██╔══██╗██╔══╝  ██║▄▄ ██║██╔══██╗██╔══██║██╔══╝     ██║   
+██║  ██║███████╗╚██████╔╝██║  ██║██║  ██║██║        ██║   
+╚═╝  ╚═╝╚══════╝ ╚══▀▀═╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝        ╚═╝   
+```
+
+# 🚀 **REQRAFT**
 
 ### AI-assisted product delivery platform for modern software teams
 
 Turn messy feature requests into structured PRDs, engineering tasks, GitHub-connected
-PR reviews, fix loops, human approval, and shipped releases — end to end.
+PR reviews, an AI **Copilot** that drafts the code, fix loops, human approval, and
+shipped releases — end to end.
 
 [![Live](https://img.shields.io/badge/Live-reqraft.in-6366f1?style=for-the-badge&logo=vercel&logoColor=white)](https://reqraft.in)
 [![Next.js](https://img.shields.io/badge/Next.js-16-000000?style=for-the-badge&logo=next.js)](https://nextjs.org)
@@ -14,6 +24,8 @@ PR reviews, fix loops, human approval, and shipped releases — end to end.
 [![Turborepo](https://img.shields.io/badge/Turborepo-monorepo-EF4444?style=for-the-badge&logo=turborepo)](https://turbo.build)
 
 **🌐 Production:** **<https://reqraft.in>**
+
+📖 [Architecture](./ARCHITECTURE.md) · 🤝 [Contributing](./CONTRIBUTING.md) · 🔐 [Security](./SECURITY.md)
 
 </div>
 
@@ -30,15 +42,18 @@ PR reviews, fix loops, human approval, and shipped releases — end to end.
 7. [tRPC API Surface](#-trpc-api-surface)
 8. [Inngest Workflow Explanation](#-inngest-workflow-explanation)
 9. [AI Features Implemented](#-ai-features-implemented)
-10. [GitHub Integration Setup](#-github-integration-setup)
-11. [Billing & Plans](#-billing--plans)
-12. [Real-time Sync](#-real-time-sync)
-13. [Database Schema](#-database-schema)
-14. [Setup Instructions](#-setup-instructions)
-15. [Environment Variables](#-environment-variables)
-16. [Scripts & Commands](#-scripts--commands)
-17. [Testing & CI](#-testing--ci)
-18. [Deployment](#-deployment)
+10. [AI Copilot — build / fix / improve](#-ai-copilot--build--fix--improve)
+11. [GitHub Integration Setup](#-github-integration-setup)
+12. [Billing & Plans](#-billing--plans)
+13. [Authentication & Security](#-authentication--security)
+14. [Real-time Sync](#-real-time-sync)
+15. [Database Schema](#-database-schema)
+16. [Setup Instructions](#-setup-instructions)
+17. [Environment Variables](#-environment-variables)
+18. [Scripts & Commands](#-scripts--commands)
+19. [Testing & CI](#-testing--ci)
+20. [Deployment](#-deployment)
+21. [Further Documentation](#-further-documentation)
 
 ---
 
@@ -54,10 +69,11 @@ A team drops in a raw feature request. Reqraft then:
 - **Clarifies** the request with an AI product-manager agent that asks focused questions.
 - **Writes a PRD** (problem, goals, user stories, acceptance criteria, edge cases, risks, estimates).
 - **Generates engineering tasks** and auto-assigns them to real teammates by specialty.
-- **Connects GitHub**, watches pull requests, and runs an **AI code review** of each PR against the PRD's acceptance criteria.
-- **Posts findings back to GitHub** and tracks fix/re-review cycles.
+- **Connects GitHub**, watches pull requests, and runs an **AI code review** of each PR against the PRD's acceptance criteria — scoring each criterion individually and posting concrete fix suggestions.
+- **Posts findings back to GitHub** and tracks fix/re-review cycles, surfaced in an org-wide review history with a resolve-finding workflow.
+- **Drafts the code itself** — the AI **Copilot** indexes the connected repo and turns a prompt (build a feature / fix review findings / improve code) into a plan plus full file contents, optionally opened as a **draft PR**.
 - **Gates on human approval** before a feature is marked shipped.
-- **Meters AI reviews** as billable credits via Razorpay subscriptions.
+- **Meters AI reviews** as billable credits via Razorpay subscriptions, enforced server-side.
 - **Broadcasts live updates** to every teammate in the org through Pusher.
 
 It is a multi-tenant, organization-scoped application with role-based access control,
@@ -166,6 +182,15 @@ endpoint are all served from that same origin.
   unreachable it falls back to running the review **inline** so reviews never silently drop.
 - **Org isolation:** every domain table carries an `organization_id`, and Pusher
   private channels (`private-org-{id}`) are authorized against real DB membership.
+- **Edge auth gate:** `apps/web/middleware.ts` optimistically checks the session
+  cookie on protected routes and sends `Cache-Control: no-store`, so the browser can't
+  restore an authenticated page from bfcache after sign-out — the protected layout's
+  `requireAuth()` remains the authoritative check.
+- **Repo-aware Copilot:** a cached `repo_context` snapshot (file tree + AI summaries)
+  gives the Copilot agent repo-wide context; it's refreshed after each merged PR.
+
+> 📖 For the deeper dive — request lifecycles, package boundaries, the durability
+> model, and the Copilot context pipeline — see **[ARCHITECTURE.md](./ARCHITECTURE.md)**.
 
 ---
 
@@ -183,8 +208,10 @@ Reqraft/
 │       │   ├── ai/                # AI agents (clarify, PRD, tasks, QA review)
 │       │   ├── auth/              # Sign-in forms, session helpers
 │       │   ├── billing/           # Razorpay, credits, subscription server logic
+│       │   ├── copilot/           # Repo-context indexer + code-drafting agent (server actions)
 │       │   ├── github/            # Installation, review pipeline, GitHub App
 │       │   └── inngest/           # Inngest client + durable functions
+│       ├── middleware.ts          # Edge auth gate for protected routes (+ no-store)
 │       ├── lib/                   # auth, db wiring, email, github, realtime, razorpay
 │       ├── components/            # shadcn/ui-style primitives + product components
 │       ├── hooks/ providers/ trpc/
@@ -244,7 +271,8 @@ frontend**. Every route below is a Next.js Route Handler (`app/api/**/route.ts`)
 | `/features` · `/features/new` · `/features/[featureId]` | protected | Feature request list, intake, and detail (clarification chat → PRD → tasks) |
 | `/prd` | protected | PRD view |
 | `/tasks` | protected | Engineering task board |
-| `/reviews` | protected | AI review history (cycles + issues) |
+| `/reviews` | protected | Org-wide AI review history (cycles + issues) — status filter, detail drawer, resolve findings |
+| `/copilot` | protected | AI Copilot — index a repo and draft features / fixes / improvements, open a draft PR |
 | `/github` | protected | GitHub App connection & repository management |
 | `/projects` | protected | Projects within the org |
 | `/billing` | protected | Plan, AI-review credits, repo limits, renewal |
@@ -272,13 +300,18 @@ composes **14 sub-routers**. Procedures are guarded by access level —
 | `feature` | `create`, `list`, `getById`, `updateStatus`, `sendClarificationMessage`, `triggerPrdGeneration`, `cancelPrdGeneration`, `triggerTaskGeneration`, `cancelTaskGeneration` | org |
 | `prd` | `getByFeature`, `byFeature`, `editWithAI`, `updateEstimate`, `setDeadline`, `approve` | org / manager |
 | `task` | `byFeature`, `listByFeature`, `updateStatus`, `reorder`, `assignTo` | org |
-| `review` | `listCyclesByFeature`, `getLatestCycle`, `resolveIssue` | org |
+| `review` | `listAllCycles`, `getCycle`, `listCyclesByFeature`, `getLatestCycle`, `resolveIssue` | org |
 | `approval` | `approve`, `reject`, `ship` | manager |
 | `github` | `getInstallationStatus`, `saveInstallation`, `repositories`, `listRepos`, `connectRepo`, `disconnectRepo`, `pullRequestsByRepo` | protected / org |
 | `billing` | `getSubscription`, `summary`, `usage` | org |
 | `profile` | `memberships`, `myTasks` | protected |
 | `search` | `global` | org |
 | `shipflow` | `getWorkspace`, `generatePrd`, `reviewPullRequest` | public (snapshot/demo) |
+
+> The **Copilot** flow (index repo, generate plan + patches, open a draft PR) runs
+> through **Next.js server actions** in `apps/web/features/copilot/server/`, not tRPC —
+> the agent needs the AI SDK + Octokit, which live in `apps/web`. Each action is
+> guarded by an org-ownership check on the target repository.
 
 ---
 
@@ -343,7 +376,9 @@ schema so the model returns **strongly-typed, validated structured output**.
 | 1 | **Clarification agent** | `features/ai/clarification-agent.ts` | Acts as a product manager: asks one focused question at a time (target users, core problem, success metrics, scope), stops after 2–4 exchanges, returns `{ reply, isDone }`. When `isDone`, the clarification-complete event fires. |
 | 2 | **PRD generator** | `features/ai/prd-generator.ts` | Full structured PRD: problem statement, goals, non-goals, user stories, acceptance criteria, edge cases, success metrics, technical requirements, dependencies, risks, required disciplines, hour estimate, and raw markdown. Also exposes `editPrdWithAI` for AI-assisted PRD edits. |
 | 3 | **Task generator** | `features/ai/task-generator.ts` | Breaks the PRD into engineering tasks (title, description, type, priority, estimated hours) and assigns each to a real teammate using member specialties (`frontend / backend / devops / ai / fullstack / testing`). |
-| 4 | **QA / code reviewer** | `features/ai/qa-reviewer.ts` | **PRD-aware** PR review. With acceptance criteria, it verifies the diff satisfies them and flags gaps as `blocking` → `changes_requested`; without a PRD it falls back to a general quality/security/bug review. Returns a verdict + structured findings. |
+| 4 | **QA / code reviewer** | `features/ai/qa-reviewer.ts` | **PRD-aware** PR review. Reads the **full per-file diff + commit messages** and judges **each acceptance criterion** as `met` / `partial` / `not_met` with cited evidence. The PRD-compliance score (0–100) is **derived from that breakdown** — not a flat constant — and every finding carries a concrete fix `suggestion`. Without a PRD it falls back to a general quality/security review. |
+| 5 | **Copilot agent** | `features/copilot/server/agent.ts` | Given a prompt + repo context (+ PRD / open review findings), produces an implementation **plan** and the **full content of each changed file**, plus notes. Drives the build / fix-review / improve modes and the draft-PR action. |
+| 6 | **Repo-context indexer** | `features/copilot/server/repo-context.ts` | Walks the connected repo's git tree, summarizes the key files in one AI call, and upserts a compact `repo_context` snapshot. Refreshed on demand and after each merged PR so Copilot stays current. |
 
 Deterministic, fully unit-tested versions of the agent/review/workflow logic live in
 `packages/services/shipflow/` (`agents.ts`, `code-review.ts`, `workflow.ts`) so the core
@@ -351,6 +386,42 @@ business rules are testable without hitting the model.
 
 **The AI workflow end-to-end covers:** clarification → structured PRD → task generation
 & assignment → PRD-aware PR review → release-readiness/approval gating.
+
+---
+
+## 🪄 AI Copilot — build / fix / improve
+
+The **Copilot** (`/copilot`) closes the loop: instead of only *reviewing* code, Reqraft
+can *draft* it. It gives the agent **repo-wide context** so its output fits your
+codebase's conventions, then turns a prompt into a concrete change set.
+
+**Repo context (the snapshot).** On demand (and after each merged PR), the indexer walks
+the connected repo's git tree, picks the highest-signal files, and summarizes them in a
+single AI call into a compact `repo_context` row:
+
+```text
+repo_context = { overview, stack, tree[], summaries{ path → one-liner }, lastSha }
+```
+
+This is a **structured summary snapshot** (not a vector store) — cheap, no extra
+infrastructure, and refreshed only when the head commit changes.
+
+**Three modes.** Pick a repo (and optionally a feature/PRD), then:
+
+| Mode | Uses | Produces |
+|------|------|----------|
+| **Build** | prompt + repo context (+ PRD if selected) | a new feature implementation |
+| **Fix review** | the linked feature's **open review findings** | targeted fixes for each finding |
+| **Improve** | the prompt + repo context | focused refactors / hardening |
+
+**Output → draft PR.** The agent returns an ordered **plan** plus the **full content of
+each file** to create/modify (with a rationale), shown in-app with copy buttons. One
+click commits those files to a new branch and opens a **draft PR** via the GitHub git
+data API (blob → tree → commit → ref → PR) — which then flows straight into the AI
+review pipeline.
+
+All of this runs through org-scoped **server actions** in
+`apps/web/features/copilot/server/` (`repo-context.ts`, `agent.ts`, `actions.ts`).
 
 ---
 
@@ -381,8 +452,12 @@ apps/web/app/api/github/callback/route.ts      # install callback → /github-co
    connected repo is cached — even ones not on a `feature/{featureId}` branch).
 4. It enqueues `github/pull_request.review_requested` on Inngest. If Inngest is down,
    it runs the review **inline** as a fallback so reviews never drop.
-5. The review pipeline fetches the diff, runs the AI reviewer against the PRD, stores a
-   `review_cycle` + `review_issue` rows, and posts findings back to the PR.
+5. The review pipeline fetches the **per-file patches + commit messages**, runs the AI
+   reviewer against the PRD (per-criterion scoring + fix suggestions), stores a
+   `review_cycle` + `review_issue` rows, and posts the verdict, compliance score, and
+   suggestions back to the PR.
+6. When a PR is **merged**, the webhook refreshes the repo's `repo_context` snapshot so
+   Copilot reasons over the latest code.
 
 **Required GitHub env vars** (see [Environment Variables](#-environment-variables)):
 `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`,
@@ -416,6 +491,27 @@ available credits **before** doing any AI work. Plan logic lives in
 
 Handled webhook events: `subscription.activated`, `subscription.charged`,
 `subscription.cancelled`, `subscription.halted`, `subscription.completed`.
+
+---
+
+## 🔐 Authentication & Security
+
+Auth is handled by **BetterAuth** (email/password + GitHub & Google OAuth) with the
+organization plugin for multi-tenancy. Protected routes are guarded in two layers:
+
+1. **Edge middleware** (`apps/web/middleware.ts`) — an optimistic session-cookie check
+   redirects unauthenticated requests to `/sign-in?callbackUrl=…` and stamps every
+   protected response with **`Cache-Control: no-store`**. That header stops the browser
+   restoring an authenticated page from the back/forward cache after sign-out (and
+   sign-out does a hard navigation to clear the client router cache).
+2. **`requireAuth()`** in the protected layout — the authoritative DB session check.
+
+Other guarantees: every domain query is **organization-scoped** (including
+`review.resolveIssue` and all Copilot actions); GitHub and Razorpay webhooks **verify
+signatures** and Razorpay is **idempotent**; AI-review credits and the repo limit are
+**enforced server-side**; GitHub access uses a least-privilege **GitHub App**, not PATs.
+
+> Full model and disclosure process: **[SECURITY.md](./SECURITY.md)**.
 
 ---
 
@@ -475,6 +571,7 @@ packages/database/models/shipflow.ts    # product/domain tables
 | `review_issue` | Individual findings within a cycle (category, severity, file, line, resolved) |
 | `subscription` | Org plan, status, AI-review credits (allowance + used + reset), repo limit |
 | `processed_webhook_event` | Idempotency ledger for inbound provider webhooks |
+| `repo_context` | Cached, AI-summarized snapshot of a connected repo (overview, stack, file tree, per-file summaries, last sha) for the Copilot agent |
 
 ### Notable enums & rules
 
@@ -645,10 +742,22 @@ pnpm test && pnpm check-types && pnpm lint && pnpm build
 
 ---
 
+## 📚 Further Documentation
+
+| Document | What's inside |
+|----------|---------------|
+| **[ARCHITECTURE.md](./ARCHITECTURE.md)** | Request lifecycles, package boundaries, the durability model, AI review scoring, and the Copilot context pipeline |
+| **[CONTRIBUTING.md](./CONTRIBUTING.md)** | Local setup, conventions, where code goes, database changes, and the quality gates |
+| **[SECURITY.md](./SECURITY.md)** | Security model and how to report a vulnerability |
+
+---
+
 <div align="center">
 
-**Reqraft** — from feature request to shipped, with AI doing the heavy lifting and
+**REQRAFT** — from feature request to shipped, with AI doing the heavy lifting and
 humans keeping the wheel. 🚀
+
+📖 [Architecture](./ARCHITECTURE.md) · 🤝 [Contributing](./CONTRIBUTING.md) · 🔐 [Security](./SECURITY.md)
 
 Built with Next.js · tRPC · Drizzle · Inngest · OpenAI · GitHub · Razorpay
 
