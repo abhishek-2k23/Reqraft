@@ -1,80 +1,142 @@
 import { CheckCircle2 } from "lucide-react";
 
+import { billingPlans, getPlanDetails, type BillingPlan } from "@repo/services/shipflow/billing";
+
+import { UpgradeButton } from "~/features/billing/components/upgrade-button";
 import { PageHeader } from "~/components/shipflow/ui-kit";
 import { cn } from "~/lib/utils";
 import { api } from "~/trpc/server";
 
 export const dynamic = "force-dynamic";
 
-const plans = [
-  { id: "free", label: "Free", price: "Rs 0", period: "/month", features: ["1 repository", "100 AI review credits/mo", "Full workflow access", "Community support"] },
-  { id: "pro", label: "Pro", price: "Rs 2,999", period: "/month", features: ["10 repositories", "Unlimited AI reviews", "Priority support", "Advanced analytics"], highlight: true },
-  { id: "scale", label: "Scale", price: "Rs 9,999", period: "/month", features: ["Unlimited repos", "Unlimited reviews", "Custom workflows", "SLA and dedicated support"] },
-];
+const INR = new Intl.NumberFormat("en-IN");
+
+function planFeatures(plan: BillingPlan): string[] {
+  const d = getPlanDetails(plan);
+  const credits = d.includedCredits >= 0 ? `${INR.format(d.includedCredits)} AI review credits/mo` : "Unlimited AI reviews";
+  const repos = d.repositoryLimit >= 0 ? `${d.repositoryLimit} ${d.repositoryLimit === 1 ? "repository" : "repositories"}` : "Unlimited repositories";
+  const seats = `${d.seatsIncluded} team seats`;
+  const extras: Record<BillingPlan, string> = {
+    free: "Community support",
+    pro: "Priority support & analytics",
+    scale: "SLA & dedicated support",
+  };
+  return [repos, credits, seats, extras[plan]];
+}
+
+function UsageBar({ label, used, limit }: { label: string; used: number; limit: number | null }) {
+  const hasLimit = typeof limit === "number" && limit > 0;
+  const pct = hasLimit ? Math.min(Math.round((used / limit) * 100), 100) : 0;
+  const tone = !hasLimit
+    ? "bg-cyan-300"
+    : pct >= 100
+      ? "bg-red-400"
+      : pct >= 80
+        ? "bg-amber-400"
+        : "bg-cyan-300";
+
+  return (
+    <div>
+      <div className="mb-1.5 flex items-baseline justify-between">
+        <p className="text-xs text-slate-400">{label}</p>
+        <p className="font-mono text-xs text-slate-300">
+          {INR.format(used)}
+          {hasLimit ? <span className="text-slate-500"> / {INR.format(limit)}</span> : null}
+        </p>
+      </div>
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/[0.06]">
+        <div className={cn("h-full rounded-full transition-all", tone)} style={{ width: `${hasLimit ? pct : 6}%` }} />
+      </div>
+    </div>
+  );
+}
 
 export default async function BillingPage() {
-  const subscription = await api.billing.getSubscription.query().catch(() => null);
-  const currentPlan = subscription?.plan ?? "free";
+  const data = await api.billing.usage.query().catch(() => null);
+  const currentPlan = (data?.plan ?? "free") as BillingPlan;
+  const details = getPlanDetails(currentPlan);
+  const usage = data?.usage ?? { seatsUsed: 0, repositoriesUsed: 0, featuresCreated: 0, aiReviewsUsed: 0 };
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Billing" description="Manage your subscription and AI review credits." />
-      <div className="grid gap-6">
-        {subscription ? (
-          <div className="rounded-lg border border-white/10 bg-white/[0.045] p-5">
-            <h2 className="mb-4 text-sm font-semibold text-white">Current usage</h2>
-            <div className="grid gap-4 sm:grid-cols-3">
-              <div>
-                <p className="mb-1 text-xs text-slate-500">Plan</p>
-                <p className="text-lg font-bold capitalize text-white">{subscription.plan}</p>
-              </div>
-              <div>
-                <p className="mb-1 text-xs text-slate-500">AI review credits</p>
-                <p className="text-lg font-bold text-white">{subscription.aiReviewCredits === -1 ? "Unlimited" : subscription.aiReviewCredits}</p>
-              </div>
-              <div>
-                <p className="mb-1 text-xs text-slate-500">Repository limit</p>
-                <p className="text-lg font-bold text-white">{subscription.repositoryLimit === -1 ? "Unlimited" : subscription.repositoryLimit}</p>
-              </div>
-            </div>
-          </div>
-        ) : null}
+      <PageHeader title="Billing" description="Manage your subscription and track how much of each plan you've used." />
 
-        <div className="grid gap-5 sm:grid-cols-3">
-          {plans.map((plan) => (
-            <div key={plan.id} className={cn(
-              "rounded-lg border p-5",
-              plan.highlight ? "border-cyan-300/40 bg-cyan-300/5" : "border-white/10 bg-white/[0.03]",
-              currentPlan === plan.id && "ring-1 ring-cyan-300/50",
-            )}>
-              {currentPlan === plan.id ? (
-                <span className="mb-3 inline-block rounded-full border border-cyan-300/30 bg-cyan-300/10 px-2.5 py-0.5 text-[10px] font-semibold text-cyan-300">
-                  Current plan
-                </span>
-              ) : null}
-              <h3 className="mb-1 text-sm font-semibold text-slate-300">{plan.label}</h3>
-              <div className="mb-4 flex items-baseline gap-1">
-                <span className="text-2xl font-bold text-white">{plan.price}</span>
-                <span className="text-xs text-slate-500">{plan.period}</span>
-              </div>
-              <ul className="mb-5 space-y-2">
-                {plan.features.map((feature) => (
-                  <li key={feature} className="flex items-center gap-2 text-xs text-slate-300">
-                    <CheckCircle2 className="size-3 shrink-0 text-cyan-300" />
-                    {feature}
-                  </li>
-                ))}
-              </ul>
-              {currentPlan !== plan.id && plan.id !== "free" ? (
-                <button className={cn(
-                  "w-full rounded-md py-2 text-sm font-semibold transition",
-                  plan.highlight ? "bg-cyan-300 text-slate-950 hover:bg-cyan-200" : "border border-white/10 text-slate-300 hover:border-white/20",
-                )}>
-                  Upgrade to {plan.label}
-                </button>
-              ) : null}
+      <div className="grid gap-6">
+        {/* Current plan + real usage */}
+        <div className="rounded-lg border border-white/10 bg-white/[0.045] p-5">
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold text-white">Current usage</h2>
+              <p className="mt-1 text-xs text-slate-500">
+                You&apos;re on the{" "}
+                <span className="font-medium capitalize text-cyan-300">{details.label}</span> plan
+                {data?.currentPeriodEnd
+                  ? ` — renews ${new Date(data.currentPeriodEnd).toLocaleDateString("en-IN")}`
+                  : ""}
+                .
+              </p>
             </div>
-          ))}
+            <span className="rounded-full border border-cyan-300/30 bg-cyan-300/10 px-3 py-1 text-xs font-semibold text-cyan-300">
+              {details.monthlyPriceInr === 0 ? "Free" : `₹${INR.format(details.monthlyPriceInr)}/mo`}
+            </span>
+          </div>
+
+          <div className="grid gap-5 sm:grid-cols-2">
+            <UsageBar label="AI review credits used" used={usage.aiReviewsUsed} limit={details.includedCredits} />
+            <UsageBar label="Repositories connected" used={usage.repositoriesUsed} limit={details.repositoryLimit} />
+            <UsageBar label="Team seats" used={usage.seatsUsed} limit={details.seatsIncluded} />
+            <UsageBar label="Feature requests created" used={usage.featuresCreated} limit={null} />
+          </div>
+        </div>
+
+        {/* Plan catalog */}
+        <div className="grid gap-5 sm:grid-cols-3">
+          {billingPlans.map((planId) => {
+            const plan = getPlanDetails(planId);
+            const isCurrent = currentPlan === planId;
+            const highlight = planId === "pro";
+
+            return (
+              <div
+                key={planId}
+                className={cn(
+                  "flex flex-col rounded-lg border p-5",
+                  highlight ? "border-cyan-300/40 bg-cyan-300/5" : "border-white/10 bg-white/[0.03]",
+                  isCurrent && "ring-1 ring-cyan-300/50",
+                )}
+              >
+                {isCurrent ? (
+                  <span className="mb-3 inline-block w-fit rounded-full border border-cyan-300/30 bg-cyan-300/10 px-2.5 py-0.5 text-[10px] font-semibold text-cyan-300">
+                    Current plan
+                  </span>
+                ) : null}
+                <h3 className="mb-1 text-sm font-semibold text-slate-300">{plan.label}</h3>
+                <div className="mb-4 flex items-baseline gap-1">
+                  <span className="text-2xl font-bold text-white">
+                    {plan.monthlyPriceInr === 0 ? "₹0" : `₹${INR.format(plan.monthlyPriceInr)}`}
+                  </span>
+                  <span className="text-xs text-slate-500">/month</span>
+                </div>
+                <ul className="mb-5 space-y-2">
+                  {planFeatures(planId).map((feature) => (
+                    <li key={feature} className="flex items-center gap-2 text-xs text-slate-300">
+                      <CheckCircle2 className="size-3 shrink-0 text-cyan-300" />
+                      {feature}
+                    </li>
+                  ))}
+                </ul>
+                <div className="mt-auto">
+                  {!isCurrent && planId !== "free" ? (
+                    <UpgradeButton plan={planId as "pro" | "scale"} label={plan.label} highlight={highlight} />
+                  ) : isCurrent ? (
+                    <p className="text-center text-xs text-slate-500">Your active plan</p>
+                  ) : (
+                    <p className="text-center text-xs text-slate-500">No charge</p>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>

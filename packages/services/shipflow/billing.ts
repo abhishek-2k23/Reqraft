@@ -27,6 +27,8 @@ export type RazorpaySubscriptionEventInput = {
   currentEnd?: number;
   organizationId?: string;
   userId?: string;
+  /** Plan the checkout targeted, carried in the Razorpay subscription notes. */
+  plan?: BillingPlan;
 };
 
 export type SubscriptionUpdate = {
@@ -51,7 +53,7 @@ const planDetails: Record<BillingPlan, PlanDetails> = {
   pro: {
     plan: "pro",
     label: "Pro",
-    monthlyPriceInr: 4999,
+    monthlyPriceInr: 999,
     includedCredits: 1000,
     repositoryLimit: 10,
     seatsIncluded: 5,
@@ -59,22 +61,24 @@ const planDetails: Record<BillingPlan, PlanDetails> = {
   scale: {
     plan: "scale",
     label: "Scale",
-    monthlyPriceInr: 14999,
+    monthlyPriceInr: 1999,
     includedCredits: 5000,
     repositoryLimit: 50,
     seatsIncluded: 20,
   },
 };
 
+// Per-event status, and whether the event is a downgrade back to the free plan.
+// Activation/charge keeps whatever plan the checkout targeted (from notes).
 const eventStatusMap: Record<
   string,
-  Pick<SubscriptionUpdate, "plan" | "status">
+  { status: SubscriptionUpdate["status"]; downgrade: boolean }
 > = {
-  "subscription.activated": { plan: "pro", status: "active" },
-  "subscription.charged": { plan: "pro", status: "charged" },
-  "subscription.cancelled": { plan: "free", status: "canceled" },
-  "subscription.halted": { plan: "free", status: "halted" },
-  "subscription.completed": { plan: "free", status: "completed" },
+  "subscription.activated": { status: "active", downgrade: false },
+  "subscription.charged": { status: "charged", downgrade: false },
+  "subscription.cancelled": { status: "canceled", downgrade: true },
+  "subscription.halted": { status: "halted", downgrade: true },
+  "subscription.completed": { status: "completed", downgrade: true },
 };
 
 export function getPlanDetails(plan: BillingPlan): PlanDetails {
@@ -128,7 +132,7 @@ export function normalizeRazorpaySubscriptionEvent(
     subscriptionId: input.subscriptionId,
     organizationId: input.organizationId,
     userId: input.userId,
-    plan: eventStatus.plan,
+    plan: eventStatus.downgrade ? "free" : input.plan ?? "pro",
     status: eventStatus.status,
     renewsAt: input.currentEnd ? new Date(input.currentEnd * 1000) : null,
   };
