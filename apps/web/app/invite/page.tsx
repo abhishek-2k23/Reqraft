@@ -14,6 +14,7 @@ type State =
   | { status: "needs-signin" }
   | { status: "accepting" }
   | { status: "success"; orgName: string }
+  | { status: "wrong-account"; invitedEmail: string; currentEmail: string }
   | { status: "error"; message: string };
 
 export default function InvitePage() {
@@ -66,8 +67,22 @@ function InvitePageContent() {
       return;
     }
 
-    // User is signed in — auto-accept
     if (inviteQuery.data && state.status === "loading") {
+      // Signed in, but with a different email than the invite was sent to —
+      // membership attaches to the signed-in account, so guide them to switch
+      // rather than silently joining the wrong identity.
+      const invitedEmail = inviteQuery.data.email.trim().toLowerCase();
+      const currentEmail = (session.user.email ?? "").trim().toLowerCase();
+      if (invitedEmail !== currentEmail) {
+        setState({
+          status: "wrong-account",
+          invitedEmail: inviteQuery.data.email,
+          currentEmail: session.user.email ?? "",
+        });
+        return;
+      }
+
+      // Emails match — auto-accept.
       setState({ status: "accepting" });
       acceptMutation.mutate({ invitationId: token });
     }
@@ -77,6 +92,14 @@ function InvitePageContent() {
   function handleSignIn() {
     const callbackUrl = `/invite?token=${token}`;
     router.push(`/sign-in?callbackUrl=${encodeURIComponent(callbackUrl)}`);
+  }
+
+  async function handleSwitchAccount() {
+    // Sign the current account out, then send them to sign in with the invited
+    // email — coming back here to finish accepting.
+    await authClient.signOut().catch(() => {});
+    const callbackUrl = `/invite?token=${token}`;
+    window.location.href = `/sign-in?callbackUrl=${encodeURIComponent(callbackUrl)}`;
   }
 
   const invite = inviteQuery.data;
@@ -129,6 +152,34 @@ function InvitePageContent() {
             <p className="text-sm text-muted-foreground">
               Welcome to <span className="text-foreground">{state.orgName}</span>. Redirecting to your dashboard…
             </p>
+          </div>
+        )}
+
+        {state.status === "wrong-account" && (
+          <div className="flex flex-col items-center gap-5">
+            <div className="flex size-16 items-center justify-center rounded-full bg-amber-500/10">
+              <Mail className="size-8 text-amber-400" />
+            </div>
+            <div>
+              <p className="text-xl font-semibold text-foreground">Almost there</p>
+              <p className="mt-3 text-sm text-muted-foreground">
+                This invitation was sent to{" "}
+                <span className="font-medium text-foreground">{state.invitedEmail}</span>, but you&apos;re
+                signed in as{" "}
+                <span className="font-medium text-foreground">{state.currentEmail}</span>.
+              </p>
+              <p className="mt-3 text-sm text-muted-foreground">
+                Sign in with{" "}
+                <span className="font-medium text-foreground">{state.invitedEmail}</span> to accept and
+                access the organization and its projects.
+              </p>
+            </div>
+            <Button
+              onClick={handleSwitchAccount}
+              className="w-full bg-primary text-primary-foreground hover:bg-primary"
+            >
+              Sign in with the invited email
+            </Button>
           </div>
         )}
 

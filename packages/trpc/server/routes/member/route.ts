@@ -243,6 +243,10 @@ export const memberRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      // Normalize the address so it matches the lowercased email an OAuth/email
+      // sign-in will carry when the invitee accepts.
+      const email = input.email.trim().toLowerCase();
+
       // Enforce plan-based member limits: free=5, pro=10, higher=unlimited
       const [subscription] = await ctx.db
         .select({ plan: subscriptions.plan })
@@ -280,7 +284,7 @@ export const memberRouter = router({
             eq(members.organizationId, ctx.org.id),
           ),
         )
-        .where(eq(usersTable.email, input.email));
+        .where(eq(usersTable.email, email));
 
       if (existing) {
         throw new TRPCError({
@@ -296,7 +300,7 @@ export const memberRouter = router({
         .where(
           and(
             eq(invitations.organizationId, ctx.org.id),
-            eq(invitations.email, input.email),
+            eq(invitations.email, email),
             eq(invitations.status, "pending"),
           ),
         );
@@ -315,7 +319,7 @@ export const memberRouter = router({
         .values({
           id: crypto.randomUUID(),
           organizationId: ctx.org.id,
-          email: input.email,
+          email,
           role: input.role,
           status: "pending",
           expiresAt,
@@ -334,7 +338,7 @@ export const memberRouter = router({
       const actorName = ctx.session.user.name ?? ctx.session.user.email ?? "Someone";
 
       await ctx.sendInvite({
-        to: input.email,
+        to: email,
         inviterName: actorName,
         orgName: org?.name ?? "your organization",
         role: input.role,
@@ -344,7 +348,7 @@ export const memberRouter = router({
 
       await ctx.publish(ctx.org.id, {
         type: "member.invited",
-        email: input.email,
+        email,
         role: input.role,
         actorName,
       });
@@ -412,14 +416,25 @@ export const memberRouter = router({
       const [invite] = await ctx.db
         .select()
         .from(invitations)
-        .where(
-          and(
-            eq(invitations.id, input.invitationId),
-            eq(invitations.email, ctx.session.user.email ?? ""),
-          ),
-        );
+        .where(eq(invitations.id, input.invitationId));
 
-      if (!invite) throw new TRPCError({ code: "NOT_FOUND" });
+      if (!invite) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Invitation not found." });
+      }
+
+      // Match the invited address case-insensitively — OAuth sign-in lowercases
+      // the email, while the invite stores it as typed, so a strict `=` mismatches.
+      const invitedEmail = invite.email.trim().toLowerCase();
+      const userEmail = (ctx.session.user.email ?? "").trim().toLowerCase();
+      if (invitedEmail !== userEmail) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: `This invitation was sent to ${invite.email}. You're signed in as ${
+            ctx.session.user.email ?? "a different account"
+          } — sign in with the invited email to accept.`,
+        });
+      }
+
       if (invite.status !== "pending") {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Invitation is no longer valid." });
       }
