@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { LogOut, Menu, Plus, Search, Settings, User as UserIcon } from "lucide-react";
 
 import {
@@ -40,12 +40,13 @@ function initialsOf(name?: string | null) {
 
 function UserMenu() {
   const { data: session } = authClient.useSession();
-  const router = useRouter();
   const user = session?.user;
 
   async function signOut() {
     await authClient.signOut();
-    router.push("/sign-in");
+    // Full document navigation (not router.push) so the Next.js router cache and
+    // any cached RSC payloads are dropped — back button can't restore the app.
+    window.location.href = "/sign-in";
   }
 
   return (

@@ -2,7 +2,6 @@
 
 import { LogOut, User, UserRound } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -47,15 +46,14 @@ export function UserMenu({
   user: UserMenuUser;
   plan?: string;
 }) {
-  const router = useRouter();
   const displayName = getDisplayName(user);
 
   async function handleSignOut() {
-    await authClient.signOut({
-      fetchOptions: {
-        onSuccess: () => router.push(SIGN_IN_PATH),
-      },
-    });
+    await authClient.signOut();
+    // Hard navigation so the router cache + cached RSC payloads are cleared —
+    // combined with no-store on protected routes this stops the back button
+    // from restoring the authenticated UI after sign-out.
+    window.location.href = SIGN_IN_PATH;
   }
 
   return (
