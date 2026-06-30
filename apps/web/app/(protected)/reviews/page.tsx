@@ -1,81 +1,339 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { motion } from "framer-motion";
-import { CheckCircle2, Loader2, XCircle } from "lucide-react";
+import {
+  CheckCircle2,
+  ExternalLink,
+  Loader2,
+  XCircle,
+} from "lucide-react";
+import { toast } from "sonner";
 
 import { useActiveProject } from "~/components/shipflow/project-context";
 import { FADE_UP, PageHeader, STAGGER } from "~/components/shipflow/ui-kit";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "~/components/ui/sheet";
+import { cn } from "~/lib/utils";
 import { trpc } from "~/trpc/client";
+
+type StatusFilter = "all" | "running" | "passed" | "failed";
+
+const FILTERS: { value: StatusFilter; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "running", label: "Running" },
+  { value: "passed", label: "Passed" },
+  { value: "failed", label: "Failed" },
+];
+
+function verdictBadge(status: string) {
+  if (status === "passed") {
+    return {
+      className:
+        "border-success/30 bg-success/10 text-success",
+      icon: <CheckCircle2 className="size-3.5" />,
+      label: "Passed",
+    };
+  }
+  if (status === "failed") {
+    return {
+      className: "border-destructive/30 bg-destructive/10 text-destructive",
+      icon: <XCircle className="size-3.5" />,
+      label: "Changes needed",
+    };
+  }
+  return {
+    className: "border-primary/30 bg-primary/10 text-primary",
+    icon: <Loader2 className="size-3.5 animate-spin" />,
+    label: "Reviewing",
+  };
+}
+
+function scoreTone(score: number) {
+  if (score >= 80) return "text-success";
+  if (score >= 60) return "text-amber-400";
+  return "text-destructive";
+}
+
+function formatDate(value: string | Date | null) {
+  if (!value) return "—";
+  return new Date(value).toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
 
 export default function ReviewsPage() {
   const { activeProjectId, ready, isLoading } = useActiveProject();
-  const { data: features = [] } = trpc.feature.list.useQuery(
-    { projectId: activeProjectId ?? undefined },
-    { enabled: ready && !isLoading },
-  );
-  const reviewedFeatures = features.filter((feature) =>
-    ["in_review", "approved", "shipped", "blocked"].includes(feature.status),
-  );
+  const [filter, setFilter] = useState<StatusFilter>("all");
+  const [openCycleId, setOpenCycleId] = useState<string | null>(null);
+
+  const { data: cycles = [], isLoading: cyclesLoading } =
+    trpc.review.listAllCycles.useQuery(
+      {
+        projectId: activeProjectId ?? undefined,
+        status: filter === "all" ? undefined : filter,
+      },
+      { enabled: ready && !isLoading },
+    );
 
   return (
     <motion.div initial="hidden" animate="show" variants={STAGGER} className="space-y-6">
       <motion.div variants={FADE_UP}>
-        <PageHeader title="Review history" description="AI code review cycles across all features." />
+        <PageHeader
+          title="Review history"
+          description="Every AI code review cycle across this project's features."
+        />
       </motion.div>
 
-      {reviewedFeatures.length === 0 ? (
+      {/* Status filter */}
+      <motion.div variants={FADE_UP} className="flex flex-wrap gap-2">
+        {FILTERS.map((f) => (
+          <button
+            key={f.value}
+            type="button"
+            onClick={() => setFilter(f.value)}
+            className={cn(
+              "border px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider transition-colors",
+              filter === f.value
+                ? "border-primary/40 bg-primary/10 text-primary"
+                : "border-border bg-card text-muted-foreground hover:border-foreground/20 hover:text-foreground",
+            )}
+          >
+            {f.label}
+          </button>
+        ))}
+      </motion.div>
+
+      {cyclesLoading ? (
         <motion.div variants={FADE_UP} className="border border-border bg-card p-12 text-center">
-          <p className="text-sm text-muted-foreground">No reviews yet. Link a GitHub PR to trigger AI review.</p>
+          <Loader2 className="mx-auto size-5 animate-spin text-muted-foreground" />
+        </motion.div>
+      ) : cycles.length === 0 ? (
+        <motion.div variants={FADE_UP} className="border border-border bg-card p-12 text-center">
+          <p className="text-sm text-muted-foreground">
+            {filter === "all"
+              ? "No reviews yet. Link a GitHub PR to trigger AI review."
+              : `No ${filter} reviews.`}
+          </p>
         </motion.div>
       ) : (
-        <div className="grid gap-3">
-          {reviewedFeatures.map((feature) => {
-            const passed = feature.status === "approved" || feature.status === "shipped";
-            const blocked = feature.status === "blocked";
-            return (
-              <motion.div variants={FADE_UP} key={feature.id}>
-                <Link
-                  href={`/features/${feature.id}?tab=review-history`}
-                  className="group block border border-border bg-card p-5 transition-colors hover:border-foreground/20 hover:bg-foreground/[0.03]"
+        <motion.div variants={FADE_UP} className="overflow-hidden border border-border bg-card">
+          {/* Header row */}
+          <div className="hidden grid-cols-[2fr_1fr_1.2fr_0.8fr_1fr] gap-3 border-b border-border px-5 py-3 font-mono text-[10px] uppercase tracking-wider text-muted-foreground sm:grid">
+            <span>Feature</span>
+            <span>PR</span>
+            <span>Verdict</span>
+            <span>Score</span>
+            <span>Date</span>
+          </div>
+
+          <div className="divide-y divide-border">
+            {cycles.map((cycle) => {
+              const badge = verdictBadge(cycle.status);
+              return (
+                <button
+                  key={cycle.id}
+                  type="button"
+                  onClick={() => setOpenCycleId(cycle.id)}
+                  className="grid w-full grid-cols-1 gap-2 px-5 py-4 text-left transition-colors hover:bg-foreground/[0.03] sm:grid-cols-[2fr_1fr_1.2fr_0.8fr_1fr] sm:items-center sm:gap-3"
                 >
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <h2 className="truncate text-sm font-medium text-foreground transition-colors group-hover:text-primary">
-                        {feature.title}
-                      </h2>
-                      <p className="mt-1.5 line-clamp-1 text-xs text-muted-foreground">{feature.description}</p>
-                    </div>
-                    <span
-                      className={
-                        passed
-                          ? "inline-flex shrink-0 items-center gap-1.5 border border-success/30 bg-success/10 px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-success"
-                          : blocked
-                            ? "inline-flex shrink-0 items-center gap-1.5 border border-destructive/30 bg-destructive/10 px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-destructive"
-                            : "inline-flex shrink-0 items-center gap-1.5 border border-primary/30 bg-primary/10 px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-primary"
-                      }
-                    >
-                      {feature.status === "in_review" ? (
-                        <>
-                          <Loader2 className="size-3.5 animate-spin" /> Reviewing
-                        </>
-                      ) : passed ? (
-                        <>
-                          <CheckCircle2 className="size-3.5" /> Passed
-                        </>
-                      ) : (
-                        <>
-                          <XCircle className="size-3.5" /> Changes needed
-                        </>
-                      )}
-                    </span>
-                  </div>
-                </Link>
-              </motion.div>
-            );
-          })}
-        </div>
+                  <span className="truncate text-sm font-medium text-foreground">
+                    {cycle.featureTitle}
+                  </span>
+                  <span className="font-mono text-xs text-muted-foreground">
+                    #{cycle.prNumber}
+                  </span>
+                  <span
+                    className={cn(
+                      "inline-flex w-fit items-center gap-1.5 border px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider",
+                      badge.className,
+                    )}
+                  >
+                    {badge.icon}
+                    {badge.label}
+                  </span>
+                  <span className="font-mono text-xs">
+                    {typeof cycle.prdComplianceScore === "number" ? (
+                      <span className={scoreTone(cycle.prdComplianceScore)}>
+                        {cycle.prdComplianceScore}%
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {formatDate(cycle.completedAt ?? cycle.createdAt)}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </motion.div>
       )}
+
+      <ReviewDrawer
+        cycleId={openCycleId}
+        onOpenChange={(open) => !open && setOpenCycleId(null)}
+      />
     </motion.div>
+  );
+}
+
+function ReviewDrawer({
+  cycleId,
+  onOpenChange,
+}: {
+  cycleId: string | null;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const utils = trpc.useUtils();
+  const { data: cycle, isLoading } = trpc.review.getCycle.useQuery(
+    { cycleId: cycleId ?? "" },
+    { enabled: Boolean(cycleId) },
+  );
+
+  const resolve = trpc.review.resolveIssue.useMutation({
+    onSuccess: () => {
+      if (cycleId) utils.review.getCycle.invalidate({ cycleId });
+      utils.review.listAllCycles.invalidate();
+      toast.success("Finding marked resolved.");
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
+  const badge = cycle ? verdictBadge(cycle.status) : null;
+
+  return (
+    <Sheet open={Boolean(cycleId)} onOpenChange={onOpenChange}>
+      <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
+        {isLoading || !cycle ? (
+          <div className="flex h-40 items-center justify-center">
+            <Loader2 className="size-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <>
+            <SheetHeader>
+              <SheetTitle className="pr-6">{cycle.featureTitle}</SheetTitle>
+              <SheetDescription asChild>
+                <div className="flex flex-wrap items-center gap-3 text-xs">
+                  {badge ? (
+                    <span
+                      className={cn(
+                        "inline-flex items-center gap-1.5 border px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider",
+                        badge.className,
+                      )}
+                    >
+                      {badge.icon}
+                      {badge.label}
+                    </span>
+                  ) : null}
+                  {typeof cycle.prdComplianceScore === "number" ? (
+                    <span className="font-mono">
+                      PRD compliance:{" "}
+                      <span className={scoreTone(cycle.prdComplianceScore)}>
+                        {cycle.prdComplianceScore}%
+                      </span>
+                    </span>
+                  ) : null}
+                  <Link
+                    href={cycle.prUrl}
+                    target="_blank"
+                    className="inline-flex items-center gap-1 text-primary hover:underline"
+                  >
+                    {cycle.repoFullName} #{cycle.prNumber}
+                    <ExternalLink className="size-3" />
+                  </Link>
+                </div>
+              </SheetDescription>
+            </SheetHeader>
+
+            <div className="space-y-6 px-4 pb-8">
+              {/* AI summary */}
+              <section>
+                <h3 className="mb-2 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                  Summary
+                </h3>
+                <p className="whitespace-pre-line text-sm text-foreground/90">
+                  {cycle.summary ?? "No summary recorded for this cycle."}
+                </p>
+              </section>
+
+              {/* Findings */}
+              <section>
+                <h3 className="mb-2 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                  Findings ({cycle.issues.length})
+                </h3>
+                {cycle.issues.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No findings — the PR satisfied the linked PRD.
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {cycle.issues.map((issue) => {
+                      const blocking = issue.severity === "blocking";
+                      return (
+                        <div
+                          key={issue.id}
+                          className={cn(
+                            "border p-3",
+                            issue.resolved
+                              ? "border-border bg-card opacity-60"
+                              : blocking
+                                ? "border-destructive/30 bg-destructive/[0.06]"
+                                : "border-amber-400/30 bg-amber-400/[0.06]",
+                          )}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <span
+                                className={cn(
+                                  "font-mono text-[10px] uppercase tracking-wider",
+                                  blocking ? "text-destructive" : "text-amber-400",
+                                )}
+                              >
+                                {issue.severity.replace("_", " ")}
+                              </span>
+                              <p className="mt-1 text-sm text-foreground/90">{issue.title}</p>
+                              {issue.filePath ? (
+                                <p className="mt-1 truncate font-mono text-[11px] text-muted-foreground">
+                                  {issue.filePath}
+                                  {issue.lineNumber ? `:${issue.lineNumber}` : ""}
+                                </p>
+                              ) : null}
+                            </div>
+                            {issue.resolved ? (
+                              <span className="inline-flex shrink-0 items-center gap-1 font-mono text-[10px] uppercase tracking-wider text-success">
+                                <CheckCircle2 className="size-3.5" /> Resolved
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => resolve.mutate({ issueId: issue.id })}
+                                disabled={resolve.isPending}
+                                className="shrink-0 border border-border px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground transition-colors hover:border-success/40 hover:text-success disabled:opacity-50"
+                              >
+                                Resolve
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
+            </div>
+          </>
+        )}
+      </SheetContent>
+    </Sheet>
   );
 }
