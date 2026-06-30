@@ -50,9 +50,16 @@ export const auth = betterAuth({
       clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
     },
   },
-  accountLinking: {
-    enabled: true,
-    trustedProviders: ["github", "google"],
+  account: {
+    accountLinking: {
+      enabled: true,
+      trustedProviders: ["github", "google"],
+      // Local email/password sign-ups are never email-verified (there is no
+      // verification flow), so without this the gate blocks linking when a user
+      // who signed up with email/password later signs in with GitHub/Google on
+      // the same email. We trust the IdP's verified email instead.
+      requireLocalEmailVerified: false,
+    },
   },
   plugins: [organization(), nextCookies()],
 });
