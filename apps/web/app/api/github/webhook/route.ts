@@ -1,9 +1,10 @@
 import { getGithubApp } from "@/lib/github/app";
 import { db, eq } from "@repo/database";
-import { featureRequests, pullRequestsTable, repositories } from "@repo/database/schema";
+import { pullRequestsTable, repositories } from "@repo/database/schema";
+import { resolveFeatureIdForBranch, resolveOrgIdForRepo } from "@repo/database/branch";
 import { inngest } from "@/features/inngest/client";
 import { refreshRepoContextIfStale } from "@/features/copilot/server/repo-context";
-import { runReviewForPullRequest } from "@/features/github/review";
+import { runReviewForPullRequest, shouldSkipAutoReview } from "@/features/github/review";
 
 const REVIEWABLE_ACTIONS = ["opened", "synchronize", "reopened"];
 
@@ -48,18 +49,15 @@ export async function POST(request: Request) {
     `[github-webhook] pull_request action="${event.action}" repo="${event.repository?.full_name}" #${pr.number} branch="${pr.head?.ref}"`,
   );
 
-  // Resolve a feature branch (feature/{featureId}) to a real feature, if any.
+  // Resolve a feature branch to a real feature: stored branch slug within the
+  // repo's org first (feature/add-dark-mode), then a raw feature id (back-compat).
   const branchName: string = pr.head.ref;
-  const match = branchName.match(/^feature\/(.+)$/);
-  const branchFeatureId = match?.[1];
-  let featureId: string | null = null;
-  if (branchFeatureId) {
-    const [feature] = await db
-      .select({ id: featureRequests.id })
-      .from(featureRequests)
-      .where(eq(featureRequests.id, branchFeatureId));
-    featureId = feature?.id ?? null;
-  }
+  const organizationId = await resolveOrgIdForRepo(
+    db,
+    event.repository.full_name,
+    event.installation?.id ?? null,
+  );
+  const featureId = await resolveFeatureIdForBranch(db, branchName, organizationId);
 
   // Cache every PR for connected repos — even ones not tied to a feature.
   let saved;
@@ -100,9 +98,14 @@ export async function POST(request: Request) {
     return Response.json({ error: "Failed to persist pull request" }, { status: 500 });
   }
 
-  // Trigger AI review for every PR in a repo where the app is installed.
+  // Trigger AI review for every PR in a repo where the app is installed — but
+  // skip if this exact commit was already reviewed or a review is in flight.
   if (saved && REVIEWABLE_ACTIONS.includes(event.action)) {
     const savedId = saved.id;
+    if (await shouldSkipAutoReview(savedId, pr.head.sha)) {
+      console.log(`[github-webhook] skipping review for ${savedId} — SHA ${pr.head.sha} already reviewed or in flight`);
+      return Response.json({ received: true });
+    }
     try {
       await inngest.send({
         name: "github/pull_request.review_requested",

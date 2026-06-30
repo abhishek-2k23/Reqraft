@@ -11,6 +11,8 @@ import {
   usersTable,
 } from "@repo/database/schema";
 
+import { ensureFeatureBranchName } from "@repo/database/branch";
+
 import { orgProcedure, router } from "../../trpc";
 import { z } from "../../schema";
 import { enforceRateLimit } from "../../rate-limit";
@@ -125,6 +127,16 @@ export const featureRouter = router({
         throw new TRPCError({ code: "NOT_FOUND" });
       }
 
+      // Backfill a readable, org-unique branch slug for older features so the
+      // review tab can suggest `feature/<slug>`. Idempotent, and never fatal —
+      // a backfill failure must not stop the feature from loading.
+      let branchName = feature.branchName ?? feature.id;
+      try {
+        branchName = await ensureFeatureBranchName(ctx.db, feature);
+      } catch (err) {
+        console.error("Failed to backfill feature branch name:", err);
+      }
+
       const messages = await ctx.db
         .select()
         .from(clarificationMessages)
@@ -176,6 +188,7 @@ export const featureRouter = router({
 
       return {
         ...feature,
+        branchName,
         messages,
         prd: prd ?? null,
         tasks: featureTasks,

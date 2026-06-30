@@ -5,6 +5,7 @@ import {
   prds,
   tasks,
 } from "@repo/database/schema";
+import { ensureFeatureBranchName } from "@repo/database/branch";
 
 import { generatePrd } from "@/features/ai/prd-generator";
 import { publishOrgEvent } from "@/lib/realtime/server";
@@ -120,6 +121,12 @@ export const generatePrdFunction = inngest.createFunction(
         .update(featureRequests)
         .set({ status: "prd_ready", updatedAt: new Date() })
         .where(eq(featureRequests.id, featureId));
+    });
+
+    // Assign a readable, org-unique branch slug (e.g. "add-dark-mode") so the
+    // review tab can suggest `feature/<slug>` instead of the raw feature id.
+    await step.run("ensure-branch-name", async () => {
+      await ensureFeatureBranchName(db, context.feature);
     });
 
     await step.run("broadcast-prd-ready", async () => {

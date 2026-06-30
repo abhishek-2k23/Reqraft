@@ -4,12 +4,17 @@ import { headers } from "next/headers";
 import { Octokit } from "octokit";
 
 import { and, db, eq } from "@repo/database";
-import { accountsTable, featureRequests, pullRequestsTable } from "@repo/database/schema";
+import { accountsTable, pullRequestsTable } from "@repo/database/schema";
+import { resolveFeatureIdForBranch, resolveOrgIdForRepo } from "@repo/database/branch";
 
 import { auth } from "@/lib/auth";
 import { getGithubApp } from "@/lib/github/app";
 import { inngest } from "@/features/inngest/client";
-import { runReviewForPullRequest, hasExistingReview } from "@/features/github/review";
+import {
+  reviewForCurrentCommit,
+  runReviewForPullRequest,
+  shouldSkipAutoReview,
+} from "@/features/github/review";
 
 export type GithubRepo = {
   id: string;
@@ -246,17 +251,11 @@ export async function syncRepoPullRequests(
       direction: "desc",
     });
 
+    const organizationId = await resolveOrgIdForRepo(db, fullName, installationId);
+
     for (const pr of data) {
       const branch = pr.head.ref;
-      const branchFeatureId = branch.match(/^feature\/(.+)$/)?.[1];
-      let featureId: string | null = null;
-      if (branchFeatureId) {
-        const [feature] = await db
-          .select({ id: featureRequests.id })
-          .from(featureRequests)
-          .where(eq(featureRequests.id, branchFeatureId));
-        featureId = feature?.id ?? null;
-      }
+      const featureId = await resolveFeatureIdForBranch(db, branch, organizationId);
 
       const prId = `pr_${pr.id}`;
       await db
@@ -293,7 +292,7 @@ export async function syncRepoPullRequests(
       // reviewed yet. This makes reviews appear even when the GitHub webhook
       // never arrives (misconfigured URL, Inngest dev server offline, etc.).
       const isOpen = !pr.merged_at && pr.state === "open";
-      if (featureId && isOpen && !(await hasExistingReview(prId))) {
+      if (featureId && isOpen && !(await shouldSkipAutoReview(prId, pr.head.sha))) {
         await inngest
           .send({
             name: "github/pull_request.review_requested",
@@ -313,87 +312,21 @@ export async function syncRepoPullRequests(
 /**
  * Runs the AI review for a single PR immediately (inline), independent of the
  * GitHub webhook or Inngest. Used by the "Run review" button so a review is
- * guaranteed to run on demand.
+ * guaranteed to run on demand. If the PR's current commit was already reviewed,
+ * it returns that result instead of spending a fresh AI call.
  */
 export async function triggerPrReview(
   pullRequestId: string,
-): Promise<{ ok: boolean; status?: string; error?: string }> {
+): Promise<{ ok: boolean; status?: string; reused?: boolean; error?: string }> {
   try {
+    const existing = await reviewForCurrentCommit(pullRequestId);
+    if (existing) {
+      return { ok: true, status: existing.status, reused: true };
+    }
     const review = await runReviewForPullRequest(pullRequestId);
     return { ok: true, status: review.status };
   } catch (error) {
     console.error("Failed to run PR review:", error);
     return { ok: false, error: error instanceof Error ? error.message : "Review failed" };
-  }
-}
-
-/**
- * Renames a PR's head branch on GitHub (which retargets the open PR), re-links
- * the cached PR to a feature when the new name matches `feature/{featureId}`,
- * and runs the review inline. Lets users fix a mismatched branch from the UI.
- */
-export async function renamePrBranch(
-  pullRequestId: string,
-  newBranch: string,
-): Promise<{ ok: boolean; featureId?: string | null; error?: string }> {
-  try {
-    const [pr] = await db
-      .select()
-      .from(pullRequestsTable)
-      .where(eq(pullRequestsTable.id, pullRequestId));
-    if (!pr) return { ok: false, error: "Pull request not found" };
-
-    if (pr.headBranch === newBranch) {
-      return { ok: false, error: "Branch already has that name" };
-    }
-
-    const app = getGithubApp();
-    const [owner, repo] = splitFullName(pr.repoFullName);
-
-    let installationId = pr.installationId;
-    if (!installationId) {
-      const { data: inst } = await app.octokit.rest.apps.getRepoInstallation({ owner, repo });
-      installationId = inst.id;
-    }
-    const octokit = await app.getInstallationOctokit(installationId);
-
-    await octokit.rest.repos.renameBranch({
-      owner,
-      repo,
-      branch: pr.headBranch,
-      new_name: newBranch,
-    });
-
-    // Re-derive the linked feature from the new branch name.
-    const branchFeatureId = newBranch.match(/^feature\/(.+)$/)?.[1];
-    let linkedFeatureId: string | null = null;
-    if (branchFeatureId) {
-      const [feature] = await db
-        .select({ id: featureRequests.id })
-        .from(featureRequests)
-        .where(eq(featureRequests.id, branchFeatureId));
-      linkedFeatureId = feature?.id ?? null;
-    }
-
-    await db
-      .update(pullRequestsTable)
-      .set({ headBranch: newBranch, featureId: linkedFeatureId, updatedAt: new Date() })
-      .where(eq(pullRequestsTable.id, pullRequestId));
-
-    // If the new name links to a real feature, run the review right away.
-    if (linkedFeatureId) {
-      await runReviewForPullRequest(pullRequestId).catch((err) =>
-        console.error("Failed to run review after rename:", err),
-      );
-    }
-
-    return { ok: true, featureId: linkedFeatureId };
-  } catch (error) {
-    console.error("Failed to rename PR branch:", error);
-    return {
-      ok: false,
-      error:
-        error instanceof Error ? error.message : "Failed to rename branch on GitHub",
-    };
   }
 }

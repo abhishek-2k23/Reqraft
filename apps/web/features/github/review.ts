@@ -1,4 +1,4 @@
-import { db, eq } from "@repo/database";
+import { and, db, desc, eq } from "@repo/database";
 import {
   featureRequests,
   githubInstallations,
@@ -92,20 +92,20 @@ export async function runReviewForPullRequest(pullRequestId: string) {
   });
   const commits = prCommits.map((c) => ({ sha: c.sha, message: c.commit.message }));
 
-  // --- Open a DB review cycle (feature-linked PRs only) ---
-  let reviewCycle: { id: string } | null = null;
-  if (featureId) {
-    const [cycle] = await db
-      .insert(reviewCycles)
-      .values({
-        id: crypto.randomUUID(),
-        pullRequestId: pullRequest.id,
-        featureId,
-        status: "running",
-      })
-      .returning();
-    reviewCycle = cycle ?? null;
+  // --- Open a DB review cycle for every reviewed PR (linked or not) ---
+  const [reviewCycle] = await db
+    .insert(reviewCycles)
+    .values({
+      id: crypto.randomUUID(),
+      pullRequestId: pullRequest.id,
+      featureId,
+      headSha: pullRequest.headSha,
+      status: "running",
+    })
+    .returning();
 
+  // Feature-linked: move the feature into review and announce it live.
+  if (featureId) {
     const [feat] = await db
       .update(featureRequests)
       .set({ status: "in_review", updatedAt: new Date() })
@@ -131,8 +131,8 @@ export async function runReviewForPullRequest(pullRequestId: string) {
     commits,
   });
 
-  // --- Persist results + update feature status (feature-linked only) ---
-  if (featureId && reviewCycle) {
+  // --- Persist results for every cycle; feature status only when linked ---
+  if (reviewCycle) {
     let prAuthorUserId: string | null = null;
     if (pullRequest.authorLogin) {
       const [installation] = await db
@@ -171,27 +171,29 @@ export async function runReviewForPullRequest(pullRequestId: string) {
       );
     }
 
-    await db
-      .update(featureRequests)
-      .set({
-        status: review.status === "passed" ? "approved" : "blocked",
-        updatedAt: new Date(),
-      })
-      .where(eq(featureRequests.id, featureId));
+    // Feature-linked: roll the verdict up to the feature + broadcast live.
+    if (featureId) {
+      await db
+        .update(featureRequests)
+        .set({
+          status: review.status === "passed" ? "approved" : "blocked",
+          updatedAt: new Date(),
+        })
+        .where(eq(featureRequests.id, featureId));
 
-    // Broadcast the result to the org so everyone sees the verdict live
-    const [feat] = await db
-      .select({ organizationId: featureRequests.organizationId })
-      .from(featureRequests)
-      .where(eq(featureRequests.id, featureId));
+      const [feat] = await db
+        .select({ organizationId: featureRequests.organizationId })
+        .from(featureRequests)
+        .where(eq(featureRequests.id, featureId));
 
-    if (feat) {
-      await publishOrgEvent(feat.organizationId, {
-        type: "review.completed",
-        featureId,
-        verdict: review.status === "passed" ? "approved" : "changes requested",
-        complianceScore: review.complianceScore,
-      });
+      if (feat) {
+        await publishOrgEvent(feat.organizationId, {
+          type: "review.completed",
+          featureId,
+          verdict: review.status === "passed" ? "approved" : "changes requested",
+          complianceScore: review.complianceScore,
+        });
+      }
     }
   }
 
@@ -227,4 +229,69 @@ export async function hasExistingReview(pullRequestId: string): Promise<boolean>
     .where(eq(reviewCycles.pullRequestId, pullRequestId))
     .limit(1);
   return Boolean(cycle);
+}
+
+/**
+ * A completed review cycle covering the PR's current head commit, if one exists.
+ * Lets a manual "re-run" reuse the existing review instead of spending a fresh
+ * AI call when nothing has changed since the last review.
+ */
+export async function reviewForCurrentCommit(
+  pullRequestId: string,
+): Promise<{ id: string; status: string } | null> {
+  const [pr] = await db
+    .select({ headSha: pullRequests.headSha })
+    .from(pullRequests)
+    .where(eq(pullRequests.id, pullRequestId));
+  if (!pr) return null;
+
+  const [cycle] = await db
+    .select({ id: reviewCycles.id, status: reviewCycles.status })
+    .from(reviewCycles)
+    .where(
+      and(
+        eq(reviewCycles.pullRequestId, pullRequestId),
+        eq(reviewCycles.headSha, pr.headSha),
+      ),
+    )
+    .orderBy(desc(reviewCycles.createdAt))
+    .limit(1);
+
+  if (!cycle || (cycle.status !== "passed" && cycle.status !== "failed")) {
+    return null;
+  }
+  return cycle;
+}
+
+/**
+ * Whether an *auto-triggered* review should be skipped for a PR: a review is
+ * already running, or this exact head SHA was already reviewed (webhook
+ * re-deliveries, no-op pushes). Manual re-runs bypass this by calling
+ * `runReviewForPullRequest` directly.
+ */
+export async function shouldSkipAutoReview(
+  pullRequestId: string,
+  headSha: string,
+): Promise<boolean> {
+  const cycles = await db
+    .select({
+      status: reviewCycles.status,
+      headSha: reviewCycles.headSha,
+      createdAt: reviewCycles.createdAt,
+    })
+    .from(reviewCycles)
+    .where(eq(reviewCycles.pullRequestId, pullRequestId));
+
+  // A "running" cycle older than this is presumed crashed and won't block.
+  const STUCK_AFTER_MS = 15 * 60 * 1000;
+  const now = Date.now();
+
+  return cycles.some((c) => {
+    if (c.headSha != null && c.headSha === headSha) return true;
+    if (c.status === "running") {
+      const age = now - new Date(c.createdAt).getTime();
+      return age < STUCK_AFTER_MS;
+    }
+    return false;
+  });
 }

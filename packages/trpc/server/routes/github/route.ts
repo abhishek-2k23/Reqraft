@@ -1,6 +1,7 @@
 import { TRPCError } from "@trpc/server";
-import { and, count, desc, eq } from "@repo/database";
+import { and, count, desc, eq, isNull } from "@repo/database";
 import {
+  featureRequests,
   githubInstallations,
   pullRequests,
   repositories,
@@ -125,6 +126,7 @@ export const githubRouter = router({
               status: reviewCycles.status,
               overallVerdict: reviewCycles.overallVerdict,
               prdComplianceScore: reviewCycles.prdComplianceScore,
+              headSha: reviewCycles.headSha,
             })
             .from(reviewCycles)
             .where(eq(reviewCycles.pullRequestId, pr.id))
@@ -141,12 +143,117 @@ export const githubRouter = router({
             baseBranch: pr.baseBranch,
             state: pr.state,
             featureId: pr.featureId,
+            headSha: pr.headSha,
             createdAt: pr.createdAt,
             updatedAt: pr.updatedAt,
-            review: cycle ?? null,
+            // Whether the latest review covers the PR's current commit — lets the
+            // UI offer "view existing review" instead of spending a fresh one.
+            reviewedCurrentCommit: cycle?.headSha != null && cycle.headSha === pr.headSha,
+            review: cycle
+              ? {
+                  status: cycle.status,
+                  overallVerdict: cycle.overallVerdict,
+                  prdComplianceScore: cycle.prdComplianceScore,
+                }
+              : null,
           };
         }),
       );
+    }),
+
+  // Unlinked PRs (no feature) from the org's connected repos — the candidates a
+  // user can attach to a feature. Scoped to a project's repos when given.
+  listLinkablePullRequests: orgProcedure
+    .input(z.object({ projectId: z.string().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      const conditions = [
+        eq(repositories.organizationId, ctx.org.id),
+        isNull(pullRequests.featureId),
+      ];
+      if (input?.projectId) {
+        conditions.push(eq(repositories.projectId, input.projectId));
+      }
+
+      return ctx.db
+        .selectDistinct({
+          id: pullRequests.id,
+          number: pullRequests.number,
+          title: pullRequests.title,
+          repoFullName: pullRequests.repoFullName,
+          headBranch: pullRequests.headBranch,
+          state: pullRequests.state,
+          url: pullRequests.githubPrUrl,
+        })
+        .from(pullRequests)
+        .innerJoin(repositories, eq(repositories.fullName, pullRequests.repoFullName))
+        .where(and(...conditions))
+        .orderBy(desc(pullRequests.number));
+    }),
+
+  // Link a cached PR to a feature directly (no branch rename). Re-points any
+  // existing review cycles for the PR to the feature and rolls the latest
+  // verdict up to it. Future commits on the branch keep this link.
+  linkPullRequestToFeature: orgProcedure
+    .input(z.object({ pullRequestId: z.string(), featureId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      // The PR must belong to one of this org's connected repos.
+      const [row] = await ctx.db
+        .select({ id: pullRequests.id, repoFullName: pullRequests.repoFullName })
+        .from(pullRequests)
+        .innerJoin(repositories, eq(repositories.fullName, pullRequests.repoFullName))
+        .where(
+          and(
+            eq(pullRequests.id, input.pullRequestId),
+            eq(repositories.organizationId, ctx.org.id),
+          ),
+        );
+      if (!row) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Pull request not found" });
+      }
+
+      const [feature] = await ctx.db
+        .select({ id: featureRequests.id })
+        .from(featureRequests)
+        .where(
+          and(
+            eq(featureRequests.id, input.featureId),
+            eq(featureRequests.organizationId, ctx.org.id),
+          ),
+        );
+      if (!feature) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Feature not found" });
+      }
+
+      await ctx.db
+        .update(pullRequests)
+        .set({ featureId: input.featureId, updatedAt: new Date() })
+        .where(eq(pullRequests.id, input.pullRequestId));
+
+      // Carry the PR's review history over to the feature.
+      await ctx.db
+        .update(reviewCycles)
+        .set({ featureId: input.featureId })
+        .where(eq(reviewCycles.pullRequestId, input.pullRequestId));
+
+      // Reflect the latest completed verdict on the feature.
+      const [latest] = await ctx.db
+        .select({ status: reviewCycles.status })
+        .from(reviewCycles)
+        .where(eq(reviewCycles.pullRequestId, input.pullRequestId))
+        .orderBy(desc(reviewCycles.createdAt))
+        .limit(1);
+
+      if (latest?.status === "passed" || latest?.status === "failed") {
+        await ctx.db
+          .update(featureRequests)
+          .set({
+            status: latest.status === "passed" ? "approved" : "blocked",
+            updatedAt: new Date(),
+          })
+          .where(eq(featureRequests.id, input.featureId));
+      }
+
+      return { linked: true };
     }),
 
   connectRepo: orgProcedure
@@ -159,6 +266,25 @@ export const githubRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      // One repo → one project: reject if it's already connected anywhere in
+      // this org (the user must disconnect it first to move it).
+      const [existing] = await ctx.db
+        .select({ id: repositories.id })
+        .from(repositories)
+        .where(
+          and(
+            eq(repositories.organizationId, ctx.org.id),
+            eq(repositories.fullName, input.fullName),
+          ),
+        );
+      if (existing) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message:
+            "This repository is already connected to a project. Disconnect it there first to move it.",
+        });
+      }
+
       // Enforce the plan's repository limit (-1 = unlimited).
       const [sub] = await ctx.db
         .select({ repositoryLimit: subscriptions.repositoryLimit })
