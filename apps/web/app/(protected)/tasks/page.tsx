@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { motion } from "framer-motion";
+import { ArrowRight } from "lucide-react";
 
-import { ShipFlowShell } from "~/components/shipflow/shell";
-import { statusLabel, statusTone } from "~/components/shipflow/status";
 import { useActiveProject } from "~/components/shipflow/project-context";
-import { cn } from "~/lib/utils";
+import { RowSkeleton } from "~/components/shipflow/page-skeletons";
+import { FADE_UP, PageHeader, STAGGER, StatusBadge } from "~/components/shipflow/ui-kit";
+import { statusLabel } from "~/components/shipflow/status";
 import { trpc } from "~/trpc/client";
 
 type FeatureStatus = keyof typeof statusLabel;
@@ -23,46 +25,51 @@ export default function TasksPage() {
   const showSkeleton = !ready || projectsLoading || isLoading;
 
   return (
-    <ShipFlowShell
-      active="/tasks"
-      title="Task Board"
-      description={activeProject ? `Engineering tasks across ${activeProject.name}.` : "Engineering tasks across all active features."}
-    >
+    <motion.div initial="hidden" animate="show" variants={STAGGER} className="space-y-6">
+      <motion.div variants={FADE_UP}>
+        <PageHeader
+          title="Task board"
+          description={activeProject ? `Engineering tasks across ${activeProject.name}.` : "Engineering tasks across all active features."}
+        />
+      </motion.div>
+
       {showSkeleton ? (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="rounded-lg border border-white/10 bg-white/[0.045] p-5">
-              <div className="h-4 w-1/3 animate-pulse rounded bg-white/10" />
-              <div className="mt-3 h-3 w-2/3 animate-pulse rounded bg-white/5" />
-            </div>
+            <RowSkeleton key={i} />
           ))}
         </div>
       ) : activeFeatures.length === 0 ? (
-        <div className="rounded-lg border border-white/10 bg-white/[0.045] p-10 text-center">
-          <p className="text-sm text-slate-500">No tasks yet. Approve a PRD to generate engineering tasks.</p>
-        </div>
+        <motion.div variants={FADE_UP} className="border border-border bg-card p-12 text-center">
+          <p className="text-sm text-muted-foreground">No tasks yet. Approve a PRD to generate engineering tasks.</p>
+        </motion.div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {activeFeatures.map((feature) => {
             const status = feature.status as FeatureStatus;
-
             return (
-              <Link key={feature.id} href={`/features/${feature.id}?tab=tasks`} className="block rounded-lg border border-white/10 bg-white/[0.045] p-5 transition hover:bg-white/[0.07]">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <h2 className="text-sm font-semibold text-white">{feature.title}</h2>
-                    <p className="mt-1 line-clamp-1 text-xs text-slate-500">{feature.description}</p>
+              <motion.div variants={FADE_UP} key={feature.id}>
+                <Link
+                  href={`/features/${feature.id}?tab=tasks`}
+                  className="group block border border-border bg-card p-5 transition-colors hover:border-foreground/20 hover:bg-foreground/[0.03]"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <h2 className="truncate text-sm font-medium text-foreground">{feature.title}</h2>
+                      <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">{feature.description}</p>
+                    </div>
+                    <StatusBadge status={status} />
                   </div>
-                  <span className={cn("rounded-full border px-2.5 py-0.5 text-xs font-medium", statusTone[status])}>
-                    {statusLabel[status]}
-                  </span>
-                </div>
-                <p className="mt-4 text-xs text-slate-500">Open feature to view and manage tasks.</p>
-              </Link>
+                  <p className="mt-4 inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                    Open feature to view and manage tasks
+                    <ArrowRight aria-hidden className="size-3.5 text-foreground/20 transition-colors group-hover:text-primary" />
+                  </p>
+                </Link>
+              </motion.div>
             );
           })}
         </div>
       )}
-    </ShipFlowShell>
+    </motion.div>
   );
 }

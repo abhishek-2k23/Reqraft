@@ -1,6 +1,6 @@
 import { CheckCircle2 } from "lucide-react";
 
-import { ShipFlowShell } from "~/components/shipflow/shell";
+import { PageHeader } from "~/components/shipflow/ui-kit";
 import { cn } from "~/lib/utils";
 import { api } from "~/trpc/server";
 
@@ -17,11 +17,8 @@ export default async function BillingPage() {
   const currentPlan = subscription?.plan ?? "free";
 
   return (
-    <ShipFlowShell
-      active="/billing"
-      title="Billing"
-      description="Manage your subscription and AI review credits."
-    >
+    <div className="space-y-6">
+      <PageHeader title="Billing" description="Manage your subscription and AI review credits." />
       <div className="grid gap-6">
         {subscription ? (
           <div className="rounded-lg border border-white/10 bg-white/[0.045] p-5">
@@ -80,6 +77,6 @@ export default async function BillingPage() {
           ))}
         </div>
       </div>
-    </ShipFlowShell>
+    </div>
   );
 }

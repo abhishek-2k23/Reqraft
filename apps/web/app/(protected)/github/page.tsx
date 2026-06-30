@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { ShipFlowShell } from "~/components/shipflow/shell";
+import { PageHeader } from "~/components/shipflow/ui-kit";
 import { Button } from "~/components/ui/button";
 import { cn } from "~/lib/utils";
 import { useActiveProject } from "~/components/shipflow/project-context";
@@ -320,22 +320,22 @@ export default function GithubPage() {
   // If a repo is selected, show its detailed dashboard.
   if (selectedRepo) {
     return (
-      <ShipFlowShell
-        active="/github"
-        title={selectedRepo.name}
-        description={activeProject ? `Repository in ${activeProject.name}.` : "Connected repository."}
-      >
+      <div className="space-y-6">
+        <PageHeader
+          title={selectedRepo.name}
+          description={activeProject ? `Repository in ${activeProject.name}.` : "Connected repository."}
+        />
         <GithubRepoDashboard repo={selectedRepo} onBack={() => setSelectedRepo(null)} />
-      </ShipFlowShell>
+      </div>
     );
   }
 
   return (
-    <ShipFlowShell
-      active="/github"
-      title="GitHub Integration"
-      description="Connect repositories to enable AI code review and track PRs, commits, and contributors."
-    >
+    <div className="space-y-6">
+      <PageHeader
+        title="GitHub Integration"
+        description="Connect repositories to enable AI code review and track PRs, commits, and contributors."
+      />
       <motion.div
         initial="hidden"
         animate="show"
@@ -570,6 +570,6 @@ export default function GithubPage() {
           </div>
         </motion.div>
       )}
-    </ShipFlowShell>
+    </div>
   );
 }

@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { FeatureDetailTabs } from "~/components/shipflow/feature-detail-tabs";
-import { ShipFlowShell } from "~/components/shipflow/shell";
+import { PageHeader } from "~/components/shipflow/ui-kit";
 import { api } from "~/trpc/server";
 
 export const dynamic = "force-dynamic";
@@ -19,12 +19,12 @@ export default async function FeatureDetailPage({
   }
 
   return (
-    <ShipFlowShell
-      active="/features"
-      title={feature.title}
-      description="Feature detail connects the original request to PRD, tasks, GitHub PR, AI review, and release approval."
-    >
+    <div className="space-y-6">
+      <PageHeader
+        title={feature.title}
+        description="Feature detail connects the original request to PRD, tasks, GitHub PR, AI review, and release approval."
+      />
       <FeatureDetailTabs feature={feature} />
-    </ShipFlowShell>
+    </div>
   );
 }

@@ -1,48 +1,44 @@
 "use client";
 
 import Link from "next/link";
-import { motion, type Variants } from "framer-motion";
-import { Clock3, GitPullRequestArrow, Rocket, ShieldCheck } from "lucide-react";
+import { motion } from "framer-motion";
+import { ArrowRight, Clock3, GitPullRequestArrow, Plus, Rocket, ShieldCheck } from "lucide-react";
 
-import { statusLabel, statusTone } from "~/components/shipflow/status";
-import { ShipFlowShell } from "~/components/shipflow/shell";
 import { useActiveProject } from "~/components/shipflow/project-context";
-import { cn } from "~/lib/utils";
+import { LinkPending } from "~/components/shipflow/link-pending";
+import {
+  FADE_UP,
+  PageHeader,
+  SectionCard,
+  STAGGER,
+  StatTile,
+  StatusBadge,
+} from "~/components/shipflow/ui-kit";
+import { statusLabel } from "~/components/shipflow/status";
 import { trpc } from "~/trpc/client";
 
 type FeatureStatus = keyof typeof statusLabel;
 
 const finishedStatuses = new Set(["approved", "shipped"]);
-const blockedStatuses = new Set(["blocked"]);
 
-const FADE_UP_ANIMATION_VARIANTS: Variants = {
-  hidden: { opacity: 0, y: 20 },
-  show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } },
-};
+const pipelineStages = [
+  { label: "Intake", statuses: ["intake", "clarifying"] },
+  { label: "PRD", statuses: ["prd_generating", "prd_ready"] },
+  { label: "Tasks", statuses: ["tasks_ready", "in_progress"] },
+  { label: "Review", statuses: ["in_review"] },
+  { label: "Shipped", statuses: ["approved", "shipped"] },
+] as const;
 
-function StatCard({
-  label,
-  value,
-  detail,
-  icon: Icon,
-}: {
-  label: string;
-  value: string;
-  detail: string;
-  icon: typeof Rocket;
-}) {
+function NewRequestButton() {
   return (
-    <motion.div variants={FADE_UP_ANIMATION_VARIANTS} className="group relative overflow-hidden rounded-2xl border border-white/10 bg-zinc-950/40 p-6 shadow-2xl backdrop-blur-xl transition-all hover:border-white/20 hover:bg-zinc-900/40 cursor-default">
-      <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-white/5 blur-3xl transition-all group-hover:bg-orange-500/20" />
-      <div className="flex items-center justify-between gap-4">
-        <p className="text-xs font-medium uppercase tracking-[0.2em] text-zinc-400">{label}</p>
-        <div className="rounded-full bg-white/10 p-2 text-zinc-300 transition-colors group-hover:bg-orange-500/20 group-hover:text-orange-400">
-          <Icon className="size-4" />
-        </div>
-      </div>
-      <p className="mt-6 text-4xl font-semibold tracking-tight text-white">{value}</p>
-      <p className="mt-2 text-sm text-zinc-400">{detail}</p>
-    </motion.div>
+    <Link
+      href="/features/new"
+      className="inline-flex h-9 items-center gap-2 bg-primary px-4 text-sm font-medium text-primary-foreground transition-transform hover:opacity-95 active:scale-[0.97]"
+    >
+      <Plus className="size-4" />
+      New request
+      <LinkPending />
+    </Link>
   );
 }
 
@@ -53,73 +49,99 @@ export default function DashboardPage() {
     { enabled: ready && !isLoading },
   );
 
-  const shipped = features.filter((feature) => feature.status === "shipped").length;
-  const finished = features.filter((feature) => finishedStatuses.has(feature.status)).length;
-  const blockers = features.filter((feature) => blockedStatuses.has(feature.status)).length;
+  const shipped = features.filter((f) => f.status === "shipped").length;
+  const finished = features.filter((f) => finishedStatuses.has(f.status)).length;
+  const blockers = features.filter((f) => f.status === "blocked").length;
   const shippedPercent = features.length ? Math.round((shipped / features.length) * 100) : 0;
   const latest = features.slice(0, 5);
 
+  const stageCounts = pipelineStages.map((stage) => ({
+    label: stage.label,
+    count: features.filter((f) => (stage.statuses as readonly string[]).includes(f.status)).length,
+  }));
+
   return (
-    <ShipFlowShell
-      active="/dashboard"
-      title="Dashboard"
-      description="One control room for product discovery, PRD generation, engineering tasks, AI review, and release approval."
-    >
-      <motion.div 
-        initial="hidden" 
-        animate="show" 
-        variants={{ hidden: {}, show: { transition: { staggerChildren: 0.1 } } }} 
-        className="grid gap-8"
-      >
+    <motion.div initial="hidden" animate="show" variants={STAGGER} className="space-y-8">
+        <motion.div variants={FADE_UP}>
+          <PageHeader
+            title="Dashboard"
+            description="One control room for product discovery, PRD generation, engineering tasks, AI review, and release approval."
+            action={<NewRequestButton />}
+          />
+        </motion.div>
+
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <StatCard label="Features shipped" value={`${shippedPercent}%`} detail={`${shipped} of ${features.length} features live`} icon={Rocket} />
-          <StatCard label="Approved flow" value={`${finished}`} detail="Features approved or already shipped" icon={ShieldCheck} />
-          <StatCard label="Active work" value={`${Math.max(features.length - finished, 0)}`} detail="Requests still moving through Reqraft" icon={Clock3} />
-          <StatCard label="Open blockers" value={`${blockers}`} detail="Issues preventing release today" icon={GitPullRequestArrow} />
+          <StatTile label="Features shipped" value={shippedPercent} suffix="%" detail={`${shipped} of ${features.length} features live`} icon={Rocket} />
+          <StatTile label="Approved flow" value={finished} detail="Approved or already shipped" icon={ShieldCheck} />
+          <StatTile label="Active work" value={Math.max(features.length - finished, 0)} detail="Requests still moving through Reqraft" icon={Clock3} />
+          <StatTile label="Open blockers" value={blockers} detail="Issues preventing release today" icon={GitPullRequestArrow} />
         </div>
 
-        <motion.section variants={FADE_UP_ANIMATION_VARIANTS} className="overflow-hidden rounded-2xl border border-white/10 bg-zinc-950/40 shadow-2xl backdrop-blur-xl">
-          <div className="flex flex-col gap-3 border-b border-white/5 bg-white/5 p-6 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-white">Active features</h2>
-              <p className="text-sm text-zinc-400">
-                {activeProject ? `Requests in ${activeProject.name}.` : "Real requests from your current organization."}
-              </p>
-            </div>
-            <Link href="/features/new" className="group relative inline-flex items-center gap-2 overflow-hidden rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_0_20px_rgba(249,115,22,0.2)] transition-all hover:scale-105 hover:bg-orange-400 active:scale-95">
-              New Request
-            </Link>
+        {/* Delivery pipeline — blueprint band */}
+        <motion.div variants={FADE_UP}>
+          <p className="mb-2 font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+            Delivery pipeline
+          </p>
+          <div className="grid grid-cols-2 overflow-hidden border border-border bg-card sm:grid-cols-3 lg:grid-cols-5">
+            {stageCounts.map((stage, i) => (
+              <div
+                key={stage.label}
+                className="relative flex items-center justify-between gap-2 border-b border-border p-4 last:border-b-0 sm:border-b-0 lg:border-r lg:last:border-r-0"
+              >
+                <div>
+                  <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">{stage.label}</p>
+                  <p className="mt-1 text-2xl font-medium tabular-nums text-foreground">{stage.count}</p>
+                </div>
+                {i < stageCounts.length - 1 ? (
+                  <ArrowRight aria-hidden className="hidden size-4 shrink-0 text-foreground/20 lg:block" />
+                ) : null}
+              </div>
+            ))}
           </div>
+        </motion.div>
 
+        {/* Active features */}
+        <SectionCard
+          title="Active features"
+          subtitle={activeProject ? `Requests in ${activeProject.name}.` : "Real requests from your current organization."}
+          action={<NewRequestButton />}
+        >
           {latest.length === 0 ? (
             <div className="p-16 text-center">
-              <p className="text-sm text-zinc-500">No features yet. Create the first request and Reqraft will start the workflow.</p>
+              <p className="text-sm text-muted-foreground">
+                No features yet. Create the first request and Reqraft will start the workflow.
+              </p>
             </div>
           ) : (
-            <div className="divide-y divide-white/5">
+            <div className="divide-y divide-border">
               {latest.map((feature) => {
                 const status = feature.status as FeatureStatus;
-
                 return (
-                <Link key={feature.id} href={`/features/${feature.id}`} className="grid cursor-pointer gap-4 px-6 py-5 transition hover:bg-white/[0.02] md:grid-cols-[1.5fr_0.8fr_0.8fr] md:items-center">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-3">
-                      <p className="font-medium text-white">{feature.title}</p>
-                      <span className={cn("rounded-full border px-2.5 py-0.5 text-[11px] font-semibold tracking-wide", statusTone[status])}>
-                        {statusLabel[status]}
-                      </span>
+                  <Link
+                    key={feature.id}
+                    href={`/features/${feature.id}`}
+                    className="group grid gap-4 px-5 py-4 transition-colors hover:bg-foreground/[0.03] md:grid-cols-[1.5fr_0.7fr_0.7fr] md:items-center"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2.5">
+                        <p className="truncate font-medium text-foreground">{feature.title}</p>
+                        <StatusBadge status={status} />
+                      </div>
+                      <p className="mt-1.5 line-clamp-1 text-sm text-muted-foreground">{feature.description}</p>
                     </div>
-                    <p className="mt-1.5 line-clamp-1 text-sm text-zinc-500">{feature.description}</p>
-                  </div>
-                  <p className="text-sm capitalize text-zinc-400">{feature.priority}</p>
-                  <p className="text-sm text-zinc-500">{new Date(feature.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</p>
-                </Link>
+                    <p className="text-sm capitalize text-muted-foreground">{feature.priority}</p>
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm text-muted-foreground">
+                        {new Date(feature.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                      </p>
+                      <ArrowRight aria-hidden className="size-4 shrink-0 text-foreground/20 transition-colors group-hover:text-primary" />
+                    </div>
+                  </Link>
                 );
               })}
             </div>
           )}
-        </motion.section>
-      </motion.div>
-    </ShipFlowShell>
+        </SectionCard>
+    </motion.div>
   );
 }
