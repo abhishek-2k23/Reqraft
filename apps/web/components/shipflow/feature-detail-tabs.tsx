@@ -13,8 +13,10 @@ import {
   Clock,
   Code2,
   Copy,
+  FileText,
   FolderGit2,
   GripVertical,
+  ListChecks,
   Loader2,
   MessageSquareText,
   Pencil,
@@ -32,7 +34,7 @@ import { toast } from "sonner";
 
 import { Button } from "~/components/ui/button";
 import { Textarea } from "~/components/ui/textarea";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { Tabs, TabsContent } from "~/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "~/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "~/components/ui/popover";
 import {
@@ -46,7 +48,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "~/components/ui/alert-dialog";
-import { statusLabel, statusTone } from "~/components/shipflow/status";
+import { statusLabel } from "~/components/shipflow/status";
+import { StatusBadge } from "~/components/shipflow/ui-kit";
 import { cn } from "~/lib/utils";
 import { trpc } from "~/trpc/client";
 
@@ -77,14 +80,119 @@ type ParsedPrd = Omit<
 type Message = Feature["messages"][number];
 type FeatureStatus = keyof typeof statusLabel;
 
-const tabItems = [
-  { value: "overview", label: "Overview" },
-  { value: "clarify", label: "Clarify" },
-  { value: "prd", label: "PRD" },
-  { value: "tasks", label: "Tasks" },
-  { value: "review-history", label: "Reviews" },
-  { value: "release", label: "Release" },
-];
+// The feature workflow is a gated pipeline, not arbitrary tabs — render it as a
+// stepper whose nodes carry state derived from `feature.status`.
+const PIPELINE_STAGES = [
+  { value: "clarify", label: "Clarify", icon: MessageSquareText },
+  { value: "prd", label: "PRD", icon: FileText },
+  { value: "tasks", label: "Tasks", icon: ListChecks },
+  { value: "review-history", label: "Review", icon: ShieldCheck },
+  { value: "release", label: "Release", icon: Rocket },
+] as const;
+
+const STATUS_STAGE_INDEX: Record<FeatureStatus, number> = {
+  intake: 0,
+  clarifying: 0,
+  prd_generating: 1,
+  prd_ready: 1,
+  tasks_ready: 2,
+  in_progress: 2,
+  in_review: 3,
+  approved: 4,
+  shipped: 4,
+  blocked: 3,
+};
+
+function currentStageValue(status: FeatureStatus): string {
+  return PIPELINE_STAGES[STATUS_STAGE_INDEX[status]]?.value ?? "clarify";
+}
+
+type StageState = "done" | "active" | "blocked" | "upcoming";
+
+function stageState(index: number, status: FeatureStatus): StageState {
+  if (status === "shipped") return "done";
+  const current = STATUS_STAGE_INDEX[status];
+  if (index < current) return "done";
+  if (index === current) return status === "blocked" ? "blocked" : "active";
+  return "upcoming";
+}
+
+const NODE_STATE_CLASS: Record<StageState, string> = {
+  done: "border-success/40 bg-success/10 text-success",
+  active: "border-primary/50 bg-primary/10 text-primary",
+  blocked: "border-destructive/40 bg-destructive/10 text-destructive",
+  upcoming: "border-border bg-foreground/[0.03] text-muted-foreground",
+};
+
+function PipelineStepper({
+  status,
+  value,
+  onSelect,
+  isGeneratingPrd,
+  isGeneratingTasks,
+}: {
+  status: FeatureStatus;
+  value: string;
+  onSelect: (value: string) => void;
+  isGeneratingPrd: boolean;
+  isGeneratingTasks: boolean;
+}) {
+  return (
+    <div className="overflow-x-auto border border-border bg-card p-4">
+      <div className="flex min-w-max items-start sm:min-w-0">
+        {PIPELINE_STAGES.map((stage, i) => {
+          const state = stageState(i, status);
+          const selected = value === stage.value;
+          const Icon = stage.icon;
+          const generating =
+            (stage.value === "prd" && isGeneratingPrd) ||
+            (stage.value === "tasks" && isGeneratingTasks);
+
+          return (
+            <div key={stage.value} className="flex flex-1 items-start">
+              <button
+                type="button"
+                onClick={() => onSelect(stage.value)}
+                aria-current={selected ? "step" : undefined}
+                className="group flex shrink-0 flex-col items-center gap-2 px-2 outline-none"
+              >
+                <span
+                  className={cn(
+                    "grid size-10 place-items-center border transition-colors",
+                    NODE_STATE_CLASS[state],
+                    selected && "ring-2 ring-foreground/30 ring-offset-2 ring-offset-card",
+                  )}
+                >
+                  {generating ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : state === "done" ? (
+                    <Check className="size-4" />
+                  ) : (
+                    <Icon className="size-4" />
+                  )}
+                </span>
+                <span
+                  className={cn(
+                    "font-mono text-[10px] uppercase tracking-wider",
+                    selected ? "text-foreground" : "text-muted-foreground",
+                  )}
+                >
+                  {stage.label}
+                </span>
+              </button>
+              {i < PIPELINE_STAGES.length - 1 ? (
+                <span
+                  aria-hidden
+                  className={cn("mx-1 mt-5 h-px flex-1", state === "done" ? "bg-success/40" : "bg-border")}
+                />
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 const PROGRESS_MILESTONES = [
   { at: 0, pct: 3 },
@@ -603,7 +711,11 @@ function KanbanBoard({
 export function FeatureDetailTabs({ feature: initialFeature }: { feature: Feature }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const defaultTab = searchParams.get("tab") ?? "overview";
+  const [activeTab, setActiveTab] = useState<string>(() => {
+    const requested = searchParams.get("tab");
+    if (requested && PIPELINE_STAGES.some((s) => s.value === requested)) return requested;
+    return currentStageValue(initialFeature.status as FeatureStatus);
+  });
 
   const [messages, setMessages] = useState<Message[]>(initialFeature.messages);
   const [inputMessage, setInputMessage] = useState("");
@@ -828,46 +940,34 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
   }
 
   return (
-    <Tabs defaultValue={defaultTab} className="gap-5">
-      <TabsList className="h-auto flex-wrap justify-start rounded-lg border border-white/10 bg-white/[0.045] p-1">
-        {tabItems.map(({ value, label }) => (
-          <TabsTrigger key={value} value={value} className="data-[state=active]:bg-cyan-300 data-[state=active]:text-slate-950">
-            {value === "prd" && isGeneratingPrd ? (
-              <span className="flex items-center gap-1.5"><Loader2 className="size-3 animate-spin" />{label}</span>
-            ) : value === "tasks" && isGeneratingTasks ? (
-              <span className="flex items-center gap-1.5"><Loader2 className="size-3 animate-spin" />{label}</span>
-            ) : label}
-          </TabsTrigger>
-        ))}
-      </TabsList>
-
-      {/* ── Overview ─────────────────────────────────────── */}
-      <TabsContent value="overview">
-        <div className="rounded-lg border border-white/10 bg-white/[0.045] p-5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <span className={cn("rounded-full border px-3 py-1 text-xs font-medium", statusTone[status])}>
-              {statusLabel[status]}
+    <div className="space-y-5">
+      {/* Feature summary — persistent header (replaces the old Overview tab) */}
+      <div className="space-y-4 border border-border bg-card p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusBadge status={status} />
+            <span className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
+              {feature.priority} priority
             </span>
-            <span className="text-xs text-slate-500">Created {formatDate(feature.createdAt)}</span>
           </div>
-          <h2 className="mt-4 text-xl font-semibold text-white">{feature.title}</h2>
-          <p className="mt-3 text-sm leading-7 text-slate-300">{feature.description}</p>
-          <div className="mt-5 grid gap-3 sm:grid-cols-3">
-            <div className="rounded-md border border-white/10 bg-black/20 p-3">
-              <p className="text-xs text-slate-500">Priority</p>
-              <p className="mt-1 text-sm font-medium capitalize text-white">{feature.priority}</p>
-            </div>
-            <div className="rounded-md border border-white/10 bg-black/20 p-3">
-              <p className="text-xs text-slate-500">Tasks</p>
-              <p className="mt-1 text-sm font-medium text-white">{feature.tasks.length}</p>
-            </div>
-            <div className="rounded-md border border-white/10 bg-black/20 p-3">
-              <p className="text-xs text-slate-500">Pull requests</p>
-              <p className="mt-1 text-sm font-medium text-white">{feature.pullRequests.length}</p>
-            </div>
-          </div>
+          <span className="font-mono text-[11px] text-muted-foreground">Created {formatDate(feature.createdAt)}</span>
         </div>
-      </TabsContent>
+        <p className="text-sm leading-7 text-muted-foreground">{feature.description}</p>
+        <div className="flex flex-wrap gap-x-5 gap-y-1 border-t border-border pt-3 font-mono text-[11px] text-muted-foreground">
+          <span>{feature.tasks.length} tasks</span>
+          <span>{feature.pullRequests.length} pull requests</span>
+          {feature.reviewCycles.length > 0 ? <span>{feature.reviewCycles.length} review cycles</span> : null}
+        </div>
+      </div>
+
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="gap-5">
+        <PipelineStepper
+          status={status}
+          value={activeTab}
+          onSelect={setActiveTab}
+          isGeneratingPrd={isGeneratingPrd}
+          isGeneratingTasks={isGeneratingTasks}
+        />
 
       {/* ── Clarify ──────────────────────────────────────── */}
       <TabsContent value="clarify">
@@ -1387,6 +1487,7 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
           )}
         </div>
       </TabsContent>
-    </Tabs>
+      </Tabs>
+    </div>
   );
 }
