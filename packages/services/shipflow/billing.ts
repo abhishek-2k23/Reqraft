@@ -85,6 +85,27 @@ export function getPlanDetails(plan: BillingPlan): PlanDetails {
   return planDetails[plan];
 }
 
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+
+/**
+ * Decide whether the AI-review credit window has rolled over and, if so, the
+ * next reset boundary. Paid plans reset on their billing-cycle end; free (and
+ * any plan with no cycle) rolls every 30 days. Pure so both the tRPC usage
+ * query and the credit-consuming path share one rule.
+ */
+export function resolveCreditPeriod(
+  now: Date,
+  resetAt: Date | null,
+  currentPeriodEnd: Date | null,
+): { expired: boolean; nextResetAt: Date } {
+  const expired = !resetAt || resetAt.getTime() <= now.getTime();
+  const nextResetAt =
+    currentPeriodEnd && currentPeriodEnd.getTime() > now.getTime()
+      ? currentPeriodEnd
+      : new Date(now.getTime() + THIRTY_DAYS_MS);
+  return { expired, nextResetAt };
+}
+
 export function calculateCreditUsage(
   input: CreditUsageInput,
 ): CreditUsageSummary {

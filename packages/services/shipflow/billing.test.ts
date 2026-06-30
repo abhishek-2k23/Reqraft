@@ -5,6 +5,7 @@ import {
   calculateCreditUsage,
   getPlanDetails,
   normalizeRazorpaySubscriptionEvent,
+  resolveCreditPeriod,
 } from "./billing";
 
 test("getPlanDetails returns the product limits for each plan", () => {
@@ -67,4 +68,37 @@ test("normalizeRazorpaySubscriptionEvent downgrades to free on cancellation", ()
   });
   assert.equal(update.plan, "free");
   assert.equal(update.status, "canceled");
+});
+
+test("resolveCreditPeriod treats a missing reset boundary as expired", () => {
+  const now = new Date("2026-06-30T00:00:00.000Z");
+  const result = resolveCreditPeriod(now, null, null);
+  assert.equal(result.expired, true);
+  // No billing cycle → next window is 30 days out.
+  assert.equal(
+    result.nextResetAt.getTime(),
+    new Date("2026-07-30T00:00:00.000Z").getTime(),
+  );
+});
+
+test("resolveCreditPeriod expires once the reset boundary has passed", () => {
+  const now = new Date("2026-06-30T00:00:00.000Z");
+  const result = resolveCreditPeriod(now, new Date("2026-06-29T00:00:00.000Z"), null);
+  assert.equal(result.expired, true);
+});
+
+test("resolveCreditPeriod stays in-period while the reset is still in the future", () => {
+  const now = new Date("2026-06-30T00:00:00.000Z");
+  const periodEnd = new Date("2026-07-15T00:00:00.000Z");
+  const result = resolveCreditPeriod(now, periodEnd, periodEnd);
+  assert.equal(result.expired, false);
+});
+
+test("resolveCreditPeriod rolls a paid plan to its billing-cycle end", () => {
+  const now = new Date("2026-06-30T00:00:00.000Z");
+  const periodEnd = new Date("2026-07-31T00:00:00.000Z");
+  // Reset already lapsed, but the next cycle end is still ahead → snap to it.
+  const result = resolveCreditPeriod(now, new Date("2026-06-01T00:00:00.000Z"), periodEnd);
+  assert.equal(result.expired, true);
+  assert.equal(result.nextResetAt.getTime(), periodEnd.getTime());
 });
