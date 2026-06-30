@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion, type Variants } from "framer-motion";
 import {
   CheckCircle2, ChevronRight, ExternalLink, GitBranch, Github,
-  Loader2, Lock, Globe, ShieldCheck, Link2, Settings, Unlink2,
+  Loader2, Lock, Globe, Search, ShieldCheck, Link2, Settings, Unlink2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -27,11 +27,23 @@ const FADE_UP: Variants = {
   show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } },
 };
 
+const GITHUB_APP_NAME = process.env.NEXT_PUBLIC_GITHUB_APP_NAME;
+
+// First-time install: GitHub's "install this app" screen. Returns null when the
+// app name isn't configured so callers can surface a clear error instead of
+// sending the user to GitHub's app-creation page.
 function getInstallUrl() {
-  const appName = process.env.NEXT_PUBLIC_GITHUB_APP_NAME;
-  return appName
-    ? `https://github.com/apps/${appName}/installations/new`
-    : "https://github.com/settings/apps/new";
+  return GITHUB_APP_NAME
+    ? `https://github.com/apps/${GITHUB_APP_NAME}/installations/new`
+    : null;
+}
+
+// Already installed: jump straight to THIS installation's repository-access
+// page. Reusing `installations/new` for an app that's already installed often
+// dead-ends on GitHub without redirecting back (the popup appears to stall), so
+// manage flows must target the installation directly.
+function getManageUrl(installationId: number) {
+  return `https://github.com/settings/installations/${installationId}`;
 }
 
 function RepoRow({
@@ -185,6 +197,22 @@ export default function GithubPage() {
   const [selectedRepo, setSelectedRepo] = useState<ConnectedRepo | null>(null);
   const [detectedInstalls, setDetectedInstalls] = useState<AppInstallation[]>([]);
   const [detecting, setDetecting] = useState(false);
+  const [repoQuery, setRepoQuery] = useState("");
+  const [debouncedRepoQuery, setDebouncedRepoQuery] = useState("");
+
+  // Debounce the filter term — the input stays instant, the list re-filters
+  // after typing settles.
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedRepoQuery(repoQuery), 200);
+    return () => clearTimeout(id);
+  }, [repoQuery]);
+
+  // Latest installation id, kept in a ref so the popup-close handler (a stale
+  // closure) can always reload repos against the current installation.
+  const installationIdRef = useRef<number | null>(null);
+  useEffect(() => {
+    installationIdRef.current = installStatus.installation?.installationId ?? null;
+  }, [installStatus.installation?.installationId]);
 
   const saveInstallation = trpc.github.saveInstallation.useMutation({
     onSuccess: () => {
@@ -281,7 +309,12 @@ export default function GithubPage() {
 
   // Open GitHub's install/configure screen in a centered popup. On close we
   // refresh installation + repo state so the UI reflects any changes.
-  function openGithubPopup(baseUrl: string) {
+  function openGithubPopup(baseUrl: string | null) {
+    if (!baseUrl) {
+      toast.error("GitHub App isn't configured. Set NEXT_PUBLIC_GITHUB_APP_NAME and redeploy.");
+      return;
+    }
+
     const state = crypto.randomUUID();
     sessionStorage.setItem("gh_oauth_state", state);
     const url = `${baseUrl}${baseUrl.includes("?") ? "&" : "?"}state=${state}`;
@@ -302,12 +335,15 @@ export default function GithubPage() {
     }
     popup.focus();
 
+    // Even if GitHub never redirects back to our handoff page (common when the
+    // app is already installed), closing the popup must fully refresh state —
+    // including reloading the installation's repos against the current id.
     const timer = window.setInterval(() => {
       if (popup.closed) {
         window.clearInterval(timer);
         refetch();
         utils.github.repositories.invalidate();
-        const id = installStatus.installation?.installationId;
+        const id = installationIdRef.current;
         if (id) void loadGithubRepos(id);
       }
     }, 700);
@@ -316,6 +352,13 @@ export default function GithubPage() {
   const connectedFullNames = new Set(connectedRepos.map((r) => r.fullName));
   const unconnectedRepos = githubRepos.filter((r) => !connectedFullNames.has(r.fullName));
   const githubFullNames = new Set(githubRepos.map((r) => r.fullName));
+
+  // Repo search — only worth showing once there's more than one repo to sift.
+  const q = debouncedRepoQuery.trim().toLowerCase();
+  const matchesQuery = (fullName: string) => fullName.toLowerCase().includes(q);
+  const visibleConnected = q ? connectedRepos.filter((r) => matchesQuery(r.fullName)) : connectedRepos;
+  const visibleUnconnected = q ? unconnectedRepos.filter((r) => matchesQuery(r.fullName)) : unconnectedRepos;
+  const showRepoSearch = connectedRepos.length + unconnectedRepos.length > 1;
 
   // If a repo is selected, show its detailed dashboard.
   if (selectedRepo) {
@@ -374,7 +417,7 @@ export default function GithubPage() {
               </div>
               <button
                 type="button"
-                onClick={() => openGithubPopup(getInstallUrl())}
+                onClick={() => openGithubPopup(getManageUrl(installStatus.installation!.installationId))}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-foreground/10 bg-foreground/5 px-3 py-1.5 text-xs text-foreground/80 transition hover:bg-foreground/10"
               >
                 <Settings className="size-3.5" />
@@ -394,14 +437,16 @@ export default function GithubPage() {
                 Install / Connect GitHub App
                 <ExternalLink className="size-4" />
               </button>
-              <a
-                href={getInstallUrl()}
-                target="_blank"
-                rel="noreferrer"
-                className="block text-center text-xs text-muted-foreground underline-offset-2 hover:text-foreground/80 hover:underline"
-              >
-                Popup blocked? Open in a new tab instead
-              </a>
+              {getInstallUrl() && (
+                <a
+                  href={getInstallUrl()!}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block text-center text-xs text-muted-foreground underline-offset-2 hover:text-foreground/80 hover:underline"
+                >
+                  Popup blocked? Open in a new tab instead
+                </a>
+              )}
 
               {/* Fallback: already installed but GitHub didn't redirect back */}
               <div className="rounded-xl border border-foreground/10 bg-foreground/[0.02] p-4">
@@ -500,6 +545,21 @@ export default function GithubPage() {
             </p>
           )}
 
+          {/* Search — surfaced once more than one repo is accessible */}
+          {showRepoSearch && (
+            <div className="relative max-w-md">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="text"
+                value={repoQuery}
+                onChange={(e) => setRepoQuery(e.target.value)}
+                placeholder="Search repositories…"
+                aria-label="Search repositories"
+                className="w-full rounded-xl border border-foreground/10 bg-foreground/[0.03] py-2.5 pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary/40 focus:outline-none"
+              />
+            </div>
+          )}
+
           {/* Connected repos — clickable into the dashboard */}
           {connectedRepos.length > 0 && (
             <div>
@@ -507,24 +567,30 @@ export default function GithubPage() {
                 <CheckCircle2 className="size-4 text-success" />
                 Connected repositories ({connectedRepos.length})
               </h2>
-              <div className="divide-y divide-foreground/5 overflow-hidden rounded-xl border border-foreground/10">
-                {connectedRepos.map((r) => (
-                  <ConnectedRepoRow
-                    key={r.id}
-                    repo={r}
-                    isDeletedOnGithub={reposLoaded && !githubFullNames.has(r.fullName)}
-                    onSelect={() =>
-                      setSelectedRepo({
-                        fullName: r.fullName,
-                        name: r.name,
-                        installationId: r.installationId,
-                        defaultBranch: r.defaultBranch,
-                        projectId: r.projectId,
-                      })
-                    }
-                  />
-                ))}
-              </div>
+              {visibleConnected.length === 0 ? (
+                <div className="rounded-xl border border-foreground/10 py-8 text-center text-sm text-muted-foreground">
+                  No connected repositories match “{debouncedRepoQuery}”.
+                </div>
+              ) : (
+                <div className="divide-y divide-foreground/5 overflow-hidden rounded-xl border border-foreground/10">
+                  {visibleConnected.map((r) => (
+                    <ConnectedRepoRow
+                      key={r.id}
+                      repo={r}
+                      isDeletedOnGithub={reposLoaded && !githubFullNames.has(r.fullName)}
+                      onSelect={() =>
+                        setSelectedRepo({
+                          fullName: r.fullName,
+                          name: r.name,
+                          installationId: r.installationId,
+                          defaultBranch: r.defaultBranch,
+                          projectId: r.projectId,
+                        })
+                      }
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -551,9 +617,13 @@ export default function GithubPage() {
               <div className="rounded-xl border border-foreground/10 py-12 text-center text-sm text-muted-foreground">
                 All accessible repositories are already connected.
               </div>
+            ) : visibleUnconnected.length === 0 ? (
+              <div className="rounded-xl border border-foreground/10 py-12 text-center text-sm text-muted-foreground">
+                No repositories match “{debouncedRepoQuery}”.
+              </div>
             ) : (
               <div className="overflow-hidden rounded-xl border border-foreground/10 divide-y divide-foreground/5">
-                {unconnectedRepos.map((repo) => (
+                {visibleUnconnected.map((repo) => (
                   <RepoRow
                     key={repo.id}
                     repo={repo}
