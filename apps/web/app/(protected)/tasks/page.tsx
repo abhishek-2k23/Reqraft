@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
 
 import { useActiveProject } from "~/components/shipflow/project-context";
-import { RowSkeleton } from "~/components/shipflow/page-skeletons";
+import { TasksListSkeleton } from "~/components/shipflow/page-skeletons";
 import { FADE_UP, PageHeader, STAGGER, StatusBadge } from "~/components/shipflow/ui-kit";
 import { statusLabel } from "~/components/shipflow/status";
 import { trpc } from "~/trpc/client";
@@ -34,11 +34,7 @@ export default function TasksPage() {
       </motion.div>
 
       {showSkeleton ? (
-        <div className="space-y-3">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <RowSkeleton key={i} />
-          ))}
-        </div>
+        <TasksListSkeleton rows={3} />
       ) : activeFeatures.length === 0 ? (
         <motion.div variants={FADE_UP} className="border border-border bg-card p-12 text-center">
           <p className="text-sm text-muted-foreground">No tasks yet. Approve a PRD to generate engineering tasks.</p>

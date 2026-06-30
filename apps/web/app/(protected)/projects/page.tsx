@@ -7,7 +7,7 @@ import { ArrowRight, Boxes, Clock3, FolderKanban, Plus, Rocket, Search } from "l
 
 import { useActiveProject } from "~/components/shipflow/project-context";
 import { CreateProjectDialog } from "~/components/shipflow/create-project-dialog";
-import { CardGridSkeleton } from "~/components/shipflow/page-skeletons";
+import { ProjectsGridSkeleton } from "~/components/shipflow/page-skeletons";
 import { FADE_UP, PageHeader, STAGGER, StatTile } from "~/components/shipflow/ui-kit";
 import { trpc } from "~/trpc/client";
 
@@ -91,7 +91,7 @@ export default function ProjectsPage() {
       </motion.div>
 
       {projectsLoading ? (
-        <CardGridSkeleton />
+        <ProjectsGridSkeleton />
       ) : projects.length === 0 ? (
         <motion.div variants={FADE_UP} className="border border-border bg-card p-12 text-center">
           <p className="text-sm text-muted-foreground">No projects yet. Create one to start submitting feature requests.</p>

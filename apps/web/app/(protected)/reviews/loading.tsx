@@ -1,5 +1,5 @@
-import { ListSkeleton } from "~/components/shipflow/page-skeletons";
+import { ReviewsListSkeleton } from "~/components/shipflow/page-skeletons";
 
 export default function Loading() {
-  return <ListSkeleton rows={4} />;
+  return <ReviewsListSkeleton rows={4} />;
 }
