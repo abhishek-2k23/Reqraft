@@ -1,7 +1,8 @@
 import { getGithubApp } from "@/lib/github/app";
 import { db, eq } from "@repo/database";
-import { featureRequests, pullRequestsTable } from "@repo/database/schema";
+import { featureRequests, pullRequestsTable, repositories } from "@repo/database/schema";
 import { inngest } from "@/features/inngest/client";
+import { refreshRepoContextIfStale } from "@/features/copilot/server/repo-context";
 import { runReviewForPullRequest } from "@/features/github/review";
 
 const REVIEWABLE_ACTIONS = ["opened", "synchronize", "reopened"];
@@ -116,6 +117,22 @@ export async function POST(request: Request) {
       void runReviewForPullRequest(savedId).catch((err) =>
         console.error("[github-webhook] inline review failed:", err),
       );
+    }
+  }
+
+  // A merged PR changes the default branch — refresh the cached repo context so
+  // Copilot reasons over the latest code. Fire-and-forget; never block the webhook.
+  if (event.action === "closed" && pr.merged_at) {
+    try {
+      const connectedRepos = await db
+        .select({ id: repositories.id })
+        .from(repositories)
+        .where(eq(repositories.fullName, event.repository.full_name));
+      for (const repo of connectedRepos) {
+        void refreshRepoContextIfStale(repo.id);
+      }
+    } catch (error) {
+      console.error("[github-webhook] repo-context refresh failed to enqueue:", error);
     }
   }
 

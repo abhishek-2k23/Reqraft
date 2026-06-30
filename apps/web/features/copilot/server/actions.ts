@@ -17,13 +17,18 @@ import { buildRepoContext, getRepoContext } from "./repo-context";
 
 type ActionError = { ok: false; error: string };
 
+type Repo = typeof repositories.$inferSelect;
+type AuthorizeResult =
+  | { ok: false; error: string }
+  | { ok: true; organizationId: string; repo: Repo };
+
 // Resolve the active org and confirm the repo belongs to it. Every Copilot
 // action goes through this so one org can't touch another's repo.
-async function authorizeRepo(repositoryId: string) {
+async function authorizeRepo(repositoryId: string): Promise<AuthorizeResult> {
   const session = await requireAuth();
   const organizationId = session.session.activeOrganizationId;
   if (!organizationId) {
-    return { error: "Select an organization first." as const };
+    return { ok: false, error: "Select an organization first." };
   }
 
   const [repo] = await db
@@ -32,14 +37,14 @@ async function authorizeRepo(repositoryId: string) {
     .where(
       and(eq(repositories.id, repositoryId), eq(repositories.organizationId, organizationId)),
     );
-  if (!repo) return { error: "Repository not found in this organization." as const };
+  if (!repo) return { ok: false, error: "Repository not found in this organization." };
 
-  return { session, organizationId, repo };
+  return { ok: true, organizationId, repo };
 }
 
 export async function refreshRepoContextAction(repositoryId: string) {
   const auth = await authorizeRepo(repositoryId);
-  if ("error" in auth) return { ok: false as const, error: auth.error };
+  if (!auth.ok) return { ok: false as const, error: auth.error };
 
   try {
     const context = await buildRepoContext(repositoryId);
@@ -63,7 +68,7 @@ export async function generateImplementationAction(input: {
   featureId?: string | null;
 }): Promise<({ ok: true; plan: CopilotPlan }) | ActionError> {
   const auth = await authorizeRepo(input.repositoryId);
-  if ("error" in auth) return { ok: false, error: auth.error };
+  if (!auth.ok) return { ok: false, error: auth.error };
 
   if (!input.prompt.trim()) {
     return { ok: false, error: "Describe what you want to build or fix." };
@@ -145,7 +150,7 @@ export async function openDraftPrAction(input: {
   files: Array<{ path: string; content: string }>;
 }) {
   const auth = await authorizeRepo(input.repositoryId);
-  if ("error" in auth) return { ok: false as const, error: auth.error };
+  if (!auth.ok) return { ok: false as const, error: auth.error };
 
   const { repo } = auth;
   if (!repo.installationId) {
@@ -244,7 +249,7 @@ export async function openDraftPrAction(input: {
 
 export async function getRepoContextStatusAction(repositoryId: string) {
   const auth = await authorizeRepo(repositoryId);
-  if ("error" in auth) return null;
+  if (!auth.ok) return null;
   const context = await getRepoContext(repositoryId);
   if (!context) return { indexed: false as const };
   return {
