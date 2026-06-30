@@ -10,8 +10,8 @@ import {
   GitMerge,
   GitPullRequest,
   GitPullRequestClosed,
+  Link2,
   Loader2,
-  Pencil,
   RefreshCw,
   Sparkles,
   Star,
@@ -33,7 +33,6 @@ import {
   listRepoContributors,
   syncRepoPullRequests,
   triggerPrReview,
-  renamePrBranch,
   type RepoCommit,
   type RepoContributor,
   type RepoOverview,
@@ -128,6 +127,8 @@ type Pr = {
   baseBranch: string;
   state: string;
   featureId: string | null;
+  headSha: string;
+  reviewedCurrentCommit: boolean;
   updatedAt: string | Date | null;
   review: { status: string; overallVerdict: string | null; prdComplianceScore: number | null } | null;
 };
@@ -142,8 +143,7 @@ function PrRow({
   onChanged: () => void;
 }) {
   const [reviewing, setReviewing] = useState(false);
-  const [renaming, setRenaming] = useState(false);
-  const [renamePending, setRenamePending] = useState(false);
+  const [linking, setLinking] = useState(false);
   const [selectedFeatureId, setSelectedFeatureId] = useState<string>(features[0]?.id ?? "");
 
   // Features load asynchronously — default the picker once they arrive.
@@ -153,36 +153,41 @@ function PrRow({
     }
   }, [features, selectedFeatureId]);
 
+  const linkToFeature = trpc.github.linkPullRequestToFeature.useMutation({
+    onSuccess: () => {
+      toast.success("Pull request linked to feature.");
+      setLinking(false);
+      onChanged();
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
   const isOpen = pr.state === "open";
+  // A review already covers the current commit — offer to view it, not re-run.
+  const reviewedCurrent = pr.reviewedCurrentCommit && Boolean(pr.review);
 
   async function handleRunReview() {
     setReviewing(true);
     const res = await triggerPrReview(pr.id);
     setReviewing(false);
     if (res.ok) {
-      toast.success(res.status === "passed" ? "Review complete — approved" : "Review complete — changes requested");
+      if (res.reused) {
+        toast.info("No new commits — showing the existing review.");
+      } else {
+        toast.success(res.status === "passed" ? "Review complete — approved" : "Review complete — changes requested");
+      }
       onChanged();
     } else {
       toast.error(res.error ?? "Review failed");
     }
   }
 
-  async function handleRename() {
+  function handleLink() {
     if (!selectedFeatureId) {
       toast.error("Pick a feature first");
       return;
     }
-    const newBranch = `feature/${selectedFeatureId}`;
-    setRenamePending(true);
-    const res = await renamePrBranch(pr.id, newBranch);
-    setRenamePending(false);
-    if (res.ok) {
-      toast.success(res.featureId ? "Branch renamed — review started" : "Branch renamed");
-      setRenaming(false);
-      onChanged();
-    } else {
-      toast.error(res.error ?? "Rename failed");
-    }
+    linkToFeature.mutate({ pullRequestId: pr.id, featureId: selectedFeatureId });
   }
 
   return (
@@ -221,32 +226,57 @@ function PrRow({
       </div>
 
       {/* Actions */}
-      {isOpen && (
-        <div className="mt-3 flex flex-wrap items-center gap-2">
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        {isOpen &&
+          (reviewedCurrent ? (
+            <a
+              href={pr.url}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-primary/20 bg-primary/10 px-2.5 py-1.5 text-xs font-medium text-primary transition hover:bg-primary/20"
+              title="This commit was already reviewed — view the existing review"
+            >
+              <Sparkles className="size-3.5" />
+              View review on GitHub
+            </a>
+          ) : (
+            <button
+              type="button"
+              onClick={handleRunReview}
+              disabled={reviewing}
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-primary/20 bg-primary/10 px-2.5 py-1.5 text-xs font-medium text-primary transition hover:bg-primary/20 disabled:opacity-50"
+            >
+              {reviewing ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
+              {pr.review ? "Re-run review" : "Run review"}
+            </button>
+          ))}
+
+        {isOpen && (
           <button
             type="button"
-            onClick={handleRunReview}
-            disabled={reviewing}
-            className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-primary/20 bg-primary/10 px-2.5 py-1.5 text-xs font-medium text-primary transition hover:bg-primary/20 disabled:opacity-50"
-          >
-            {reviewing ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
-            {pr.review ? "Re-run review" : "Run review"}
-          </button>
-          <button
-            type="button"
-            onClick={() => setRenaming((v) => !v)}
+            onClick={() => setLinking((v) => !v)}
             className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-foreground/10 bg-foreground/5 px-2.5 py-1.5 text-xs text-foreground/80 transition hover:bg-foreground/10"
           >
-            <Pencil className="size-3.5" />
-            Rename branch
+            <Link2 className="size-3.5" />
+            {pr.featureId ? "Change feature" : "Link to feature"}
           </button>
-        </div>
-      )}
+        )}
 
-      {renaming && (
+        <a
+          href={pr.url}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-foreground/10 bg-foreground/5 px-2.5 py-1.5 text-xs text-foreground/80 transition hover:bg-foreground/10"
+        >
+          <ExternalLink className="size-3.5" />
+          Open in GitHub
+        </a>
+      </div>
+
+      {linking && (
         <div className="mt-3 rounded-lg border border-foreground/10 bg-foreground/[0.03] p-3">
           <p className="mb-2 text-xs text-muted-foreground">
-            Rename the branch to match a feature. This renames the branch on GitHub, retargets this PR, and starts an AI review.
+            Link this PR to a feature. Its review history attaches to the feature and future commits stay linked — no branch rename needed.
           </p>
           {features.length === 0 ? (
             <p className="text-xs text-amber-300">No features available in this organization yet.</p>
@@ -263,19 +293,18 @@ function PrRow({
                   </option>
                 ))}
               </select>
-              <span className="break-all font-mono text-[11px] text-muted-foreground">→ feature/{selectedFeatureId}</span>
               <button
                 type="button"
-                onClick={handleRename}
-                disabled={renamePending}
+                onClick={handleLink}
+                disabled={linkToFeature.isPending}
                 className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-primary px-2.5 py-1.5 text-xs font-semibold text-primary-foreground transition hover:bg-primary disabled:opacity-50"
               >
-                {renamePending && <Loader2 className="size-3.5 animate-spin" />}
-                Rename & review
+                {linkToFeature.isPending && <Loader2 className="size-3.5 animate-spin" />}
+                Link
               </button>
               <button
                 type="button"
-                onClick={() => setRenaming(false)}
+                onClick={() => setLinking(false)}
                 className="cursor-pointer rounded-lg border border-foreground/10 px-2.5 py-1.5 text-xs text-muted-foreground transition hover:bg-foreground/5"
               >
                 Cancel

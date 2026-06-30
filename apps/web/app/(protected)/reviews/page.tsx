@@ -6,13 +6,25 @@ import { motion } from "framer-motion";
 import {
   CheckCircle2,
   ExternalLink,
+  Link2,
   Loader2,
+  MoreVertical,
+  Unlink2,
   XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import { useActiveProject } from "~/components/shipflow/project-context";
 import { FADE_UP, PageHeader, STAGGER } from "~/components/shipflow/ui-kit";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "~/components/ui/dropdown-menu";
 import {
   Sheet,
   SheetContent,
@@ -74,6 +86,7 @@ export default function ReviewsPage() {
   const { activeProjectId, ready, isLoading } = useActiveProject();
   const [filter, setFilter] = useState<StatusFilter>("all");
   const [openCycleId, setOpenCycleId] = useState<string | null>(null);
+  const utils = trpc.useUtils();
 
   const { data: cycles = [], isLoading: cyclesLoading } =
     trpc.review.listAllCycles.useQuery(
@@ -83,6 +96,30 @@ export default function ReviewsPage() {
       },
       { enabled: ready && !isLoading },
     );
+
+  // Features the user can attach a review to (current scope).
+  const { data: features = [] } = trpc.feature.list.useQuery(
+    { projectId: activeProjectId ?? undefined },
+    { enabled: ready && !isLoading },
+  );
+
+  const linkCycle = trpc.review.linkCycleToFeature.useMutation({
+    onSuccess: () => {
+      utils.review.listAllCycles.invalidate();
+      toast.success("Review linked to feature.");
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
+  const unlinkCycle = trpc.review.unlinkCycle.useMutation({
+    onSuccess: () => {
+      utils.review.listAllCycles.invalidate();
+      toast.success("Review unlinked.");
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
+  const mutating = linkCycle.isPending || unlinkCycle.isPending;
 
   return (
     <motion.div initial="hidden" animate="show" variants={STAGGER} className="space-y-6">
@@ -127,52 +164,68 @@ export default function ReviewsPage() {
       ) : (
         <motion.div variants={FADE_UP} className="overflow-hidden border border-border bg-card">
           {/* Header row */}
-          <div className="hidden grid-cols-[2fr_1fr_1.2fr_0.8fr_1fr] gap-3 border-b border-border px-5 py-3 font-mono text-[10px] uppercase tracking-wider text-muted-foreground sm:grid">
+          <div className="hidden grid-cols-[2fr_1fr_1.2fr_0.8fr_1fr_auto] gap-3 border-b border-border px-5 py-3 font-mono text-[10px] uppercase tracking-wider text-muted-foreground sm:grid">
             <span>Feature</span>
             <span>PR</span>
             <span>Verdict</span>
             <span>Score</span>
             <span>Date</span>
+            <span className="sr-only">Actions</span>
           </div>
 
           <div className="divide-y divide-border">
             {cycles.map((cycle) => {
               const badge = verdictBadge(cycle.status);
               return (
-                <button
+                <div
                   key={cycle.id}
-                  type="button"
-                  onClick={() => setOpenCycleId(cycle.id)}
-                  className="grid w-full grid-cols-1 gap-2 px-5 py-4 text-left transition-colors hover:bg-foreground/[0.03] sm:grid-cols-[2fr_1fr_1.2fr_0.8fr_1fr] sm:items-center sm:gap-3"
+                  className="grid grid-cols-1 gap-2 px-5 py-4 transition-colors hover:bg-foreground/[0.03] sm:grid-cols-[2fr_1fr_1.2fr_0.8fr_1fr_auto] sm:items-center sm:gap-3"
                 >
-                  <span className="truncate text-sm font-medium text-foreground">
-                    {cycle.featureTitle}
-                  </span>
-                  <span className="font-mono text-xs text-muted-foreground">
-                    #{cycle.prNumber}
-                  </span>
-                  <span
-                    className={cn(
-                      "inline-flex w-fit items-center gap-1.5 border px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider",
-                      badge.className,
-                    )}
+                  <button
+                    type="button"
+                    onClick={() => setOpenCycleId(cycle.id)}
+                    className="contents text-left"
                   >
-                    {badge.icon}
-                    {badge.label}
-                  </span>
-                  <span className="font-mono text-xs">
-                    {typeof cycle.prdComplianceScore === "number" ? (
-                      <span className={scoreTone(cycle.prdComplianceScore)}>
-                        {cycle.prdComplianceScore}%
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    {formatDate(cycle.completedAt ?? cycle.createdAt)}
-                  </span>
-                </button>
+                    <span className="truncate text-sm font-medium text-foreground">
+                      {cycle.featureTitle ?? (
+                        <span className="italic text-muted-foreground">Unlinked</span>
+                      )}
+                    </span>
+                    <span className="font-mono text-xs text-muted-foreground">
+                      #{cycle.prNumber}
+                    </span>
+                    <span
+                      className={cn(
+                        "inline-flex w-fit items-center gap-1.5 border px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider",
+                        badge.className,
+                      )}
+                    >
+                      {badge.icon}
+                      {badge.label}
+                    </span>
+                    <span className="font-mono text-xs">
+                      {typeof cycle.prdComplianceScore === "number" ? (
+                        <span className={scoreTone(cycle.prdComplianceScore)}>
+                          {cycle.prdComplianceScore}%
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {formatDate(cycle.completedAt ?? cycle.createdAt)}
+                    </span>
+                  </button>
+
+                  <RowActions
+                    isLinked={Boolean(cycle.featureId)}
+                    currentFeatureId={cycle.featureId}
+                    features={features}
+                    disabled={mutating}
+                    onLink={(featureId) => linkCycle.mutate({ cycleId: cycle.id, featureId })}
+                    onUnlink={() => unlinkCycle.mutate({ cycleId: cycle.id })}
+                  />
+                </div>
               );
             })}
           </div>
@@ -184,6 +237,73 @@ export default function ReviewsPage() {
         onOpenChange={(open) => !open && setOpenCycleId(null)}
       />
     </motion.div>
+  );
+}
+
+function RowActions({
+  isLinked,
+  currentFeatureId,
+  features,
+  disabled,
+  onLink,
+  onUnlink,
+}: {
+  isLinked: boolean;
+  currentFeatureId: string | null;
+  features: { id: string; title: string }[];
+  disabled: boolean;
+  onLink: (featureId: string) => void;
+  onUnlink: () => void;
+}) {
+  return (
+    <div className="flex justify-end" onClick={(e) => e.stopPropagation()}>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          aria-label="Review actions"
+          className="grid size-8 place-items-center border border-border bg-card text-muted-foreground transition-colors hover:border-foreground/20 hover:text-foreground focus:outline-none"
+        >
+          <MoreVertical className="size-4" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-52">
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger className="gap-2">
+              <Link2 className="size-4" />
+              {isLinked ? "Move to feature" : "Link to feature"}
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent className="max-h-72 w-64 overflow-y-auto">
+              {features.length === 0 ? (
+                <DropdownMenuItem disabled>No features in scope</DropdownMenuItem>
+              ) : (
+                features.map((f) => (
+                  <DropdownMenuItem
+                    key={f.id}
+                    disabled={disabled || f.id === currentFeatureId}
+                    onSelect={() => onLink(f.id)}
+                    className="cursor-pointer"
+                  >
+                    <span className="truncate">{f.title}</span>
+                    {f.id === currentFeatureId ? (
+                      <CheckCircle2 className="ml-auto size-3.5 text-success" />
+                    ) : null}
+                  </DropdownMenuItem>
+                ))
+              )}
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+          {isLinked ? (
+            <DropdownMenuItem
+              variant="destructive"
+              disabled={disabled}
+              onSelect={onUnlink}
+              className="cursor-pointer gap-2"
+            >
+              <Unlink2 className="size-4" />
+              Unlink from feature
+            </DropdownMenuItem>
+          ) : null}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   );
 }
 
@@ -221,7 +341,9 @@ function ReviewDrawer({
         ) : (
           <>
             <SheetHeader>
-              <SheetTitle className="pr-6">{cycle.featureTitle}</SheetTitle>
+              <SheetTitle className="pr-6">
+                {cycle.featureTitle ?? "Unlinked review"}
+              </SheetTitle>
               <SheetDescription asChild>
                 <div className="flex flex-wrap items-center gap-3 text-xs">
                   {badge ? (
