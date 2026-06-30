@@ -143,6 +143,7 @@ export const featureRouter = router({
           type: tasks.type,
           priority: tasks.priority,
           status: tasks.status,
+          estimatedHours: tasks.estimatedHours,
           blockedReason: tasks.blockedReason,
           assignedTo: tasks.assignedTo,
           order: tasks.order,

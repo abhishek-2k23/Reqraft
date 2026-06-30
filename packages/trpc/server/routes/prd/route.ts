@@ -29,6 +29,7 @@ function parsePrd(record: typeof prds.$inferSelect) {
     technicalRequirements: safeParseArray(record.technicalRequirements),
     dependencies: safeParseArray(record.dependencies),
     risks: safeParseArray(record.risks),
+    requiredDisciplines: safeParseArray(record.requiredDisciplines),
   };
 }
 

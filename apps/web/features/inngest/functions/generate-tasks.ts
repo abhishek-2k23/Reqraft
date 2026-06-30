@@ -101,14 +101,23 @@ export const generateTasksFunction = inngest.createFunction(
           type: task.type,
           priority: task.priority,
           status: task.status,
+          estimatedHours: task.estimatedHours,
           assignedTo: task.assignedTo ?? taskTypeToUserId[task.type] ?? null,
           order: index,
         })),
       );
+
+      // Keep the PRD estimate honest: total effort = sum of the actual task
+      // estimates (each of which already carries its own complexity buffer).
+      const totalHours = generatedTasks.reduce((sum, t) => sum + t.estimatedHours, 0);
       await db
         .update(featureRequests)
         .set({ status: "tasks_ready", updatedAt: new Date() })
         .where(eq(featureRequests.id, featureId));
+      await db
+        .update(prds)
+        .set({ estimatedTotalHours: totalHours, updatedAt: new Date() })
+        .where(eq(prds.id, prd.id));
     });
 
     await step.run("broadcast-tasks-ready", async () => {

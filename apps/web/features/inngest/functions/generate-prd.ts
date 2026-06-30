@@ -88,6 +88,7 @@ export const generatePrdFunction = inngest.createFunction(
         technicalRequirements: JSON.stringify(prdContent.technicalRequirements),
         dependencies: JSON.stringify(prdContent.dependencies),
         risks: JSON.stringify(prdContent.risks),
+        requiredDisciplines: JSON.stringify(prdContent.requiredDisciplines),
         estimatedTotalHours: prdContent.estimatedTotalHours,
         rawMarkdown: prdContent.rawMarkdown,
       };

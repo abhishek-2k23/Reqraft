@@ -180,6 +180,9 @@ export const prds = pgTable("prd", {
   risks: text("risks").notNull().default("[]"),
   estimatedTotalHours: integer("estimated_total_hours"),
   targetDeadline: timestamp("target_deadline"),
+  // Engineering disciplines this feature actually needs (subset of
+  // frontend/backend/devops/ai) so task assignment only asks for relevant roles.
+  requiredDisciplines: text("required_disciplines").notNull().default("[]"),
   rawMarkdown: text("raw_markdown").notNull(),
   version: integer("version").notNull().default(1),
   approvedBy: text("approved_by").references(() => usersTable.id, {
@@ -203,6 +206,8 @@ export const tasks = pgTable("task", {
   type: text("type").notNull(),
   priority: text("priority").notNull().default("p1"),
   status: text("status").notNull().default("todo"),
+  // AI-estimated effort for this task (hours), including any complexity buffer.
+  estimatedHours: integer("estimated_hours"),
   blockedReason: text("blocked_reason"),
   assignedTo: text("assigned_to").references(() => usersTable.id, {
     onDelete: "set null",

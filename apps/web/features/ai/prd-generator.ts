@@ -39,15 +39,30 @@ const prdSchema = z.object({
     .int()
     .nullable()
     .describe(
-      "Realistic total development hours estimate covering design, implementation, testing, and review. Null only if truly impossible to estimate.",
+      "Total development hours, estimated for a modern AI-assisted developer (using tools like Copilot/Cursor) — NOT traditional hand-coding timelines. Building software is dramatically faster now: a complete CRUD/todo-style app is 5–10 hours; a typical single feature is often 3–8 hours. Scale by real complexity (integrations, novel algorithms, infra). Add a ~8-hour (one day) buffer only for genuinely complex/risky work. Null only if truly impossible to estimate.",
     ),
 });
 
 export type PrdContent = z.infer<typeof prdSchema>;
 
+const disciplineEnum = z.enum(["frontend", "backend", "devops", "ai"]);
+
+// Generation also declares which engineering disciplines the feature needs, so
+// task assignment only asks for the roles that are actually relevant.
+const prdGenerationSchema = prdSchema.extend({
+  requiredDisciplines: z
+    .array(disciplineEnum)
+    .describe(
+      "The engineering disciplines this feature genuinely requires. Only include 'ai' if the feature involves AI/ML/LLM work (model calls, embeddings, recommendations, NLP, generative). Only include 'devops' for real infra/CI/CD/deployment work. Most features need just 'frontend' and/or 'backend'.",
+    ),
+});
+
+export type PrdGenerationContent = z.infer<typeof prdGenerationSchema>;
+
 const PRD_SYSTEM_PROMPT = `You are a senior product manager writing a production-quality PRD.
 The PRD must be actionable for both managers (who need business context and success metrics) and developers (who need technical detail and acceptance criteria).
-Be specific and concrete — avoid vague language. Include realistic effort estimates.`;
+Be specific and concrete — avoid vague language.
+Estimate effort for the modern AI-assisted era: developers ship far faster with AI coding tools, so keep hour estimates lean and proportional to genuine complexity rather than legacy hand-coding timelines.`;
 
 export type GeneratePrdInput = {
   title: string;
@@ -55,14 +70,16 @@ export type GeneratePrdInput = {
   messages: Array<{ role: "user" | "assistant"; content: string }>;
 };
 
-export async function generatePrd(input: GeneratePrdInput): Promise<PrdContent & { rawMarkdown: string }> {
+export async function generatePrd(
+  input: GeneratePrdInput,
+): Promise<PrdGenerationContent & { rawMarkdown: string }> {
   const conversation = input.messages
     .map((m) => `**${m.role === "user" ? "User" : "Assistant"}**: ${m.content}`)
     .join("\n\n");
 
   const { object } = await generateObject({
     model: openai("gpt-4o-mini"),
-    schema: prdSchema,
+    schema: prdGenerationSchema,
     system: PRD_SYSTEM_PROMPT,
     prompt: `Feature Title: ${input.title}\nDescription: ${input.description}\n\nClarification conversation:\n${conversation || "(none)"}`,
   });

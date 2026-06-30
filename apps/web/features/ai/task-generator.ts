@@ -16,6 +16,7 @@ export type GeneratedTask = {
   priority: "p0" | "p1" | "p2" | "p3" | "p4";
   status: "todo";
   assignedTo: string | null; // userId
+  estimatedHours: number; // AI-era estimate, includes complexity buffer
 };
 
 export type GenerateTasksInput = {
@@ -44,6 +45,11 @@ export async function generateTasks(input: GenerateTasksInput): Promise<Generate
           description: z.string(),
           type: z.enum(["frontend", "backend", "database", "infra", "testing", "docs"]),
           priority: z.enum(["p0", "p1", "p2", "p3", "p4"]),
+          estimatedHours: z
+            .number()
+            .describe(
+              "Hours for a modern AI-assisted developer to complete this task — keep it lean (most tasks are 1–4 hours). Analyze the task's real complexity. Add up to an 8-hour (one day) buffer ONLY for genuinely complex or risky tasks.",
+            ),
           assignedToUserId: z
             .string()
             .nullable()
@@ -57,7 +63,8 @@ export async function generateTasks(input: GenerateTasksInput): Promise<Generate
 - Assign each task to the most suitable developer based on their name and implied skills (frontend = React/UI, backend = API/server, database = schema/migrations, infra = DevOps/CI, testing = QA, docs = documentation).
 - If no developers are listed, set assignedToUserId to null.
 - Distribute work evenly — avoid piling everything on one person.
-- Set priority: p0 = critical blocker, p1 = high, p2 = normal, p3 = low, p4 = nice-to-have.`,
+- Set priority: p0 = critical blocker, p1 = high, p2 = normal, p3 = low, p4 = nice-to-have.
+- Estimate estimatedHours for the modern AI-assisted era (developers ship far faster with AI tools). Be realistic and lean: a whole todo-style app is ~5–10 hours total. Scale by genuine complexity and add a one-day (~8h) buffer only for truly complex tasks.`,
     prompt: `PRD:
 Problem: ${input.problemStatement}
 Goals: ${input.goals.join("; ")}
@@ -74,6 +81,8 @@ Edge Cases: ${input.edgeCases.join("; ")}${devContext}`,
     type: task.type,
     priority: task.priority,
     status: "todo" as const,
+    // Guard against a missing/negative estimate; round to whole hours.
+    estimatedHours: Math.max(1, Math.round(task.estimatedHours || 1)),
     assignedTo:
       task.assignedToUserId && validUserIds.has(task.assignedToUserId)
         ? task.assignedToUserId

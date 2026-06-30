@@ -66,6 +66,7 @@ type ParsedPrd = Omit<
   | "technicalRequirements"
   | "dependencies"
   | "risks"
+  | "requiredDisciplines"
 > & {
   goals: string[];
   nonGoals: string[];
@@ -76,6 +77,7 @@ type ParsedPrd = Omit<
   technicalRequirements: string[];
   dependencies: string[];
   risks: string[];
+  requiredDisciplines: string[];
 };
 type Message = Feature["messages"][number];
 type FeatureStatus = keyof typeof statusLabel;
@@ -427,9 +429,14 @@ const KANBAN_COLUMNS: { key: TaskStatus; label: string; tone: string }[] = [
 
 function buildColumns(tasks: Task[]): Record<TaskStatus, Task[]> {
   const cols: Record<TaskStatus, Task[]> = { todo: [], in_progress: [], done: [], blocked: [] };
+  const seen = new Set<string>();
   [...tasks]
     .sort((a, b) => a.order - b.order)
     .forEach((t) => {
+      // Defend the board against duplicate task ids (stale data / double inserts)
+      // so React never renders two cards with the same key.
+      if (seen.has(t.id)) return;
+      seen.add(t.id);
       const status = (cols[t.status as TaskStatus] ? t.status : "todo") as TaskStatus;
       cols[status].push(t);
     });
@@ -583,7 +590,15 @@ function KanbanBoard({
                       <div className="flex items-start gap-2">
                         <GripVertical className="mt-0.5 size-4 shrink-0 text-slate-600 transition group-hover:text-slate-400" />
                         <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-slate-100">{task.title}</p>
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="text-sm font-medium text-slate-100">{task.title}</p>
+                            {task.estimatedHours ? (
+                              <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-sky-400/20 bg-sky-400/10 px-2 py-0.5 text-[10px] font-medium text-sky-300">
+                                <Clock className="size-2.5" />
+                                {task.estimatedHours}h
+                              </span>
+                            ) : null}
+                          </div>
                           {task.description ? <p className="mt-1.5 text-xs leading-5 text-slate-400">{task.description}</p> : null}
 
                           {task.status === "blocked" && task.blockedReason ? (
@@ -768,6 +783,7 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
       technicalRequirements: parseList(rawPrd.technicalRequirements),
       dependencies: parseList(rawPrd.dependencies),
       risks: parseList(rawPrd.risks),
+      requiredDisciplines: parseList(rawPrd.requiredDisciplines),
     };
   }, [rawPrd]);
 
@@ -906,15 +922,23 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
     { key: "ai",        label: "AI Developer",        taskTypes: ["ai"] },
   ] as const;
 
+  // Only ask for disciplines this feature actually needs (e.g. no AI Developer
+  // slot when there's no AI work). Older PRDs without declared disciplines fall
+  // back to showing every slot.
+  const relevantSlots =
+    prd && prd.requiredDisciplines.length > 0
+      ? SPECIALTY_SLOTS.filter((s) => prd.requiredDisciplines.includes(s.key))
+      : SPECIALTY_SLOTS;
+
   // specialty → first matching member
   const memberBySpecialty = Object.fromEntries(
-    SPECIALTY_SLOTS.map((s) => [
+    relevantSlots.map((s) => [
       s.key,
       orgMembers.data?.find((m) => m.specialty === s.key || (s.key === "backend" && m.specialty === "fullstack")),
     ]),
   );
 
-  const missingSpecialties = SPECIALTY_SLOTS.filter((s) => !memberBySpecialty[s.key]);
+  const missingSpecialties = relevantSlots.filter((s) => !memberBySpecialty[s.key]);
 
   // specialtyKey → userId chosen for missing slots
   const [specialtyOverrides, setSpecialtyOverrides] = useState<Record<string, string>>({});
@@ -1229,7 +1253,7 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
                       </AlertDialogHeader>
 
                       <div className="my-1 grid gap-2">
-                        {SPECIALTY_SLOTS.map((slot) => {
+                        {relevantSlots.map((slot) => {
                           const covered = memberBySpecialty[slot.key];
                           return (
                             <div key={slot.key} className="flex items-center gap-3 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2.5">
