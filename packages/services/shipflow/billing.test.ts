@@ -15,7 +15,8 @@ test("getPlanDetails returns the product limits for each plan", () => {
     monthlyPriceInr: 999,
     includedCredits: 1000,
     repositoryLimit: 10,
-    seatsIncluded: 5,
+    seatsIncluded: 10,
+    projectLimit: 10,
   });
 });
 
@@ -47,9 +48,14 @@ test("calculateCreditUsage reports healthy / attention / over_limit thresholds",
 
 test("getPlanDetails exposes the free and scale tiers", () => {
   assert.equal(getPlanDetails("free").monthlyPriceInr, 0);
-  assert.equal(getPlanDetails("free").repositoryLimit, 1);
+  assert.equal(getPlanDetails("free").repositoryLimit, 3);
+  assert.equal(getPlanDetails("free").seatsIncluded, 3);
+  assert.equal(getPlanDetails("free").projectLimit, 3);
   assert.equal(getPlanDetails("scale").monthlyPriceInr, 1999);
   assert.equal(getPlanDetails("scale").includedCredits, 5000);
+  // Scale has no team-size cap.
+  assert.equal(getPlanDetails("scale").seatsIncluded, -1);
+  assert.equal(getPlanDetails("scale").projectLimit, 50);
 });
 
 test("normalizeRazorpaySubscriptionEvent ignores unknown events", () => {

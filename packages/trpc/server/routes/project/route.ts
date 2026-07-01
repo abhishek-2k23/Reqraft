@@ -1,6 +1,7 @@
 import { TRPCError } from "@trpc/server";
-import { and, eq } from "@repo/database";
-import { projects } from "@repo/database/schema";
+import { and, count, eq } from "@repo/database";
+import { projects, subscriptions } from "@repo/database/schema";
+import { getPlanDetails, type BillingPlan } from "@repo/services/shipflow/billing";
 
 import { orgProcedure, router } from "../../trpc";
 import { z } from "../../schema";
@@ -15,6 +16,29 @@ export const projectRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      // Enforce the plan's project cap (-1 = unlimited).
+      const [subscription] = await ctx.db
+        .select({ plan: subscriptions.plan })
+        .from(subscriptions)
+        .where(eq(subscriptions.organizationId, ctx.org.id));
+
+      const plan = (subscription?.plan ?? "free") as BillingPlan;
+      const projectLimit = getPlanDetails(plan).projectLimit;
+
+      if (projectLimit !== -1) {
+        const [used] = await ctx.db
+          .select({ value: count() })
+          .from(projects)
+          .where(eq(projects.organizationId, ctx.org.id));
+
+        if ((used?.value ?? 0) >= projectLimit) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: `Your ${plan} plan allows up to ${projectLimit} projects. Upgrade to create more.`,
+          });
+        }
+      }
+
       const [project] = await ctx.db
         .insert(projects)
         .values({

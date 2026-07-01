@@ -2,6 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { and, count, eq, inArray } from "@repo/database";
 import { featureRequests, invitations, members, organizations, sessionsTable, subscriptions, tasks, usersTable } from "@repo/database/schema";
 import { MEMBER_ROLES, MEMBER_SPECIALTIES, type MemberRole } from "@repo/database/schema";
+import { getPlanDetails, type BillingPlan } from "@repo/services/shipflow/billing";
 
 import { adminProcedure, orgProcedure, protectedProcedure, publicProcedure, router } from "../../trpc";
 import { z } from "../../schema";
@@ -247,17 +248,17 @@ export const memberRouter = router({
       // sign-in will carry when the invitee accepts.
       const email = input.email.trim().toLowerCase();
 
-      // Enforce plan-based member limits: free=5, pro=10, higher=unlimited
+      // Enforce plan-based member limits (single source of truth in billing).
+      // `seatsIncluded: -1` means unlimited (e.g. the Scale plan).
       const [subscription] = await ctx.db
         .select({ plan: subscriptions.plan })
         .from(subscriptions)
         .where(eq(subscriptions.organizationId, ctx.org.id));
 
-      const plan = subscription?.plan ?? "free";
-      const MEMBER_LIMITS: Record<string, number> = { free: 5, pro: 10 };
-      const limit = MEMBER_LIMITS[plan] ?? Infinity;
+      const plan = (subscription?.plan ?? "free") as BillingPlan;
+      const limit = getPlanDetails(plan).seatsIncluded;
 
-      if (limit !== Infinity) {
+      if (limit !== -1) {
         const countResult = await ctx.db
           .select({ memberCount: count() })
           .from(members)

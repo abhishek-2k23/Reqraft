@@ -16,13 +16,14 @@ function planFeatures(plan: BillingPlan): string[] {
   const d = getPlanDetails(plan);
   const credits = d.includedCredits >= 0 ? `${INR.format(d.includedCredits)} AI review credits/mo` : "Unlimited AI reviews";
   const repos = d.repositoryLimit >= 0 ? `${d.repositoryLimit} ${d.repositoryLimit === 1 ? "repository" : "repositories"}` : "Unlimited repositories";
-  const seats = `${d.seatsIncluded} team seats`;
+  const projectsLine = d.projectLimit >= 0 ? `${d.projectLimit} projects` : "Unlimited projects";
+  const seats = d.seatsIncluded >= 0 ? `${d.seatsIncluded} team seats` : "Unlimited team seats";
   const extras: Record<BillingPlan, string> = {
     free: "Community support",
     pro: "Priority support & analytics",
     scale: "SLA & dedicated support",
   };
-  return [repos, credits, seats, extras[plan]];
+  return [repos, projectsLine, credits, seats, extras[plan]];
 }
 
 function UsageBar({ label, used, limit }: { label: string; used: number; limit: number | null }) {
@@ -58,8 +59,11 @@ export default async function BillingPage() {
   const details = getPlanDetails(currentPlan);
   const usage = data?.usage ?? {
     seatsUsed: 0,
+    seatLimit: details.seatsIncluded,
     repositoriesUsed: 0,
     repositoryLimit: details.repositoryLimit,
+    projectsUsed: 0,
+    projectLimit: details.projectLimit,
     featuresCreated: 0,
     creditsUsed: 0,
     creditsIncluded: details.includedCredits,
@@ -96,7 +100,8 @@ export default async function BillingPage() {
           <div className="grid gap-5 sm:grid-cols-2">
             <UsageBar label="AI review credits used" used={usage.creditsUsed} limit={usage.creditsIncluded} />
             <UsageBar label="Repositories connected" used={usage.repositoriesUsed} limit={usage.repositoryLimit} />
-            <UsageBar label="Team seats" used={usage.seatsUsed} limit={details.seatsIncluded} />
+            <UsageBar label="Projects" used={usage.projectsUsed} limit={usage.projectLimit} />
+            <UsageBar label="Team seats" used={usage.seatsUsed} limit={usage.seatLimit} />
             <UsageBar label="Feature requests created" used={usage.featuresCreated} limit={null} />
           </div>
         </div>

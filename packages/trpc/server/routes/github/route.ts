@@ -9,11 +9,10 @@ import {
   subscriptions,
 } from "@repo/database/schema";
 
+import { getPlanDetails, type BillingPlan } from "@repo/services/shipflow/billing";
+
 import { orgProcedure, protectedProcedure, router } from "../../trpc";
 import { z } from "../../schema";
-
-// Default repo cap for an org that has no subscription row yet (free plan).
-const DEFAULT_REPO_LIMIT = 1;
 
 const repoInput = z.object({
   projectId: z.string(),
@@ -285,12 +284,14 @@ export const githubRouter = router({
         });
       }
 
-      // Enforce the plan's repository limit (-1 = unlimited).
+      // Enforce the plan's repository limit (-1 = unlimited). Derived live from
+      // the plan (single source of truth in billing) so limit changes apply to
+      // existing orgs immediately.
       const [sub] = await ctx.db
-        .select({ repositoryLimit: subscriptions.repositoryLimit })
+        .select({ plan: subscriptions.plan })
         .from(subscriptions)
         .where(eq(subscriptions.organizationId, ctx.org.id));
-      const repoLimit = sub?.repositoryLimit ?? DEFAULT_REPO_LIMIT;
+      const repoLimit = getPlanDetails((sub?.plan ?? "free") as BillingPlan).repositoryLimit;
 
       if (repoLimit !== -1) {
         const [used] = await ctx.db

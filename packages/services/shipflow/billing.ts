@@ -6,8 +6,12 @@ export type PlanDetails = {
   label: string;
   monthlyPriceInr: number;
   includedCredits: number;
+  /** Connected-repository cap. `-1` means unlimited. */
   repositoryLimit: number;
+  /** Team-member (seat) cap. `-1` means unlimited. */
   seatsIncluded: number;
+  /** Project cap. `-1` means unlimited. */
+  projectLimit: number;
 };
 
 export type CreditUsageInput = {
@@ -47,8 +51,9 @@ const planDetails: Record<BillingPlan, PlanDetails> = {
     label: "Free",
     monthlyPriceInr: 0,
     includedCredits: 100,
-    repositoryLimit: 1,
-    seatsIncluded: 2,
+    repositoryLimit: 3,
+    seatsIncluded: 3,
+    projectLimit: 3,
   },
   pro: {
     plan: "pro",
@@ -56,7 +61,8 @@ const planDetails: Record<BillingPlan, PlanDetails> = {
     monthlyPriceInr: 999,
     includedCredits: 1000,
     repositoryLimit: 10,
-    seatsIncluded: 5,
+    seatsIncluded: 10,
+    projectLimit: 10,
   },
   scale: {
     plan: "scale",
@@ -64,7 +70,8 @@ const planDetails: Record<BillingPlan, PlanDetails> = {
     monthlyPriceInr: 1999,
     includedCredits: 5000,
     repositoryLimit: 50,
-    seatsIncluded: 20,
+    seatsIncluded: -1,
+    projectLimit: 50,
   },
 };
 
