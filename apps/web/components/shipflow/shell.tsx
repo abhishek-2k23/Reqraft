@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -105,10 +105,40 @@ function SidebarBody({
   );
 }
 
+/**
+ * Radix (dropdown/dialog/select) locks `<body>` with `pointer-events: none`
+ * while an overlay is open and clears it on close. On fast close + route
+ * changes that cleanup can be skipped, leaving the whole app unclickable —
+ * links and cards silently stop navigating. Watch the body's style and clear a
+ * stuck lock whenever no Radix overlay is actually open.
+ */
+function useRadixPointerEventsGuard() {
+  useEffect(() => {
+    const clearIfStuck = () => {
+      if (
+        document.body.style.pointerEvents === "none" &&
+        !document.querySelector("[data-state='open']")
+      ) {
+        document.body.style.pointerEvents = "";
+      }
+    };
+    const observer = new MutationObserver(clearIfStuck);
+    observer.observe(document.body, { attributes: true, attributeFilter: ["style"] });
+    return () => observer.disconnect();
+  }, []);
+}
+
 export function ShipFlowShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() ?? "";
   const active = activeNavHref(pathname);
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  useRadixPointerEventsGuard();
+
+  // Belt-and-braces: also clear any stuck body lock right after a route change.
+  useEffect(() => {
+    document.body.style.pointerEvents = "";
+  }, [pathname]);
 
   return (
     <CommandPalette>
