@@ -16,6 +16,7 @@ import {
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Spinner } from "~/components/ui/spinner";
+import { RequiredMark } from "./ui-kit";
 import { useActiveProject } from "./project-context";
 import { trpc } from "~/trpc/client";
 
@@ -73,7 +74,7 @@ export function CreateProjectDialog({ trigger }: { trigger: React.ReactNode }) {
           className="grid gap-4 py-2"
         >
           <div className="grid gap-1.5">
-            <Label htmlFor="project-name" className="text-xs text-muted-foreground">Name</Label>
+            <Label htmlFor="project-name" className="text-xs text-muted-foreground">Name <RequiredMark /></Label>
             <Input
               id="project-name"
               value={name}
