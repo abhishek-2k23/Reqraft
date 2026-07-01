@@ -180,9 +180,9 @@ export default function NewFeaturePage() {
                   <SelectTrigger className="w-full border-foreground/10 bg-foreground/5 text-foreground">
                     <SelectValue placeholder={loadingProjects ? "Loading…" : "Select project"} />
                   </SelectTrigger>
-                  <SelectContent className="border-foreground/10 bg-[#0d1118]">
+                  <SelectContent className="border-border bg-popover">
                     {projects.map((p) => (
-                      <SelectItem key={p.id} value={p.id} className="text-foreground/80 focus:bg-foreground/10 focus:text-foreground">
+                      <SelectItem key={p.id} value={p.id} className="focus:bg-foreground/10">
                         {p.name}
                       </SelectItem>
                     ))}

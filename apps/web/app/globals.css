@@ -145,8 +145,17 @@
   button {
     cursor: pointer;
   }
-  button:disabled {
+  /* Consistent, good-looking disabled state for every button (base <Button> and
+     raw inline buttons alike). `filter` desaturates the brand color so a
+     disabled button reads as clearly inactive/muted instead of a bright,
+     half-transparent version of itself. `opacity` here is a floor for buttons
+     that don't set their own; those using `disabled:opacity-*` keep theirs and
+     still get the desaturation. */
+  button:disabled,
+  a[aria-disabled="true"] {
     cursor: not-allowed;
+    opacity: 0.6;
+    filter: grayscale(0.55);
   }
 }
 

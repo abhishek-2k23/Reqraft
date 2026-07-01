@@ -153,7 +153,7 @@ function Section({
 
 function RoleBadge({ role }: { role: string }) {
   const colors: Record<string, string> = {
-    owner: "bg-amber-400/10 text-amber-300 border-amber-400/20",
+    owner: "bg-amber-400/10 text-amber-700 dark:text-amber-300 border-amber-400/20",
     admin: "bg-purple-400/10 text-purple-300 border-purple-400/20",
     manager: "bg-blue-400/10 text-blue-300 border-blue-400/20",
     developer: "bg-success/10 text-success border-success/20",

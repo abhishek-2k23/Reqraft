@@ -57,7 +57,7 @@ function RoleBadge({ role }: { role: MemberRole }) {
   const meta = ROLE_META[role];
   const Icon = meta.icon;
   const colors: Record<MemberRole, string> = {
-    owner:     "border-amber-400/30 bg-amber-400/10 text-amber-300",
+    owner:     "border-amber-400/30 bg-amber-400/10 text-amber-700 dark:text-amber-300",
     admin:     "border-purple-400/30 bg-purple-400/10 text-purple-300",
     manager:   "border-primary/30 bg-primary/10 text-primary",
     developer: "border-success/30 bg-success/10 text-success",
@@ -233,7 +233,7 @@ function RemoveMemberModal({
             {leavingUnassigned && (
               <div className="flex items-start gap-2 rounded-lg border border-amber-400/20 bg-amber-400/5 px-3 py-2.5">
                 <AlertTriangle className="size-4 shrink-0 text-amber-400 mt-0.5" />
-                <p className="text-xs text-amber-300">
+                <p className="text-xs text-amber-700 dark:text-amber-300">
                   {assignedTasks.length} task{assignedTasks.length !== 1 ? "s" : ""} will have no assignee after this member is removed.
                 </p>
               </div>
@@ -380,7 +380,7 @@ export default function TeamPage() {
 
                     <RoleBadge role={inv.role as MemberRole} />
 
-                    <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/30 bg-amber-400/10 px-2.5 py-0.5 text-xs font-medium text-amber-300">
+                    <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/30 bg-amber-400/10 px-2.5 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-300">
                       Invited
                     </span>
 

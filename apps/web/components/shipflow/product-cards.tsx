@@ -65,7 +65,7 @@ export function RepositoryRow({ repo }: { repo: DemoRepository }) {
         className={cn(
           "rounded-full px-2 py-1 text-xs",
           repo.reviewHealth === "passing" && "bg-success/10 text-success",
-          repo.reviewHealth === "attention" && "bg-amber-400/10 text-amber-100",
+          repo.reviewHealth === "attention" && "bg-amber-400/10 text-amber-800 dark:text-amber-100",
           repo.reviewHealth === "blocked" && "bg-destructive/10 text-destructive",
         )}
       >
@@ -132,7 +132,7 @@ export function ReviewCard({ review }: { review: DemoReview }) {
               ) : finding.severity === "positive" ? (
                 <Star className="size-3 text-success" />
               ) : (
-                <Bot className="size-3 text-amber-300" />
+                <Bot className="size-3 text-amber-600 dark:text-amber-300" />
               )}
               <span className="text-muted-foreground">{finding.file}</span>
             </div>

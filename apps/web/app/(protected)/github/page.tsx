@@ -10,6 +10,7 @@ import {
 import { toast } from "sonner";
 
 import { PageHeader } from "~/components/shipflow/ui-kit";
+import { GithubPageSkeleton } from "~/components/shipflow/page-skeletons";
 import { Button } from "~/components/ui/button";
 import { cn } from "~/lib/utils";
 import { ProjectTag, useActiveProject } from "~/components/shipflow/project-context";
@@ -122,14 +123,14 @@ function ConnectedRepoRow({
 
   return (
     <div className={cn("flex w-full items-center gap-4 px-5 py-3.5 transition hover:bg-foreground/[0.03]", !isDeletedOnGithub && "cursor-pointer")}>
-      <CheckCircle2 className={cn("size-4 shrink-0", isDeletedOnGithub ? "text-red-400/60" : "text-success")} />
+      <CheckCircle2 className={cn("size-4 shrink-0", isDeletedOnGithub ? "text-destructive/60" : "text-success")} />
 
       {isDeletedOnGithub ? (
         <div className="flex-1 min-w-0 text-left">
           <p className="truncate text-sm font-medium text-foreground/40 line-through decoration-foreground/40">
             {repo.fullName}
           </p>
-          <p className="text-xs text-red-400/70">Deleted from GitHub account</p>
+          <p className="text-xs text-destructive/70">Deleted from GitHub account</p>
         </div>
       ) : (
         <button type="button" onClick={onSelect} className="flex-1 min-w-0 cursor-pointer text-left">
@@ -158,7 +159,7 @@ function ConnectedRepoRow({
             type="button"
             onClick={() => disconnect.mutate({ repoId: repo.id })}
             disabled={disconnect.isPending}
-            className="inline-flex items-center gap-1 rounded border border-red-400/20 bg-red-400/10 px-2 py-1 text-xs font-medium text-red-400 transition hover:bg-red-400/20 disabled:opacity-50"
+            className="inline-flex items-center gap-1 rounded border border-destructive/30 bg-destructive/10 px-2 py-1 text-xs font-medium text-destructive transition hover:bg-destructive/20 disabled:opacity-50"
           >
             {disconnect.isPending && <Loader2 className="size-3 animate-spin" />}
             Yes
@@ -175,7 +176,7 @@ function ConnectedRepoRow({
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); setConfirming(true); }}
-          className="shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-foreground/10 bg-foreground/5 px-2.5 py-1.5 text-xs text-muted-foreground transition hover:border-red-400/30 hover:bg-red-400/5 hover:text-red-400"
+          className="shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-foreground/10 bg-foreground/5 px-2.5 py-1.5 text-xs text-muted-foreground transition hover:border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
         >
           <Unlink2 className="size-3.5" />
           {isDeletedOnGithub ? "Remove" : "Disconnect"}
@@ -191,7 +192,7 @@ export default function GithubPage() {
 
   const { activeProjectId, activeProject } = useActiveProject();
   const utils = trpc.useUtils();
-  const { data: installStatus = { installed: false, installation: null }, refetch } =
+  const { data: installStatus = { installed: false, installation: null }, refetch, isLoading: statusLoading } =
     trpc.github.getInstallationStatus.useQuery();
   // All repos connected anywhere in the org. We scope the displayed list to the
   // active project below, and use the full set to hide already-connected repos
@@ -386,6 +387,12 @@ export default function GithubPage() {
     );
   }
 
+  // Show the layout-matched skeleton until the connection status resolves, so we
+  // never flash the "Install" state at an org that's already connected.
+  if (statusLoading) {
+    return <GithubPageSkeleton />;
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -399,16 +406,16 @@ export default function GithubPage() {
         className="mt-6 grid max-w-5xl gap-6 lg:grid-cols-[0.9fr_1.1fr]"
       >
         {/* Connection status card */}
-        <motion.div variants={FADE_UP} className="group relative overflow-hidden rounded-2xl border border-foreground/10 bg-zinc-950/40 p-8 shadow-2xl backdrop-blur-xl">
-          <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-foreground/5 blur-3xl group-hover:bg-orange-500/20 transition-all" />
+        <motion.div variants={FADE_UP} className="group relative overflow-hidden rounded-2xl border border-border bg-card p-8 shadow-sm">
+          <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-foreground/5 blur-3xl transition-all group-hover:bg-primary/20" />
 
           <div className="mb-8 flex items-center gap-4">
-            <div className="grid size-12 place-items-center rounded-xl bg-foreground/5 text-zinc-400 group-hover:bg-orange-500/20 group-hover:text-orange-400 transition-colors">
+            <div className="grid size-12 place-items-center rounded-xl bg-foreground/5 text-muted-foreground transition-colors group-hover:bg-primary/10 group-hover:text-primary">
               <Github className="size-6" />
             </div>
             <div>
               <h2 className="text-lg font-semibold text-foreground">GitHub App</h2>
-              <p className="text-sm text-zinc-500">Repository access</p>
+              <p className="text-sm text-muted-foreground">Repository access</p>
             </div>
           </div>
 
@@ -439,13 +446,13 @@ export default function GithubPage() {
             </div>
           ) : (
             <div className="space-y-5">
-              <p className="text-sm leading-relaxed text-zinc-400">
+              <p className="text-sm leading-relaxed text-muted-foreground">
                 Install the Reqraft GitHub App to automatically sync pull requests, trigger AI code reviews, and post status checks directly to your repositories.
               </p>
               <button
                 type="button"
                 onClick={() => openGithubPopup(getInstallUrl())}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-orange-500 px-5 py-3 font-semibold text-foreground shadow-[0_0_20px_rgba(249,115,22,0.2)] transition-all hover:scale-[1.02] hover:bg-orange-400 active:scale-[0.98]"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 font-semibold text-primary-foreground shadow-sm transition-all hover:scale-[1.02] hover:opacity-95 active:scale-[0.98]"
               >
                 Install / Connect GitHub App
                 <ExternalLink className="size-4" />
@@ -519,9 +526,9 @@ export default function GithubPage() {
         </motion.div>
 
         {/* How it works */}
-        <motion.div variants={FADE_UP} className="rounded-2xl border border-foreground/10 bg-zinc-950/40 p-8 shadow-2xl backdrop-blur-xl">
+        <motion.div variants={FADE_UP} className="rounded-2xl border border-border bg-card p-8 shadow-sm">
           <div className="mb-6 flex items-center gap-3">
-            <GitBranch className="size-5 text-zinc-400" />
+            <GitBranch className="size-5 text-muted-foreground" />
             <h2 className="text-base font-semibold text-foreground">How it works</h2>
           </div>
           <div className="relative border-l border-foreground/10 pl-6 space-y-8">
@@ -533,11 +540,11 @@ export default function GithubPage() {
               { title: "Automated AI Review", desc: "Code is reviewed against the PRD and shown in the Review tab." },
             ].map((step, i) => (
               <div key={i} className="relative">
-                <span className="absolute -left-[37px] grid size-7 place-items-center rounded-full border border-orange-500/30 bg-zinc-950 font-mono text-[11px] font-bold text-orange-400">
+                <span className="absolute -left-[37px] grid size-7 place-items-center rounded-full border border-primary/30 bg-card font-mono text-[11px] font-bold text-primary">
                   {i + 1}
                 </span>
-                <h3 className="text-sm font-semibold text-zinc-200">{step.title}</h3>
-                <p className="mt-1 text-xs text-zinc-500">{step.desc}</p>
+                <h3 className="text-sm font-semibold text-foreground">{step.title}</h3>
+                <p className="mt-1 text-xs text-muted-foreground">{step.desc}</p>
               </div>
             ))}
           </div>
@@ -553,7 +560,7 @@ export default function GithubPage() {
           className="mt-8 max-w-5xl space-y-6"
         >
           {!activeProjectId && (
-            <p className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
+            <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-300">
               Select or create a project (top bar) to connect repositories.
             </p>
           )}

@@ -63,10 +63,10 @@ function timeAgo(value: string | Date | null) {
 function StatPill({ icon, label, value }: { icon: React.ReactNode; label: string; value: number | string }) {
   return (
     <div className="flex items-center gap-3 rounded-xl border border-foreground/10 bg-foreground/[0.03] px-4 py-3">
-      <div className="text-zinc-400">{icon}</div>
+      <div className="text-muted-foreground">{icon}</div>
       <div>
         <p className="text-lg font-semibold text-foreground">{value}</p>
-        <p className="text-[11px] uppercase tracking-wide text-zinc-500">{label}</p>
+        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
       </div>
     </div>
   );
@@ -91,7 +91,7 @@ function ReviewBadge({ review }: { review: { status: string; overallVerdict: str
     );
   }
   return (
-    <span className="inline-flex items-center gap-1 rounded-full border border-red-400/20 bg-red-400/10 px-2 py-0.5 text-[11px] font-medium text-red-300">
+    <span className="inline-flex items-center gap-1 rounded-full border border-destructive/30 bg-destructive/10 px-2 py-0.5 text-[11px] font-medium text-destructive">
       <XCircle className="size-3" /> Changes{review.prdComplianceScore != null ? ` · ${review.prdComplianceScore}` : ""}
     </span>
   );
@@ -99,10 +99,10 @@ function ReviewBadge({ review }: { review: { status: string; overallVerdict: str
 
 function PrStateBadge({ state }: { state: string }) {
   if (state === "merged") {
-    return <span className="inline-flex items-center gap-1 rounded-full bg-purple-500/15 px-2 py-0.5 text-[11px] font-medium text-purple-300"><GitMerge className="size-3" />Merged</span>;
+    return <span className="inline-flex items-center gap-1 rounded-full bg-purple-500/15 px-2 py-0.5 text-[11px] font-medium text-purple-600 dark:text-purple-300"><GitMerge className="size-3" />Merged</span>;
   }
   if (state === "closed") {
-    return <span className="inline-flex items-center gap-1 rounded-full bg-red-500/15 px-2 py-0.5 text-[11px] font-medium text-red-300"><GitPullRequestClosed className="size-3" />Closed</span>;
+    return <span className="inline-flex items-center gap-1 rounded-full bg-destructive/15 px-2 py-0.5 text-[11px] font-medium text-destructive"><GitPullRequestClosed className="size-3" />Closed</span>;
   }
   return <span className="inline-flex items-center gap-1 rounded-full bg-success/15 px-2 py-0.5 text-[11px] font-medium text-success"><GitPullRequest className="size-3" />Open</span>;
 }
@@ -200,7 +200,7 @@ function PrRow({
             </a>
             <PrStateBadge state={pr.state} />
             {!pr.featureId && (
-              <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/20 bg-amber-400/10 px-2 py-0.5 text-[11px] font-medium text-amber-300">
+              <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300">
                 Not linked
               </span>
             )}
@@ -279,13 +279,13 @@ function PrRow({
             Link this PR to a feature. Its review history attaches to the feature and future commits stay linked — no branch rename needed.
           </p>
           {features.length === 0 ? (
-            <p className="text-xs text-amber-300">No features available in this organization yet.</p>
+            <p className="text-xs text-amber-700 dark:text-amber-300">No features available in this organization yet.</p>
           ) : (
             <div className="flex flex-wrap items-center gap-2">
               <select
                 value={selectedFeatureId}
                 onChange={(e) => setSelectedFeatureId(e.target.value)}
-                className="max-w-[260px] flex-1 cursor-pointer rounded-lg border border-foreground/10 bg-zinc-900 px-2.5 py-1.5 text-xs text-foreground outline-none focus:border-primary/40"
+                className="max-w-[260px] flex-1 cursor-pointer rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs text-foreground outline-none focus:border-primary/40"
               >
                 {features.map((f) => (
                   <option key={f.id} value={f.id}>

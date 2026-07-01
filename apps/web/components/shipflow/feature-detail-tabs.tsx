@@ -1648,7 +1648,7 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
                           <div className="flex items-start justify-between gap-2">
                             <p className="text-sm text-foreground">{issue.title}</p>
                             <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium",
-                              issue.severity === "blocking" ? "bg-red-500/15 text-red-300" : "bg-amber-500/15 text-amber-300",
+                              issue.severity === "blocking" ? "bg-red-500/15 text-red-700 dark:text-red-300" : "bg-amber-500/15 text-amber-700 dark:text-amber-300",
                             )}>
                               {issue.severity === "blocking" ? "Blocking" : "Non-blocking"}
                             </span>
@@ -1708,7 +1708,7 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
               ) : (
                 <div className="flex items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-3">
                   <TriangleAlert className="size-4 text-amber-400" />
-                  <p className="text-xs text-amber-300">Feature must reach in-review state before release approval.</p>
+                  <p className="text-xs text-amber-700 dark:text-amber-300">Feature must reach in-review state before release approval.</p>
                 </div>
               )}
             </div>
