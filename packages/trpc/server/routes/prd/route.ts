@@ -1,5 +1,6 @@
-import { and, eq } from "@repo/database";
-import { prds } from "@repo/database/schema";
+import { and, eq, inArray } from "@repo/database";
+import { featureRequests, members, organizations, prds, usersTable } from "@repo/database/schema";
+import { prdDocumentFilename, renderPrdDocumentHtml } from "@repo/services/shipflow/prd-document";
 
 import { TRPCError } from "@trpc/server";
 
@@ -180,5 +181,139 @@ export const prdRouter = router({
       });
 
       return { success: true };
+    }),
+
+  // Share a PRD with teammates by email. Recipients must be members of the same
+  // org — the PRD document is rendered and attached to a details-rich email.
+  // Any org member may share (read-oriented action).
+  share: orgProcedure
+    .input(
+      z.object({
+        prdId: z.string(),
+        featureId: z.string(),
+        recipientUserIds: z.array(z.string()).min(1).max(25),
+        message: z.string().max(1000).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      enforceRateLimit({
+        key: `prd-share:${ctx.session.user.id}`,
+        limit: 10,
+        windowMs: 60_000,
+        message: "You're sharing too quickly — please wait a moment.",
+      });
+
+      // Load the PRD scoped to the feature.
+      const [prd] = await ctx.db
+        .select()
+        .from(prds)
+        .where(and(eq(prds.id, input.prdId), eq(prds.featureId, input.featureId)));
+      if (!prd) throw new TRPCError({ code: "NOT_FOUND", message: "PRD not found" });
+
+      // Load the feature scoped to the active org (also authorizes access).
+      const [feature] = await ctx.db
+        .select()
+        .from(featureRequests)
+        .where(
+          and(
+            eq(featureRequests.id, input.featureId),
+            eq(featureRequests.organizationId, ctx.org.id),
+          ),
+        );
+      if (!feature) throw new TRPCError({ code: "NOT_FOUND", message: "Feature not found" });
+
+      const [creator] = await ctx.db
+        .select({ name: usersTable.name })
+        .from(usersTable)
+        .where(eq(usersTable.id, feature.createdBy));
+
+      const [org] = await ctx.db
+        .select({ name: organizations.name })
+        .from(organizations)
+        .where(eq(organizations.id, ctx.org.id));
+
+      // Resolve recipients — restricted to members of this org.
+      const recipients = await ctx.db
+        .select({ userId: usersTable.id, name: usersTable.name, email: usersTable.email })
+        .from(members)
+        .innerJoin(usersTable, eq(members.userId, usersTable.id))
+        .where(
+          and(
+            eq(members.organizationId, ctx.org.id),
+            inArray(members.userId, input.recipientUserIds),
+          ),
+        );
+
+      if (recipients.length === 0) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "None of the selected recipients are members of this organization.",
+        });
+      }
+
+      const documentHtml = renderPrdDocumentHtml({
+        featureTitle: feature.title,
+        priority: feature.priority,
+        status: feature.status,
+        version: prd.version,
+        problem: prd.problem,
+        goals: safeParseArray(prd.goals),
+        nonGoals: safeParseArray(prd.nonGoals),
+        userStories: safeParseArray(prd.userStories),
+        acceptanceCriteria: safeParseArray(prd.acceptanceCriteria),
+        edgeCases: safeParseArray(prd.edgeCases),
+        successMetrics: safeParseArray(prd.successMetrics),
+        technicalRequirements: safeParseArray(prd.technicalRequirements),
+        dependencies: safeParseArray(prd.dependencies),
+        risks: safeParseArray(prd.risks),
+        estimatedTotalHours: prd.estimatedTotalHours,
+        targetDeadline: prd.targetDeadline,
+        approvedAt: prd.approvedAt,
+        createdByName: creator?.name ?? null,
+        createdAt: feature.createdAt,
+        orgName: org?.name ?? null,
+      });
+
+      const documentFilename = prdDocumentFilename(feature.title);
+      const sharedByName = ctx.session.user.name ?? ctx.session.user.email ?? "A teammate";
+
+      // Send to each recipient (skip those without a real email address).
+      const results = await Promise.allSettled(
+        recipients
+          .filter((r) => r.email && r.email.includes("@"))
+          .map((r) =>
+            ctx.sendPrdShare({
+              to: r.email,
+              recipientName: r.name,
+              sharedByName,
+              orgName: org?.name ?? "your team",
+              featureId: feature.id,
+              featureTitle: feature.title,
+              priority: feature.priority,
+              status: feature.status,
+              version: prd.version,
+              estimatedTotalHours: prd.estimatedTotalHours,
+              targetDeadline: prd.targetDeadline,
+              approvedAt: prd.approvedAt,
+              createdByName: creator?.name ?? null,
+              createdAt: feature.createdAt,
+              message: input.message?.trim() || undefined,
+              documentHtml,
+              documentFilename,
+            }),
+          ),
+      );
+
+      const sent = results.filter((r) => r.status === "fulfilled").length;
+      const failed = results.length - sent;
+
+      if (sent === 0) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Could not send the PRD to any recipient. Please try again.",
+        });
+      }
+
+      return { sent, failed };
     }),
 });

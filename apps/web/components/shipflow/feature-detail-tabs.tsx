@@ -53,6 +53,13 @@ import {
 } from "~/components/ui/alert-dialog";
 import { statusLabel } from "~/components/shipflow/status";
 import { StatusBadge } from "~/components/shipflow/ui-kit";
+import {
+  PrdDocActions,
+  PrdDocumentView,
+  type PrdDocFields,
+  type PrdDocMeta,
+  type PrdView,
+} from "~/components/shipflow/prd-document-view";
 import { cn } from "~/lib/utils";
 import { trpc } from "~/trpc/client";
 
@@ -750,6 +757,7 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
   const [prdProgress, setPrdProgress] = useState(0);
   const [taskCountdown, setTaskCountdown] = useState(10);
   const [editPrompt, setEditPrompt] = useState("");
+  const [prdView, setPrdView] = useState<PrdView>("structured");
   const [shouldPoll, setShouldPoll] = useState(
     initialFeature.status === "prd_generating" ||
     (initialFeature.status === "in_progress" && initialFeature.tasks.length === 0) ||
@@ -809,6 +817,39 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
       requiredDisciplines: parseList(rawPrd.requiredDisciplines),
     };
   }, [rawPrd]);
+
+  // Flattened shapes the document view / download / share all consume.
+  const prdDocFields = useMemo<PrdDocFields | null>(() => {
+    if (!prd) return null;
+    return {
+      version: prd.version,
+      problem: prd.problem,
+      goals: prd.goals,
+      nonGoals: prd.nonGoals,
+      userStories: prd.userStories,
+      acceptanceCriteria: prd.acceptanceCriteria,
+      edgeCases: prd.edgeCases,
+      successMetrics: prd.successMetrics,
+      technicalRequirements: prd.technicalRequirements,
+      dependencies: prd.dependencies,
+      risks: prd.risks,
+      estimatedTotalHours: prd.estimatedTotalHours,
+      targetDeadline: prd.targetDeadline,
+      approvedAt: prd.approvedAt,
+    };
+  }, [prd]);
+
+  const prdDocMeta = useMemo<PrdDocMeta>(
+    () => ({
+      featureTitle: feature.title,
+      priority: feature.priority,
+      status: feature.status,
+      createdByName: feature.createdByName,
+      createdAt: feature.createdAt,
+      orgName: feature.orgName,
+    }),
+    [feature.title, feature.priority, feature.status, feature.createdByName, feature.createdAt, feature.orgName],
+  );
 
   // Sync polling state with live feature data
   const hasRunningReview = feature.reviewCycles.some((c) => c.status === "running");
@@ -933,6 +974,7 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
     onSuccess: () => {
       toast.success("PRD approved — generating engineering tasks…");
       setShouldPoll(true);
+      setActiveTab("tasks");
       refreshFeature();
     },
     onError: (error) => toast.error(error.message),
@@ -1104,7 +1146,7 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
                 {sendMessage.isPending ? <Loader2 className="size-4 animate-spin" /> : <SendHorizontal className="size-4" />}
                 Send
               </Button>
-              <Button type="button" variant="outline" disabled={!canGeneratePrd} onClick={() => triggerPrd.mutate({ featureId: feature.id })} className="border-foreground/10 bg-foreground/5 text-foreground hover:bg-foreground/10 disabled:opacity-50">
+              <Button type="button" variant="outline" disabled={!canGeneratePrd} onClick={() => { setActiveTab("prd"); triggerPrd.mutate({ featureId: feature.id }); }} className="border-foreground/10 bg-foreground/5 text-foreground hover:bg-foreground/10 disabled:opacity-50">
                 {isGeneratingPrd ? <><Loader2 className="size-4 animate-spin" />Generating PRD…</> : prdButtonLabel}
               </Button>
             </div>
@@ -1143,6 +1185,20 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
             </div>
           ) : (
             <>
+              {/* View toolbar: switch views, download, share */}
+              <PrdDocActions
+                view={prdView}
+                onView={setPrdView}
+                prdId={prd.id}
+                featureId={feature.id}
+                fields={prdDocFields!}
+                meta={prdDocMeta}
+              />
+
+              {prdView === "document" ? (
+                <PrdDocumentView fields={prdDocFields!} meta={prdDocMeta} />
+              ) : (
+              <>
               {/* PRD Header */}
               <div className="rounded-lg border border-foreground/10 bg-foreground/[0.045] p-5">
                 <div className="flex flex-wrap items-start justify-between gap-4">
@@ -1240,6 +1296,9 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
                   </div>
                 )}
               </div>
+
+              </>
+              )}
 
               {/* AI Edit panel — only before approval */}
               {!prd.approvedAt && (

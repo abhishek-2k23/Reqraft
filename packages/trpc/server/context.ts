@@ -52,6 +52,26 @@ export type SendInviteInput = {
   expiresAt: Date;
 };
 
+export type SendPrdShareInput = {
+  to: string;
+  recipientName: string | null;
+  sharedByName: string;
+  orgName: string;
+  featureId: string;
+  featureTitle: string;
+  priority: string;
+  status: string;
+  version: number;
+  estimatedTotalHours: number | null;
+  targetDeadline: Date | null;
+  approvedAt: Date | null;
+  createdByName: string | null;
+  createdAt: Date;
+  message?: string;
+  documentHtml: string;
+  documentFilename: string;
+};
+
 export type CreateContextOptions = {
   request?: Request;
   session?: AuthSession;
@@ -61,6 +81,7 @@ export type CreateContextOptions = {
     editPrd: (input: { currentPrd: PrdContent; editPrompt: string }) => Promise<EditPrdResult>;
   };
   sendInvite?: (input: SendInviteInput) => Promise<unknown>;
+  sendPrdShare?: (input: SendPrdShareInput) => Promise<unknown>;
   publish?: PublishOrgEvent;
 };
 
@@ -74,6 +95,7 @@ export type ContextValue = {
     editPrd: (input: { currentPrd: PrdContent; editPrompt: string }) => Promise<EditPrdResult>;
   };
   sendInvite: (input: SendInviteInput) => Promise<unknown>;
+  sendPrdShare: (input: SendPrdShareInput) => Promise<unknown>;
   publish: PublishOrgEvent;
 };
 
@@ -88,6 +110,7 @@ const noopEditPrd = async ({ currentPrd }: { currentPrd: PrdContent }): Promise<
   rawMarkdown: "",
 });
 const noopSendInvite = async () => {};
+const noopSendPrdShare = async () => {};
 const noopPublish: PublishOrgEvent = async () => {};
 
 export async function createContext(
@@ -100,6 +123,7 @@ export async function createContext(
     emit: options.emit ?? noopEmit,
     ai: options.ai ?? { clarify: noopClarify, editPrd: noopEditPrd },
     sendInvite: options.sendInvite ?? noopSendInvite,
+    sendPrdShare: options.sendPrdShare ?? noopSendPrdShare,
     publish: options.publish ?? noopPublish,
   };
 }

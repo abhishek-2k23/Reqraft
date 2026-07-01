@@ -3,6 +3,7 @@ import { and, asc, desc, eq, getTableColumns, sql } from "@repo/database";
 import {
   clarificationMessages,
   featureRequests,
+  organizations,
   prds,
   pullRequests,
   repositories,
@@ -250,6 +251,16 @@ export const featureRouter = router({
         console.error("Failed to backfill feature branch name:", err);
       }
 
+      // Creator + org name power the "document" PRD view and share/export flows.
+      const [creator] = await ctx.db
+        .select({ name: usersTable.name, email: usersTable.email })
+        .from(usersTable)
+        .where(eq(usersTable.id, feature.createdBy));
+      const [org] = await ctx.db
+        .select({ name: organizations.name })
+        .from(organizations)
+        .where(eq(organizations.id, feature.organizationId));
+
       const messages = await ctx.db
         .select()
         .from(clarificationMessages)
@@ -302,6 +313,9 @@ export const featureRouter = router({
       return {
         ...feature,
         branchName,
+        createdByName: creator?.name ?? null,
+        createdByEmail: creator?.email ?? null,
+        orgName: org?.name ?? null,
         messages,
         prd: prd ?? null,
         tasks: featureTasks,
