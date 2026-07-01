@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import {
   AlertTriangle,
   Check,
-  CheckCircle2,
   Download,
   FileText,
   LayoutList,
@@ -28,11 +27,6 @@ import {
 } from "~/components/ui/dialog";
 import { cn } from "~/lib/utils";
 import { trpc } from "~/trpc/client";
-import {
-  prdDocumentFilename,
-  renderPrdDocumentHtml,
-  type PrdDocumentData,
-} from "@repo/services/shipflow/prd-document";
 
 export type PrdDocFields = {
   version: number;
@@ -65,32 +59,6 @@ function formatDate(value: string | Date | null | undefined): string {
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
   return date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
-}
-
-function toDocumentData(fields: PrdDocFields, meta: PrdDocMeta): PrdDocumentData {
-  return {
-    featureTitle: meta.featureTitle,
-    priority: meta.priority,
-    status: meta.status,
-    version: fields.version,
-    problem: fields.problem,
-    goals: fields.goals,
-    nonGoals: fields.nonGoals,
-    userStories: fields.userStories,
-    acceptanceCriteria: fields.acceptanceCriteria,
-    edgeCases: fields.edgeCases,
-    successMetrics: fields.successMetrics,
-    technicalRequirements: fields.technicalRequirements,
-    dependencies: fields.dependencies,
-    risks: fields.risks,
-    estimatedTotalHours: fields.estimatedTotalHours,
-    targetDeadline: fields.targetDeadline,
-    approvedAt: fields.approvedAt,
-    createdByName: meta.createdByName,
-    createdAt: meta.createdAt,
-    orgName: meta.orgName,
-    generatedAt: new Date(),
-  };
 }
 
 // ── View toggle ─────────────────────────────────────────────────────────
@@ -128,35 +96,40 @@ export function PrdViewToggle({ view, onChange }: { view: PrdView; onChange: (v:
 export function PrdDocActions({
   view,
   onView,
-  fields,
-  meta,
-  prdId,
   featureId,
+  prdId,
+  featureTitle,
 }: {
   view: PrdView;
   onView: (v: PrdView) => void;
-  fields: PrdDocFields;
-  meta: PrdDocMeta;
-  prdId: string;
   featureId: string;
+  prdId: string;
+  featureTitle: string;
 }) {
   const [shareOpen, setShareOpen] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
-  function handleDownload() {
+  async function handleDownload() {
+    setDownloading(true);
     try {
-      const html = renderPrdDocumentHtml(toDocumentData(fields, meta));
-      const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+      const res = await fetch(`/api/features/${featureId}/prd-pdf`);
+      if (!res.ok) throw new Error("Download failed");
+      const blob = await res.blob();
+      const disposition = res.headers.get("Content-Disposition") ?? "";
+      const match = disposition.match(/filename="?([^"]+)"?/);
+      const filename = match?.[1] ?? "PRD.pdf";
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = prdDocumentFilename(meta.featureTitle);
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
-      toast.success("PRD document downloaded");
     } catch {
-      toast.error("Could not generate the document");
+      toast.error("Could not download the PDF");
+    } finally {
+      setDownloading(false);
     }
   }
 
@@ -169,10 +142,11 @@ export function PrdDocActions({
           variant="outline"
           size="sm"
           onClick={handleDownload}
+          disabled={downloading}
           className="gap-1.5 border-foreground/10 bg-foreground/5 text-foreground hover:bg-foreground/10"
         >
-          <Download className="size-3.5" />
-          Download
+          {downloading ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
+          {downloading ? "Preparing…" : "Download PDF"}
         </Button>
         <Button
           type="button"
@@ -184,7 +158,7 @@ export function PrdDocActions({
           Share
         </Button>
       </div>
-      <PrdShareDialog open={shareOpen} onOpenChange={setShareOpen} prdId={prdId} featureId={featureId} featureTitle={meta.featureTitle} />
+      <PrdShareDialog open={shareOpen} onOpenChange={setShareOpen} prdId={prdId} featureId={featureId} featureTitle={featureTitle} />
     </div>
   );
 }
@@ -256,7 +230,7 @@ function PrdShareDialog({
             Share PRD with your team
           </DialogTitle>
           <DialogDescription className="text-muted-foreground">
-            Selected teammates get a beautifully formatted email with the full “{featureTitle}” PRD attached as a document.
+            Selected teammates get an email with a link to view “{featureTitle}” in Reqraft and the full PRD attached as a PDF.
           </DialogDescription>
         </DialogHeader>
 
@@ -350,7 +324,7 @@ function PrdShareDialog({
             className="gap-1.5 bg-primary text-primary-foreground hover:bg-primary disabled:opacity-50"
           >
             {share.isPending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
-            {share.isPending ? "Sending…" : `Send to ${selected.size || ""}`.trim()}
+            {share.isPending ? "Sending…" : `Send${selected.size ? ` to ${selected.size}` : ""}`}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -359,50 +333,28 @@ function PrdShareDialog({
 }
 
 // ── On-screen document view ─────────────────────────────────────────────
-type Accent =
-  | "indigo"
-  | "emerald"
-  | "red"
-  | "sky"
-  | "purple"
-  | "amber"
-  | "cyan"
-  | "orange";
-
-const ACCENT: Record<Accent, { text: string; border: string; bg: string; dot: string; barBg: string }> = {
-  indigo:  { text: "text-indigo-500 dark:text-indigo-300", border: "border-indigo-500/40", bg: "bg-indigo-500/[0.06]", dot: "bg-indigo-500", barBg: "bg-indigo-500" },
-  emerald: { text: "text-emerald-600 dark:text-emerald-300", border: "border-emerald-500/40", bg: "bg-emerald-500/[0.06]", dot: "bg-emerald-500", barBg: "bg-emerald-500" },
-  red:     { text: "text-red-600 dark:text-red-300", border: "border-red-500/40", bg: "bg-red-500/[0.05]", dot: "bg-red-500", barBg: "bg-red-500" },
-  sky:     { text: "text-sky-600 dark:text-sky-300", border: "border-sky-500/40", bg: "bg-sky-500/[0.06]", dot: "bg-sky-500", barBg: "bg-sky-500" },
-  purple:  { text: "text-purple-600 dark:text-purple-300", border: "border-purple-500/40", bg: "bg-purple-500/[0.06]", dot: "bg-purple-500", barBg: "bg-purple-500" },
-  amber:   { text: "text-amber-600 dark:text-amber-300", border: "border-amber-500/40", bg: "bg-amber-500/[0.06]", dot: "bg-amber-500", barBg: "bg-amber-500" },
-  cyan:    { text: "text-cyan-600 dark:text-cyan-300", border: "border-cyan-500/40", bg: "bg-cyan-500/[0.06]", dot: "bg-cyan-500", barBg: "bg-cyan-500" },
-  orange:  { text: "text-orange-600 dark:text-orange-300", border: "border-orange-500/40", bg: "bg-orange-500/[0.06]", dot: "bg-orange-500", barBg: "bg-orange-500" },
-};
-
+// Deliberately near-monochrome: neutral text with a single primary accent, so
+// it reads like a clean document rather than a color-coded dashboard.
 function DocSection({
   title,
   subtitle,
   audience,
   items,
-  accent,
   variant = "bullet",
 }: {
   title: string;
   subtitle?: string;
   audience?: "Managers" | "Developers" | "Everyone";
   items: string[];
-  accent: Accent;
   variant?: "bullet" | "numbered" | "checklist";
 }) {
   if (!items || items.length === 0) return null;
-  const a = ACCENT[accent];
   return (
     <section className="scroll-mt-4">
       <div className="flex flex-wrap items-center gap-2.5">
-        <h3 className={cn("border-l-[3px] pl-3 text-lg font-bold text-foreground", a.border)}>{title}</h3>
+        <h3 className="border-l-2 border-primary/50 pl-3 text-lg font-semibold text-foreground">{title}</h3>
         {audience && (
-          <span className={cn("rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider", a.border, a.bg, a.text)}>
+          <span className="rounded-full border border-border bg-foreground/[0.03] px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
             For {audience}
           </span>
         )}
@@ -410,15 +362,13 @@ function DocSection({
       {subtitle && <p className="ml-4 mt-1.5 text-sm text-muted-foreground">{subtitle}</p>}
       <ul className="ml-4 mt-3 space-y-0">
         {items.map((item, i) => (
-          <li key={i} className="flex gap-3 border-t border-foreground/[0.06] py-2.5 text-[15px] leading-relaxed text-foreground/85 first:border-t-0">
+          <li key={i} className="flex gap-3 border-t border-foreground/[0.06] py-2.5 text-[15px] leading-relaxed text-foreground/80 first:border-t-0">
             {variant === "numbered" ? (
-              <span className={cn("mt-0.5 grid size-6 shrink-0 place-items-center rounded-full text-xs font-bold", a.bg, a.text)}>{i + 1}</span>
+              <span className="mt-0.5 w-5 shrink-0 font-mono text-sm font-semibold text-primary/80">{i + 1}.</span>
             ) : variant === "checklist" ? (
-              <span className={cn("mt-0.5 grid size-5 shrink-0 place-items-center rounded border text-[11px]", a.border, a.text)}>
-                <Check className="size-3" />
-              </span>
+              <Check className="mt-1 size-4 shrink-0 text-primary/70" />
             ) : (
-              <span className={cn("mt-2 size-1.5 shrink-0 rounded-full", a.dot)} />
+              <span className="mt-2.5 size-1.5 shrink-0 rounded-full bg-muted-foreground/50" />
             )}
             <span>{item}</span>
           </li>
@@ -430,70 +380,63 @@ function DocSection({
 
 export function PrdDocumentView({ fields, meta }: { fields: PrdDocFields; meta: PrdDocMeta }) {
   const approved = Boolean(fields.approvedAt);
-  const metaCards: { label: string; value: string; accent: Accent }[] = [
-    { label: "Version", value: `v${fields.version}`, accent: "indigo" },
-    { label: "Status", value: approved ? "Approved" : meta.status.replace(/_/g, " "), accent: approved ? "emerald" : "amber" },
-    { label: "Priority", value: meta.priority, accent: "purple" },
-    { label: "Est. effort", value: fields.estimatedTotalHours ? `~${fields.estimatedTotalHours}h` : "—", accent: "sky" },
-    { label: "Target date", value: formatDate(fields.targetDeadline), accent: "cyan" },
+  const metaCards: { label: string; value: string }[] = [
+    { label: "Version", value: `v${fields.version}` },
+    { label: "Status", value: approved ? "Approved" : meta.status.replace(/_/g, " ") },
+    { label: "Priority", value: meta.priority },
+    { label: "Est. effort", value: fields.estimatedTotalHours ? `~${fields.estimatedTotalHours}h` : "—" },
+    { label: "Target date", value: formatDate(fields.targetDeadline) },
   ];
 
   return (
-    <article className="overflow-hidden rounded-xl border border-foreground/10 bg-card">
-      {/* Accent bar */}
-      <div className="h-1.5 bg-gradient-to-r from-indigo-500 via-cyan-500 to-emerald-500" />
-      <div className="space-y-8 p-6 sm:p-9">
+    <article className="overflow-hidden rounded-xl border border-border bg-card">
+      <div className="space-y-9 p-6 sm:p-10">
         {/* Header */}
-        <header>
-          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-primary">Product Requirements Document</p>
-          <h2 className="mt-2 text-3xl font-extrabold leading-tight tracking-tight text-foreground">{meta.featureTitle}</h2>
+        <header className="border-b border-border pb-7">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">Product Requirements Document</p>
+          <h2 className="mt-2.5 text-3xl font-bold leading-tight tracking-tight text-foreground">{meta.featureTitle}</h2>
           <p className="mt-3 text-sm text-muted-foreground">
             {meta.orgName ? `${meta.orgName} · ` : ""}Created by{" "}
             <span className="font-medium text-foreground/80">{meta.createdByName ?? "Unknown"}</span> on {formatDate(meta.createdAt)}
-            {approved && (
-              <span className="text-emerald-600 dark:text-emerald-400"> · Approved {formatDate(fields.approvedAt)}</span>
-            )}
+            {approved && <span className="text-foreground/70"> · Approved {formatDate(fields.approvedAt)}</span>}
           </p>
 
-          <div className="mt-5 flex flex-wrap gap-2.5">
-            {metaCards.map((c) => {
-              const a = ACCENT[c.accent];
-              return (
-                <div key={c.label} className="min-w-[104px] rounded-lg border border-foreground/10 bg-foreground/[0.02] px-3.5 py-2.5">
-                  <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{c.label}</div>
-                  <div className={cn("mt-1 text-sm font-semibold capitalize", a.text)}>{c.value}</div>
-                </div>
-              );
-            })}
+          <div className="mt-6 grid grid-cols-2 gap-x-8 gap-y-4 sm:grid-cols-5">
+            {metaCards.map((c) => (
+              <div key={c.label}>
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{c.label}</div>
+                <div className="mt-1 text-sm font-semibold capitalize text-foreground">{c.value}</div>
+              </div>
+            ))}
           </div>
         </header>
 
         {/* Problem / overview */}
         <section>
-          <h3 className="border-l-[3px] border-indigo-500/40 pl-3 text-lg font-bold text-foreground">Overview &amp; Problem</h3>
-          <div className="ml-4 mt-3 rounded-xl border border-indigo-500/20 bg-indigo-500/[0.05] p-5 text-[15px] leading-relaxed text-foreground/90">
+          <h3 className="border-l-2 border-primary/50 pl-3 text-lg font-semibold text-foreground">Overview &amp; Problem</h3>
+          <div className="ml-4 mt-3 rounded-lg border-l-2 border-border bg-foreground/[0.02] p-5 text-[15px] leading-relaxed text-foreground/85">
             {fields.problem}
           </div>
         </section>
 
-        <DocSection title="Goals" subtitle="What this feature must achieve." audience="Managers" items={fields.goals} accent="emerald" variant="checklist" />
-        <DocSection title="Non-Goals" subtitle="Explicitly out of scope." audience="Managers" items={fields.nonGoals} accent="red" />
-        <DocSection title="User Stories" subtitle="Who benefits and how." audience="Everyone" items={fields.userStories} accent="indigo" variant="numbered" />
-        <DocSection title="Success Metrics" subtitle="How we know it worked." audience="Managers" items={fields.successMetrics} accent="sky" />
-        <DocSection title="Technical Requirements" audience="Developers" items={fields.technicalRequirements} accent="purple" />
-        <DocSection title="Acceptance Criteria" subtitle="Must all pass before shipping." audience="Developers" items={fields.acceptanceCriteria} accent="emerald" variant="checklist" />
-        <DocSection title="Dependencies" audience="Developers" items={fields.dependencies} accent="amber" />
-        <DocSection title="Edge Cases" audience="Developers" items={fields.edgeCases} accent="cyan" />
+        <DocSection title="Goals" subtitle="What this feature must achieve." audience="Managers" items={fields.goals} variant="checklist" />
+        <DocSection title="Non-Goals" subtitle="Explicitly out of scope." audience="Managers" items={fields.nonGoals} />
+        <DocSection title="User Stories" subtitle="Who benefits and how." audience="Everyone" items={fields.userStories} variant="numbered" />
+        <DocSection title="Success Metrics" subtitle="How we know it worked." audience="Managers" items={fields.successMetrics} />
+        <DocSection title="Technical Requirements" audience="Developers" items={fields.technicalRequirements} />
+        <DocSection title="Acceptance Criteria" subtitle="Must all pass before shipping." audience="Developers" items={fields.acceptanceCriteria} variant="checklist" />
+        <DocSection title="Dependencies" audience="Developers" items={fields.dependencies} />
+        <DocSection title="Edge Cases" audience="Developers" items={fields.edgeCases} />
 
         {fields.risks.length > 0 && (
           <section>
-            <h3 className="flex items-center gap-2 border-l-[3px] border-orange-500/40 pl-3 text-lg font-bold text-foreground">
-              <AlertTriangle className="size-4 text-orange-500" /> Risks &amp; Mitigations
+            <h3 className="flex items-center gap-2 border-l-2 border-primary/50 pl-3 text-lg font-semibold text-foreground">
+              Risks &amp; Mitigations
             </h3>
-            <ul className="ml-4 mt-3 space-y-2">
+            <ul className="ml-4 mt-3 space-y-0">
               {fields.risks.map((risk, i) => (
-                <li key={i} className="flex gap-3 rounded-lg border border-orange-500/20 bg-orange-500/[0.05] p-3.5 text-[15px] leading-relaxed text-foreground/85">
-                  <AlertTriangle className="mt-0.5 size-4 shrink-0 text-orange-500" />
+                <li key={i} className="flex gap-3 border-t border-foreground/[0.06] py-2.5 text-[15px] leading-relaxed text-foreground/80 first:border-t-0">
+                  <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-500/80" />
                   <span>{risk}</span>
                 </li>
               ))}
@@ -502,8 +445,7 @@ export function PrdDocumentView({ fields, meta }: { fields: PrdDocFields; meta: 
         )}
 
         {/* Footer */}
-        <footer className="flex items-center gap-2 border-t border-foreground/10 pt-5 text-xs text-muted-foreground">
-          <CheckCircle2 className="size-3.5 text-primary/70" />
+        <footer className="border-t border-border pt-5 text-xs text-muted-foreground">
           End of document · {meta.featureTitle} · v{fields.version}
         </footer>
       </div>

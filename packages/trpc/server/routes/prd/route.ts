@@ -1,6 +1,6 @@
 import { and, eq, inArray } from "@repo/database";
 import { featureRequests, members, organizations, prds, usersTable } from "@repo/database/schema";
-import { prdDocumentFilename, renderPrdDocumentHtml } from "@repo/services/shipflow/prd-document";
+import type { PrdDocumentData } from "@repo/services/shipflow/prd-document";
 
 import { TRPCError } from "@trpc/server";
 
@@ -251,7 +251,7 @@ export const prdRouter = router({
         });
       }
 
-      const documentHtml = renderPrdDocumentHtml({
+      const document: PrdDocumentData = {
         featureTitle: feature.title,
         priority: feature.priority,
         status: feature.status,
@@ -272,9 +272,8 @@ export const prdRouter = router({
         createdByName: creator?.name ?? null,
         createdAt: feature.createdAt,
         orgName: org?.name ?? null,
-      });
+      };
 
-      const documentFilename = prdDocumentFilename(feature.title);
       const sharedByName = ctx.session.user.name ?? ctx.session.user.email ?? "A teammate";
 
       // Send to each recipient (skip those without a real email address).
@@ -286,20 +285,9 @@ export const prdRouter = router({
               to: r.email,
               recipientName: r.name,
               sharedByName,
-              orgName: org?.name ?? "your team",
               featureId: feature.id,
-              featureTitle: feature.title,
-              priority: feature.priority,
-              status: feature.status,
-              version: prd.version,
-              estimatedTotalHours: prd.estimatedTotalHours,
-              targetDeadline: prd.targetDeadline,
-              approvedAt: prd.approvedAt,
-              createdByName: creator?.name ?? null,
-              createdAt: feature.createdAt,
               message: input.message?.trim() || undefined,
-              documentHtml,
-              documentFilename,
+              document,
             }),
           ),
       );

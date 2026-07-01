@@ -1,6 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   transpilePackages: ["@repo/services"],
+  // @react-pdf/renderer ships wasm/native layout bits — keep it external so Next
+  // requires it at runtime instead of bundling it.
+  serverExternalPackages: ["@react-pdf/renderer"],
   images: {
     remotePatterns: [
       // Google OAuth avatars

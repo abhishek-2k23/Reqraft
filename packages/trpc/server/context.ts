@@ -1,4 +1,5 @@
 import { db, type Database } from "@repo/database";
+import type { PrdDocumentData } from "@repo/services/shipflow/prd-document";
 
 import type { OrgEvent, PublishOrgEvent } from "./events";
 
@@ -56,20 +57,10 @@ export type SendPrdShareInput = {
   to: string;
   recipientName: string | null;
   sharedByName: string;
-  orgName: string;
   featureId: string;
-  featureTitle: string;
-  priority: string;
-  status: string;
-  version: number;
-  estimatedTotalHours: number | null;
-  targetDeadline: Date | null;
-  approvedAt: Date | null;
-  createdByName: string | null;
-  createdAt: Date;
   message?: string;
-  documentHtml: string;
-  documentFilename: string;
+  // Full PRD payload; the email renders the PDF attachment from this.
+  document: PrdDocumentData;
 };
 
 export type CreateContextOptions = {

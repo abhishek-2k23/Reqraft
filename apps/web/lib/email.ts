@@ -1,5 +1,8 @@
 import { Resend } from "resend";
 
+import { prdDocumentFilename, type PrdDocumentData } from "@repo/services/shipflow/prd-document";
+import { renderPrdPdf } from "./prd-pdf";
+
 const FROM = process.env.RESEND_FROM_EMAIL ?? "Reqraft <invites@reqraft.in>";
 const APP_URL = process.env.BETTER_AUTH_URL ?? "https://reqraft.in";
 
@@ -140,32 +143,27 @@ export type SendPrdShareEmailInput = {
   to: string;
   recipientName: string | null;
   sharedByName: string;
-  orgName: string;
   featureId: string;
-  featureTitle: string;
-  priority: string;
-  status: string;
-  version: number;
-  estimatedTotalHours: number | null;
-  targetDeadline: Date | null;
-  approvedAt: Date | null;
-  createdByName: string | null;
-  createdAt: Date;
   message?: string;
-  // Fully-rendered standalone PRD document, attached as a .html file.
-  documentHtml: string;
-  documentFilename: string;
+  document: PrdDocumentData;
 };
 
-function fmtDate(value: Date | null | undefined): string {
+function fmtDate(value: Date | string | null | undefined): string {
   if (!value) return "—";
-  return value.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 }
 
 export async function sendPrdShareEmail(input: SendPrdShareEmailInput) {
-  const featureUrl = `${APP_URL}/features/${input.featureId}?tab=prd`;
-  const approved = Boolean(input.approvedAt);
-  const statusLabel = approved ? "Approved" : input.status.replace(/_/g, " ");
+  const doc = input.document;
+  const featureUrl = `${APP_URL}/features/${input.featureId}?tab=prd&view=document`;
+  const approved = Boolean(doc.approvedAt);
+  const statusLabel = approved ? "Approved" : doc.status.replace(/_/g, " ");
+  const orgName = doc.orgName ?? "your team";
+
+  const pdf = await renderPrdPdf(doc);
+  const filename = prdDocumentFilename(doc.featureTitle);
 
   const detailRow = (label: string, value: string) => `
     <tr>
@@ -185,9 +183,10 @@ export async function sendPrdShareEmail(input: SendPrdShareEmailInput) {
   <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:#0a0c10;padding:40px 20px;">
     <tr>
       <td align="center">
-        <table width="600" cellpadding="0" cellspacing="0" role="presentation" style="width:600px;max-width:100%;background:#14171d;border:1px solid rgba(255,255,255,0.08);border-radius:14px;overflow:hidden;">
+        <table width="560" cellpadding="0" cellspacing="0" role="presentation" style="width:560px;max-width:100%;background:#14171d;border:1px solid rgba(255,255,255,0.08);border-radius:14px;overflow:hidden;box-shadow:0 1px 0 rgba(255,255,255,0.04) inset;">
 
-          <tr><td style="height:3px;line-height:3px;font-size:0;background:linear-gradient(90deg,#6366f1,#0891b2,#10b981);">&nbsp;</td></tr>
+          <!-- Accent bar -->
+          <tr><td style="height:3px;line-height:3px;font-size:0;background:linear-gradient(90deg,#f97316,#fb923c);">&nbsp;</td></tr>
 
           <!-- Header -->
           <tr>
@@ -198,7 +197,7 @@ export async function sendPrdShareEmail(input: SendPrdShareEmailInput) {
                     <img src="${APP_URL}/icons/reqraft-icon-transparent-512.png" alt="Reqraft" width="28" height="28" style="display:block;width:28px;height:28px;" />
                   </td>
                   <td style="vertical-align:middle;">
-                    <span style="font-size:19px;font-weight:700;color:#818cf8;letter-spacing:-0.4px;">Reqraft</span>
+                    <span style="font-size:19px;font-weight:700;color:#fb923c;letter-spacing:-0.4px;">Reqraft</span>
                   </td>
                 </tr>
               </table>
@@ -208,54 +207,54 @@ export async function sendPrdShareEmail(input: SendPrdShareEmailInput) {
           <!-- Body -->
           <tr>
             <td style="padding:34px 40px 6px;">
-              <p style="margin:0 0 6px;font-size:13px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:#818cf8;">Product Requirements Document</p>
-              <p style="margin:0 0 4px;font-size:25px;font-weight:700;color:#f8fafc;letter-spacing:-0.4px;line-height:1.2;">${input.featureTitle}</p>
+              <p style="margin:0 0 6px;font-size:13px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:#fb923c;">Product Requirements Document</p>
+              <p style="margin:0 0 4px;font-size:24px;font-weight:700;color:#f8fafc;letter-spacing:-0.4px;line-height:1.25;">${doc.featureTitle}</p>
               <p style="margin:16px 0 0;font-size:15px;line-height:25px;color:#a8b0bd;">
                 <strong style="color:#e8ecf2;">${input.sharedByName}</strong> shared this PRD with you from
-                <strong style="color:#e8ecf2;">${input.orgName}</strong>. The full document is attached to this email — open it in any browser to read or print to PDF.
+                <strong style="color:#e8ecf2;">${orgName}</strong>. View it live in Reqraft, or read the PDF attached below.
               </p>
               ${
                 input.message
                   ? `<table cellpadding="0" cellspacing="0" role="presentation" style="margin:18px 0 0;width:100%;">
-                       <tr><td style="padding:14px 16px;background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);border-radius:10px;font-size:14px;line-height:22px;color:#c7ccd6;font-style:italic;">“${input.message}”</td></tr>
+                       <tr><td style="padding:14px 16px;background:rgba(249,115,22,0.08);border:1px solid rgba(249,115,22,0.2);border-radius:10px;font-size:14px;line-height:22px;color:#c7ccd6;font-style:italic;">“${input.message}”</td></tr>
                      </table>`
                   : ""
               }
             </td>
           </tr>
 
-          <!-- Details -->
-          <tr>
-            <td style="padding:24px 40px 4px;">
-              <p style="margin:0 0 6px;font-size:12px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:#6b7480;">Project details</p>
-              <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
-                ${detailRow("Status", `<span style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:600;color:${approved ? "#6ee7b7" : "#fcd34d"};background:${approved ? "rgba(16,185,129,0.14)" : "rgba(245,158,11,0.14)"};border:1px solid ${approved ? "rgba(16,185,129,0.3)" : "rgba(245,158,11,0.3)"};">${statusLabel}</span>`)}
-                ${detailRow("Version", `v${input.version}`)}
-                ${detailRow("Priority", input.priority)}
-                ${detailRow("Created by", input.createdByName ?? "Unknown")}
-                ${detailRow("Created on", fmtDate(input.createdAt))}
-                ${detailRow("Estimated effort", input.estimatedTotalHours ? `~${input.estimatedTotalHours} hours` : "—")}
-                ${detailRow("Target deadline", fmtDate(input.targetDeadline))}
-                ${approved ? detailRow("Approved on", fmtDate(input.approvedAt)) : ""}
-              </table>
-            </td>
-          </tr>
-
           <!-- CTA -->
           <tr>
-            <td style="padding:26px 40px 10px;">
+            <td style="padding:26px 40px 6px;">
               <table cellpadding="0" cellspacing="0" role="presentation">
                 <tr>
-                  <td style="border-radius:8px;background:#6366f1;">
-                    <a href="${featureUrl}" style="display:inline-block;padding:13px 30px;font-size:15px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:8px;">
-                      Open in Reqraft &nbsp;&rarr;
+                  <td style="border-radius:8px;background:#f97316;">
+                    <a href="${featureUrl}" style="display:inline-block;padding:14px 32px;font-size:15px;font-weight:700;color:#1a1205;text-decoration:none;border-radius:8px;">
+                      View PRD in Reqraft &nbsp;&rarr;
                     </a>
                   </td>
                 </tr>
               </table>
               <p style="margin:14px 0 0;font-size:13px;color:#6b7480;">
-                📎 <strong style="color:#a8b0bd;">${input.documentFilename}</strong> is attached to this email.
+                📎 The full document is attached as <strong style="color:#a8b0bd;">${filename}</strong>.
               </p>
+            </td>
+          </tr>
+
+          <!-- Details -->
+          <tr>
+            <td style="padding:22px 40px 8px;">
+              <p style="margin:0 0 6px;font-size:12px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:#6b7480;">Project details</p>
+              <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+                ${detailRow("Status", `<span style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:600;color:#fdba74;background:rgba(249,115,22,0.12);border:1px solid rgba(249,115,22,0.3);">${statusLabel}</span>`)}
+                ${detailRow("Version", `v${doc.version}`)}
+                ${detailRow("Priority", doc.priority)}
+                ${detailRow("Created by", doc.createdByName ?? "Unknown")}
+                ${detailRow("Created on", fmtDate(doc.createdAt))}
+                ${detailRow("Estimated effort", doc.estimatedTotalHours ? `~${doc.estimatedTotalHours} hours` : "—")}
+                ${detailRow("Target deadline", fmtDate(doc.targetDeadline))}
+                ${approved ? detailRow("Approved on", fmtDate(doc.approvedAt)) : ""}
+              </table>
             </td>
           </tr>
 
@@ -263,7 +262,7 @@ export async function sendPrdShareEmail(input: SendPrdShareEmailInput) {
           <tr>
             <td style="padding:20px 40px;border-top:1px solid rgba(255,255,255,0.07);background:rgba(255,255,255,0.02);">
               <p style="margin:0;font-size:12px;color:#5b636e;">
-                Reqraft · Product delivery cockpit · <a href="${APP_URL}" style="color:#818cf8;text-decoration:none;">reqraft.in</a>
+                Reqraft · Product delivery cockpit · <a href="${APP_URL}" style="color:#fb923c;text-decoration:none;">reqraft.in</a>
               </p>
             </td>
           </tr>
@@ -278,13 +277,8 @@ export async function sendPrdShareEmail(input: SendPrdShareEmailInput) {
   return getResend().emails.send({
     from: FROM,
     to: input.to,
-    subject: `${input.sharedByName} shared the "${input.featureTitle}" PRD with you`,
+    subject: `${input.sharedByName} shared the "${doc.featureTitle}" PRD with you`,
     html,
-    attachments: [
-      {
-        filename: input.documentFilename,
-        content: Buffer.from(input.documentHtml, "utf-8"),
-      },
-    ],
+    attachments: [{ filename, content: pdf }],
   });
 }

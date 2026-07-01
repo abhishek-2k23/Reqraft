@@ -757,7 +757,9 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
   const [prdProgress, setPrdProgress] = useState(0);
   const [taskCountdown, setTaskCountdown] = useState(10);
   const [editPrompt, setEditPrompt] = useState("");
-  const [prdView, setPrdView] = useState<PrdView>("structured");
+  const [prdView, setPrdView] = useState<PrdView>(
+    searchParams.get("view") === "document" ? "document" : "structured",
+  );
   const [shouldPoll, setShouldPoll] = useState(
     initialFeature.status === "prd_generating" ||
     (initialFeature.status === "in_progress" && initialFeature.tasks.length === 0) ||
@@ -1191,8 +1193,7 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
                 onView={setPrdView}
                 prdId={prd.id}
                 featureId={feature.id}
-                fields={prdDocFields!}
-                meta={prdDocMeta}
+                featureTitle={feature.title}
               />
 
               {prdView === "document" ? (
