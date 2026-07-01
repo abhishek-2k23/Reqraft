@@ -1,6 +1,7 @@
 import { db } from "@repo/database";
 import {
   accountsTable as accounts,
+  deviceCodesTable as deviceCodes,
   invitations,
   members,
   organizations,
@@ -11,7 +12,13 @@ import {
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
-import { organization } from "better-auth/plugins";
+import { bearer, deviceAuthorization, organization } from "better-auth/plugins";
+
+const appUrl =
+  process.env.BETTER_AUTH_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+
+// Only the Reqraft CLI may drive the device-authorization flow.
+export const CLI_CLIENT_ID = "reqraft-cli";
 
 const authSchema = {
   user: users,
@@ -21,6 +28,7 @@ const authSchema = {
   organization: organizations,
   member: members,
   invitation: invitations,
+  deviceCode: deviceCodes,
 };
 
 export const auth = betterAuth({
@@ -61,5 +69,25 @@ export const auth = betterAuth({
       requireLocalEmailVerified: false,
     },
   },
-  plugins: [organization(), nextCookies()],
+  plugins: [
+    organization(),
+    // Terminal CLI auth: OAuth 2.0 Device Authorization Grant (RFC 8628).
+    // The CLI opens the browser to `verificationUri` where a signed-in user
+    // approves the shown code; the CLI then polls `/device/token` for a token.
+    deviceAuthorization({
+      expiresIn: "30m",
+      interval: "5s",
+      verificationUri: `${appUrl}/device`,
+      validateClient: (clientId) => clientId === CLI_CLIENT_ID,
+      // The plugin's option validator marks `schema` as required (a Zod v4
+      // quirk: a bare z.custom() rejects `undefined`), so pass an empty schema
+      // override to keep the default model/field mapping.
+      schema: {},
+    }),
+    // Lets the device-token session be sent as `Authorization: Bearer <token>`,
+    // so `auth.api.getSession({ headers })` authenticates CLI requests with no
+    // changes to the tRPC context.
+    bearer(),
+    nextCookies(),
+  ],
 });
