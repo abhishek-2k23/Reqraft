@@ -13,6 +13,7 @@ import {
   Clock,
   Code2,
   Copy,
+  ExternalLink,
   FileText,
   FolderGit2,
   GitBranch,
@@ -272,13 +273,12 @@ function PrdGeneratingCard({
   cancelling: boolean;
 }) {
   return (
-    <div className="relative overflow-hidden rounded-xl border border-purple-400/25 bg-gradient-to-br from-purple-950/50 via-primary-foreground/70 to-primary/40 p-6 shadow-[0_0_40px_rgba(168,85,247,0.08)]">
-      <div className="pointer-events-none absolute -left-20 -top-20 size-60 rounded-full bg-purple-500/10 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-10 -right-10 size-40 rounded-full bg-primary/10 blur-3xl" />
+    <div className="relative overflow-hidden rounded-lg border border-primary/20 bg-primary/[0.04] p-6">
+      <div className="pointer-events-none absolute -right-16 -top-16 size-48 rounded-full bg-[var(--glow-primary)] opacity-60 blur-3xl" />
       <div className="relative flex items-center gap-4">
-        <div className="relative grid size-11 shrink-0 place-items-center rounded-full bg-purple-400/10 ring-1 ring-purple-400/20">
-          <Sparkles className="size-5 text-purple-300" />
-          <span className="absolute inset-0 animate-ping rounded-full bg-purple-400/10" />
+        <div className="relative grid size-11 shrink-0 place-items-center rounded-full bg-primary/10 ring-1 ring-primary/20">
+          <Sparkles className="size-5 text-primary" />
+          <span className="absolute inset-0 animate-ping rounded-full bg-primary/10" />
         </div>
         <div className="flex-1">
           <p className="text-sm font-semibold text-foreground">AI is writing your PRD</p>
@@ -288,7 +288,7 @@ function PrdGeneratingCard({
           type="button"
           onClick={onCancel}
           disabled={cancelling}
-          className="flex items-center gap-1.5 rounded-lg border border-foreground/10 bg-foreground/5 px-3 py-1.5 text-xs text-muted-foreground transition hover:border-red-400/30 hover:bg-red-400/10 hover:text-red-300 disabled:opacity-50"
+          className="flex items-center gap-1.5 rounded-lg border border-border bg-foreground/[0.03] px-3 py-1.5 text-xs text-muted-foreground transition hover:border-destructive/30 hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
         >
           {cancelling ? <Loader2 className="size-3 animate-spin" /> : <X className="size-3" />}
           {cancelling ? "Cancelling…" : "Cancel"}
@@ -297,7 +297,7 @@ function PrdGeneratingCard({
       <div className="relative mt-5">
         <div className="h-1.5 w-full overflow-hidden rounded-full bg-foreground/[0.06]">
           <div
-            className="h-full rounded-full bg-gradient-to-r from-purple-400 via-primary to-purple-400 bg-[length:200%_100%] transition-all duration-1000 ease-out"
+            className="h-full rounded-full bg-gradient-to-r from-primary/60 via-primary to-primary/60 bg-[length:200%_100%] transition-all duration-1000 ease-out"
             style={{ width: `${progress}%`, animation: "shimmer 2s linear infinite" }}
           />
         </div>
@@ -314,7 +314,7 @@ function PrdGeneratingCard({
               {done ? (
                 <CheckCircle2 className="size-3.5 shrink-0 text-success" />
               ) : active ? (
-                <Loader2 className="size-3.5 shrink-0 animate-spin text-purple-300" />
+                <Loader2 className="size-3.5 shrink-0 animate-spin text-primary" />
               ) : (
                 <Circle className="size-3.5 shrink-0 text-foreground/10" />
               )}
@@ -734,6 +734,17 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
     return currentStageValue(initialFeature.status as FeatureStatus);
   });
 
+  // Apply the `?tab=` param whenever it changes. The useState initializer above
+  // can miss it — on a client-side navigation from /prd or /tasks the first
+  // render may read an empty search params snapshot — so re-sync here to make
+  // sure a PRD/Task card always lands on the tab it linked to.
+  const requestedTab = searchParams.get("tab");
+  useEffect(() => {
+    if (requestedTab && PIPELINE_STAGES.some((s) => s.value === requestedTab)) {
+      setActiveTab(requestedTab);
+    }
+  }, [requestedTab]);
+
   const [messages, setMessages] = useState<Message[]>(initialFeature.messages);
   const [inputMessage, setInputMessage] = useState("");
   const [prdProgress, setPrdProgress] = useState(0);
@@ -768,6 +779,13 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
 
   // Suggested PR branch for auto-linking — readable slug, id fallback.
   const reviewBranch = `feature/${feature.branchName ?? feature.id}`;
+
+  // Look up each review cycle's pull request so the Review tab can link out to
+  // the actual PR on GitHub.
+  const prById = useMemo(
+    () => new Map(feature.pullRequests.map((p) => [p.id, p])),
+    [feature.pullRequests],
+  );
 
   const isGeneratingPrd = feature.status === "prd_generating";
   const isGeneratingTasks = feature.status === "in_progress" && feature.tasks.length === 0;
@@ -825,10 +843,10 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
       wasGeneratingRef.current = true;
       toast.custom(
         (tid) => (
-          <div className="flex items-center gap-3 rounded-xl border border-purple-400/20 bg-[#0d1118] px-4 py-3 shadow-2xl ring-1 ring-foreground/5">
-            <div className="relative grid size-7 shrink-0 place-items-center rounded-full bg-purple-400/10">
-              <Sparkles className="size-3.5 text-purple-300" />
-              <span className="absolute inset-0 animate-ping rounded-full bg-purple-400/10" />
+          <div className="flex items-center gap-3 rounded-lg border border-primary/20 bg-popover px-4 py-3 shadow-2xl ring-1 ring-foreground/5">
+            <div className="relative grid size-7 shrink-0 place-items-center rounded-full bg-primary/10">
+              <Sparkles className="size-3.5 text-primary" />
+              <span className="absolute inset-0 animate-ping rounded-full bg-primary/10" />
             </div>
             <div className="flex-1">
               <p className="text-xs font-semibold text-foreground">Generating PRD</p>
@@ -1581,10 +1599,29 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
             </div>
           ) : (
             <div className="space-y-4">
-              {feature.reviewCycles.map((cycle) => (
+              {feature.reviewCycles.map((cycle, index) => {
+                const pr = cycle.pullRequestId ? prById.get(cycle.pullRequestId) : undefined;
+                // Cycles come newest-first; number them 1..N oldest→newest so
+                // each review reads incrementally instead of always "#1".
+                const reviewNumber = feature.reviewCycles.length - index;
+                return (
                 <div key={cycle.id} className="rounded-lg border border-foreground/10 bg-foreground/[0.02] p-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">
-                    <span className="text-sm font-medium text-foreground">Review #{cycle.cycleNumber}</span>
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      <span className="text-sm font-medium text-foreground">Review #{reviewNumber}</span>
+                      {pr && (
+                        <a
+                          href={pr.githubPrUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 font-mono text-xs text-primary transition hover:underline"
+                          title={`Open ${pr.repoFullName} #${pr.number} on GitHub`}
+                        >
+                          PR #{pr.number}
+                          <ExternalLink className="size-3" />
+                        </a>
+                      )}
+                    </div>
                     <span className={cn("inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium",
                       cycle.overallVerdict === "approve" ? "border-success/30 bg-success/10 text-success"
                         : cycle.overallVerdict === "request_changes" ? "border-red-500/30 bg-red-500/10 text-red-400"
@@ -1623,7 +1660,8 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
                     </div>
                   )}
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -1633,7 +1671,7 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
       <TabsContent value="release">
         <div className="rounded-lg border border-foreground/10 bg-foreground/[0.045] p-5">
           {feature.status === "shipped" ? (
-            <div className="rounded-lg border border-success/20 bg-gradient-to-r from-success/10 to-primary/10 p-8 text-center">
+            <div className="rounded-lg border border-success/30 bg-success/[0.06] p-8 text-center">
               <Rocket className="mx-auto size-10 text-success" />
               <h2 className="mt-4 text-xl font-bold text-foreground">Feature shipped</h2>
               <p className="mt-2 text-sm text-muted-foreground">This feature has been approved and shipped to production.</p>
