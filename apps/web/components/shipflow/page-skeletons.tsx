@@ -340,3 +340,178 @@ export function ReviewsListSkeleton({ rows = 4 }: { rows?: number }) {
     </div>
   );
 }
+
+/** ───────────────────────── GitHub ───────────────────────── */
+
+// Mirrors the two-column GitHub page: connection-status card + info/steps card.
+function GithubStatusCardSkeleton() {
+  return (
+    <div className="overflow-hidden rounded-2xl border border-border bg-card p-8">
+      <div className="mb-8 flex items-center gap-4">
+        <Box className="size-12 rounded-xl" />
+        <div className="space-y-2">
+          <Bar className="h-4 w-28" />
+          <Bar className="h-3 w-20" />
+        </div>
+      </div>
+      <div className="flex items-center gap-3 rounded-xl border border-border bg-foreground/[0.03] p-4">
+        <Box className="size-5 rounded-md" />
+        <Bar className="h-3.5 w-24" />
+      </div>
+      <Bar className="mt-4 h-8 w-40 rounded-lg" />
+    </div>
+  );
+}
+
+function GithubInfoCardSkeleton() {
+  return (
+    <div className="space-y-4 rounded-2xl border border-border bg-card p-8">
+      <Bar className="h-4 w-40" />
+      {Array.from({ length: 3 }).map((_, i) => (
+        <div key={i} className="flex items-start gap-3">
+          <Box className="size-8 shrink-0 rounded-lg" />
+          <div className="flex-1 space-y-2">
+            <Bar className="h-3.5 w-1/2" />
+            <Bar className="h-3 w-3/4" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Full GitHub-page skeleton (header + status card + info card). */
+export function GithubPageSkeleton() {
+  return (
+    <div className="space-y-6">
+      <PageHeaderSkeleton />
+      <div className="mt-6 grid max-w-5xl gap-6 lg:grid-cols-[0.9fr_1.1fr]">
+        <GithubStatusCardSkeleton />
+        <GithubInfoCardSkeleton />
+      </div>
+    </div>
+  );
+}
+
+/** ───────────────────────── Billing ───────────────────────── */
+
+function UsageBarSkeleton() {
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between">
+        <Bar className="h-3 w-28" />
+        <Bar className="h-3 w-14" />
+      </div>
+      <Bar className="h-1.5 w-full rounded-full" />
+    </div>
+  );
+}
+
+function PlanCardSkeleton() {
+  return (
+    <div className="flex flex-col rounded-lg border border-border bg-card p-5">
+      <Bar className="mb-1 h-4 w-16" />
+      <Bar className="mb-4 h-7 w-24" />
+      <div className="mb-5 space-y-2">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <Bar key={i} className="h-3 w-3/4" />
+        ))}
+      </div>
+      <Bar className="mt-auto h-9 w-full" />
+    </div>
+  );
+}
+
+/** Full billing-page skeleton (header + usage card + plan grid). */
+export function BillingPageSkeleton() {
+  return (
+    <div className="space-y-6">
+      <PageHeaderSkeleton />
+      <div className="rounded-lg border border-border bg-card p-5">
+        <div className="mb-5 flex items-center justify-between gap-3">
+          <div className="space-y-2">
+            <Bar className="h-4 w-28" />
+            <Bar className="h-3 w-52 max-w-full" />
+          </div>
+          <Bar className="h-6 w-16 rounded-full" />
+        </div>
+        <div className="grid gap-5 sm:grid-cols-2">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <UsageBarSkeleton key={i} />
+          ))}
+        </div>
+      </div>
+      <div className="grid gap-5 sm:grid-cols-3">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <PlanCardSkeleton key={i} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** ───────────────────────── Settings ───────────────────────── */
+
+function SettingsCardSkeleton({ lines = 2 }: { lines?: number }) {
+  return (
+    <div className="space-y-4 rounded-lg border border-border bg-card p-5">
+      <Bar className="h-4 w-32" />
+      {Array.from({ length: lines }).map((_, i) => (
+        <Bar key={i} className="h-3.5 w-full" />
+      ))}
+    </div>
+  );
+}
+
+/** Full settings-page skeleton (header + stacked cards in a narrow column). */
+export function SettingsPageSkeleton() {
+  return (
+    <div className="space-y-6">
+      <PageHeaderSkeleton />
+      <div className="max-w-2xl space-y-6">
+        <SettingsCardSkeleton lines={1} />
+        <SettingsCardSkeleton lines={2} />
+        <SettingsCardSkeleton lines={3} />
+      </div>
+    </div>
+  );
+}
+
+/** ───────────────────────── Copilot ───────────────────────── */
+
+/** Full copilot-page skeleton (header + repo/prompt form card). */
+export function CopilotPageSkeleton() {
+  return (
+    <div className="space-y-6">
+      <PageHeaderSkeleton />
+      <div className="space-y-4 border border-border bg-card p-5">
+        <div className="grid gap-4 sm:grid-cols-2">
+          {Array.from({ length: 2 }).map((_, i) => (
+            <div key={i} className="space-y-1.5">
+              <Bar className="h-2.5 w-24" />
+              <Bar className="h-9 w-full" />
+            </div>
+          ))}
+        </div>
+        <Bar className="h-10 w-full" />
+        <Bar className="h-28 w-full" />
+        <Bar className="h-9 w-32" />
+      </div>
+    </div>
+  );
+}
+
+/** Generic content-area skeleton — the group-level fallback for pages that
+ *  don't ship their own loading.tsx (renders inside the real shell). */
+export function ContentSkeleton() {
+  return (
+    <div className="space-y-6">
+      <PageHeaderSkeleton />
+      <div className="space-y-3">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <RowSkeleton key={i} />
+        ))}
+      </div>
+    </div>
+  );
+}

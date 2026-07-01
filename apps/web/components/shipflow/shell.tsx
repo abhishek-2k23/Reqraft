@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 
 import {
@@ -11,6 +11,7 @@ import {
   SheetDescription,
   SheetTitle,
 } from "~/components/ui/sheet";
+import { Spinner } from "~/components/ui/spinner";
 import { OrgSwitcher } from "./org-switcher";
 import { CommandPalette } from "./command-palette";
 import {
@@ -19,9 +20,25 @@ import {
   ShortcutKeys,
 } from "./keyboard-shortcuts";
 import { TopNav } from "./top-nav";
-import { LinkPending } from "./link-pending";
 import { activeNavHref, navGroups, navItems } from "./nav-items";
 import { cn } from "~/lib/utils";
+
+/**
+ * Sidebar link trailing indicator. Shows the item's keyboard shortcut normally,
+ * and swaps to a spinner only while *that* link's navigation is in flight — so
+ * while switching to a tab you see the loading circle, and the shortcut keys the
+ * rest of the time. Must be rendered inside the <Link> (uses useLinkStatus).
+ */
+function NavItemIndicator({ shortcut }: { shortcut: string }) {
+  const { pending } = useLinkStatus();
+  if (pending) return <Spinner className="size-3.5" aria-label="Loading page" />;
+  return (
+    <ShortcutKeys
+      shortcut={shortcut}
+      className="opacity-60 transition-opacity group-hover:opacity-100"
+    />
+  );
+}
 
 function SidebarBody({
   active,
@@ -78,11 +95,7 @@ function SidebarBody({
                       ) : null}
                       <Icon className="size-4 shrink-0" />
                       <span className="flex-1 truncate">{item.label}</span>
-                      <ShortcutKeys
-                        shortcut={item.shortcut}
-                        className="opacity-60 transition-opacity group-hover:opacity-100"
-                      />
-                      <LinkPending className="size-3.5" />
+                      <NavItemIndicator shortcut={item.shortcut} />
                     </Link>
                   );
                 })}
