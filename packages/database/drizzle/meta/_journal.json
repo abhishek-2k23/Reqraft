@@ -78,6 +78,13 @@
       "when": 1782856342313,
       "tag": "0010_material_mach_iv",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1782923521849,
+      "tag": "0011_oval_meteorite",
+      "breakpoints": true
     }
   ]
 }

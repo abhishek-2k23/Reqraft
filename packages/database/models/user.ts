@@ -1,4 +1,4 @@
-import { boolean, text, timestamp } from "drizzle-orm/pg-core";
+import { boolean, integer, text, timestamp } from "drizzle-orm/pg-core";
 import { pgTable } from "drizzle-orm/pg-core";
 
 export const usersTable = pgTable("user", {
@@ -55,6 +55,21 @@ export const verificationsTable = pgTable("verification", {
   expiresAt: timestamp("expires_at").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// BetterAuth `device-authorization` plugin model (RFC 8628 device grant).
+// Backs the terminal CLI login flow. Field set must match the plugin's schema.
+export const deviceCodesTable = pgTable("device_code", {
+  id: text("id").primaryKey(),
+  deviceCode: text("device_code").notNull(),
+  userCode: text("user_code").notNull(),
+  userId: text("user_id").references(() => usersTable.id, { onDelete: "cascade" }),
+  expiresAt: timestamp("expires_at").notNull(),
+  status: text("status").notNull(),
+  lastPolledAt: timestamp("last_polled_at"),
+  pollingInterval: integer("polling_interval"),
+  clientId: text("client_id"),
+  scope: text("scope"),
 });
 
 export type SelectUser = typeof usersTable.$inferSelect;
