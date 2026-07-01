@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Bell, CheckCircle2, FileText, OctagonAlert } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -45,18 +45,40 @@ const toneText: Record<Event["tone"], string> = {
   destructive: "text-destructive",
 };
 
+const STORAGE_PREFIX = "shipflow.readNotifications";
+
 /** Derives recent pipeline events client-side from existing feature data — no new backend. */
 export function NotificationsMenu() {
   const { activeProjectId, ready, isLoading } = useActiveProject();
+  const { data: org } = trpc.org.current.useQuery();
   const { data: features = [] } = trpc.feature.list.useQuery(
     { projectId: activeProjectId ?? undefined },
     { enabled: ready && !isLoading },
   );
 
-  const events = useMemo<Event[]>(() => {
+  // Read state is persisted per-org so a seen notification stays hidden across
+  // reloads and doesn't leak between organizations on a shared browser.
+  const storageKey = org?.id ? `${STORAGE_PREFIX}.${org.id}` : null;
+  const [readIds, setReadIds] = useState<Set<string>>(new Set());
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    if (!storageKey) return;
+    try {
+      const raw = window.localStorage.getItem(storageKey);
+      setReadIds(new Set(raw ? (JSON.parse(raw) as string[]) : []));
+    } catch {
+      setReadIds(new Set());
+    }
+    setHydrated(true);
+  }, [storageKey]);
+
+  const allEvents = useMemo<Event[]>(() => {
     const out: Event[] = [];
     for (const f of features) {
-      const at = new Date(f.createdAt);
+      // Time the event by the last status change, not feature creation, so
+      // "PRD ready"/"passed"/"blocked" read as when they actually happened.
+      const at = new Date(f.updatedAt);
       if (f.status === "prd_ready") {
         out.push({ id: `${f.id}-prd`, featureId: f.id, title: f.title, message: "PRD ready for review", icon: FileText, tone: "primary", at });
       } else if (f.status === "approved" || f.status === "shipped") {
@@ -68,8 +90,31 @@ export function NotificationsMenu() {
     return out.sort((a, b) => b.at.getTime() - a.at.getTime()).slice(0, 8);
   }, [features]);
 
+  // Only surface unread (new) events — anything already seen is hidden.
+  const events = useMemo(
+    () => allEvents.filter((e) => !readIds.has(e.id)),
+    [allEvents, readIds],
+  );
+
+  // Mark everything currently shown as read when the menu closes, so the badge
+  // clears and these items don't reappear next time — only genuinely new events
+  // will show up again.
+  function markAllRead() {
+    if (!hydrated || !storageKey || events.length === 0) return;
+    setReadIds((prev) => {
+      const next = new Set(prev);
+      for (const e of allEvents) next.add(e.id);
+      try {
+        window.localStorage.setItem(storageKey, JSON.stringify([...next]));
+      } catch {
+        // storage unavailable (private mode / quota) — read state is best-effort
+      }
+      return next;
+    });
+  }
+
   return (
-    <DropdownMenu>
+    <DropdownMenu onOpenChange={(open) => { if (!open) markAllRead(); }}>
       <DropdownMenuTrigger
         aria-label="Notifications"
         className="relative grid size-9 shrink-0 place-items-center border border-border bg-foreground/[0.03] text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground focus:outline-none"

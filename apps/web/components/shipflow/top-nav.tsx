@@ -26,6 +26,7 @@ import { ProjectSwitcher } from "./project-context";
 import { useCommandPalette } from "./command-palette";
 import { LinkPending } from "./link-pending";
 import { routeLabel } from "./nav-items";
+import { cn } from "~/lib/utils";
 import { authClient } from "@/lib/auth-client";
 
 function initialsOf(name?: string | null) {
@@ -36,6 +37,26 @@ function initialsOf(name?: string | null) {
     .slice(0, 2)
     .join("")
     .toUpperCase();
+}
+
+// Netflix-style colorful fallback avatars: a vivid gradient picked
+// deterministically from the user's identity, so the same person always gets
+// the same color when they have no profile image.
+const AVATAR_COLORS = [
+  "bg-gradient-to-br from-rose-500 to-pink-600",
+  "bg-gradient-to-br from-orange-500 to-amber-600",
+  "bg-gradient-to-br from-emerald-500 to-teal-600",
+  "bg-gradient-to-br from-sky-500 to-indigo-600",
+  "bg-gradient-to-br from-violet-500 to-fuchsia-600",
+  "bg-gradient-to-br from-cyan-500 to-blue-600",
+];
+
+function avatarColor(key: string) {
+  let hash = 0;
+  for (let i = 0; i < key.length; i += 1) {
+    hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
+  }
+  return AVATAR_COLORS[hash % AVATAR_COLORS.length];
 }
 
 function UserMenu() {
@@ -61,7 +82,12 @@ function UserMenu() {
       >
         <Avatar className="size-9 rounded-none">
           {user?.image ? <AvatarImage src={user.image} alt={user.name ?? "User"} /> : null}
-          <AvatarFallback className="rounded-none bg-foreground/[0.04] font-mono text-xs text-muted-foreground">
+          <AvatarFallback
+            className={cn(
+              "rounded-none font-mono text-xs font-semibold text-white",
+              avatarColor(user?.email ?? user?.name ?? "U"),
+            )}
+          >
             {initialsOf(user?.name)}
           </AvatarFallback>
         </Avatar>
