@@ -1,39 +1,36 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
-import { Eye, EyeOff, Loader2, Zap } from "lucide-react";
+import { useRef, useState } from "react";
+import { useFormStatus } from "react-dom";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-import { signInWithDemo, signInWithEmail } from "../actions";
+import { signInWithEmail } from "../actions";
 
-const DEMO_EMAIL = "demo@shipflow.ai";
-const DEMO_PASSWORD = "Demo@ShipFlow2024!";
+function SubmitButton({ disabled }: { disabled: boolean }) {
+  const { pending } = useFormStatus();
+  return (
+    <Button
+      type="submit"
+      size="lg"
+      variant="secondary"
+      disabled={pending || disabled}
+      className="w-full"
+    >
+      {pending ? <Loader2 className="size-4 animate-spin" /> : null}
+      {pending ? "Signing in…" : "Sign in with Email"}
+    </Button>
+  );
+}
 
 export function EmailSignInForm({ callbackUrl }: { callbackUrl?: string }) {
   const formRef = useRef<HTMLFormElement>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [fillingDemo, setFillingDemo] = useState(false);
-  const [isPending, startTransition] = useTransition();
-
-  function handleDemoClick() {
-    setFillingDemo(true);
-    setEmail(DEMO_EMAIL);
-    setPassword(DEMO_PASSWORD);
-    setShowPassword(true);
-
-    // Short pause so user can see the fields fill in, then auto-submit
-    setTimeout(() => {
-      setFillingDemo(false);
-      startTransition(async () => {
-        await signInWithDemo();
-      });
-    }, 600);
-  }
 
   return (
     <div className="grid gap-4">
@@ -89,34 +86,8 @@ export function EmailSignInForm({ callbackUrl }: { callbackUrl?: string }) {
           </div>
         </div>
 
-        <Button
-          type="submit"
-          size="lg"
-          variant="secondary"
-          disabled={isPending || fillingDemo || !email || !password}
-          className="w-full"
-        >
-          {isPending ? (
-            <Loader2 className="size-4 animate-spin" />
-          ) : null}
-          {isPending ? "Signing in…" : "Sign in with Email"}
-        </Button>
+        <SubmitButton disabled={!email || !password} />
       </form>
-
-      {/* Demo shortcut — fills credentials and auto-submits */}
-      <button
-        type="button"
-        onClick={handleDemoClick}
-        disabled={fillingDemo || isPending}
-        className="flex w-full items-center justify-center gap-2 border border-dashed border-primary/40 bg-primary/5 py-2.5 text-sm font-medium text-primary transition-colors hover:border-primary/60 hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        {fillingDemo ? (
-          <Loader2 className="size-4 animate-spin" />
-        ) : (
-          <Zap className="size-4" />
-        )}
-        {fillingDemo ? "Filling demo credentials…" : "Try Demo Account"}
-      </button>
     </div>
   );
 }
