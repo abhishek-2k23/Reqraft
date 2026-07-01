@@ -15,6 +15,9 @@ export function SmoothScroll() {
       duration: 1.05,
       easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
       smoothWheel: true,
+      // Smooth-scroll in-page `#section` links (e.g. the landing nav). The
+      // offset clears the fixed 64px header so section headings aren't hidden.
+      anchors: { offset: -80 },
     });
 
     let frame = 0;

@@ -7,10 +7,9 @@ import { ArrowRight } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 const links = [
-  { href: "/features", label: "Features" },
-  { href: "/prd", label: "PRDs" },
-  { href: "/reviews", label: "Reviews" },
-  { href: "/billing", label: "Pricing" },
+  { href: "#features", label: "Features" },
+  { href: "#cli", label: "CLI" },
+  { href: "#pricing", label: "Pricing" },
 ];
 
 export function LandingNav() {
@@ -34,9 +33,9 @@ export function LandingNav() {
 
         <div className="hidden items-center gap-9 font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground md:flex">
           {links.map((l) => (
-            <Link key={l.href} href={l.href} className="transition-colors hover:text-foreground">
+            <a key={l.href} href={l.href} className="transition-colors hover:text-foreground">
               {l.label}
-            </Link>
+            </a>
           ))}
         </div>
 

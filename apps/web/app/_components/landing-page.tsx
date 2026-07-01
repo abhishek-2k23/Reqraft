@@ -1,7 +1,9 @@
 import { LandingNav } from "./landing/nav";
 import { LandingHero } from "./landing/hero";
 import { FeatureBento } from "./landing/feature-bento";
+import { CliSection } from "./landing/cli-section";
 import { LandingMetrics } from "./landing/metrics";
+import { LandingPricing } from "./landing/pricing";
 import { LandingCta } from "./landing/cta";
 import { LandingFooter } from "./landing/footer";
 
@@ -11,7 +13,9 @@ export function LandingPage() {
       <LandingNav />
       <LandingHero />
       <FeatureBento />
+      <CliSection />
       <LandingMetrics />
+      <LandingPricing />
       <LandingCta />
       <LandingFooter />
     </main>
