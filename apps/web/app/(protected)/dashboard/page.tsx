@@ -2,11 +2,26 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { ArrowRight, Clock3, GitPullRequestArrow, Plus, Rocket, ShieldCheck } from "lucide-react";
+import {
+  ArrowRight,
+  CheckCircle2,
+  Circle,
+  Clock3,
+  ExternalLink,
+  FolderKanban,
+  GitPullRequestArrow,
+  Github,
+  Plus,
+  Rocket,
+  ShieldCheck,
+  Sparkles,
+} from "lucide-react";
 
 import { useActiveProject } from "~/components/shipflow/project-context";
-import { LinkPending } from "~/components/shipflow/link-pending";
+import { CreateProjectDialog } from "~/components/shipflow/create-project-dialog";
 import {
+  ComplianceBadge,
+  EffortBadge,
   FADE_UP,
   PageHeader,
   SectionCard,
@@ -29,25 +44,174 @@ const pipelineStages = [
   { label: "Shipped", statuses: ["approved", "shipped"] },
 ] as const;
 
-function NewRequestButton() {
+function timeAgo(value: Date | string) {
+  const then = new Date(value).getTime();
+  const seconds = Math.max(0, Math.round((Date.now() - then) / 1000));
+  if (seconds < 60) return "just now";
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  return new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+const ACTIVITY_META = {
+  feature: { icon: Sparkles, tone: "text-primary", label: "Feature" },
+  review: { icon: ShieldCheck, tone: "text-success", label: "Review" },
+  pr: { icon: GitPullRequestArrow, tone: "text-muted-foreground", label: "Pull request" },
+} as const;
+
+type ActivityItem = {
+  id: string;
+  kind: keyof typeof ACTIVITY_META;
+  title: string;
+  subtitle: string | null;
+  status: string | null;
+  score: number | null;
+  at: Date | string;
+  href: string | null;
+  externalUrl: string | null;
+};
+
+function ActivityRow({ item }: { item: ActivityItem }) {
+  const meta = ACTIVITY_META[item.kind];
+  const Icon = meta.icon;
+
+  const inner = (
+    <>
+      <span className={`grid size-8 shrink-0 place-items-center border border-border bg-foreground/[0.03] ${meta.tone}`}>
+        <Icon className="size-4" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <p className="truncate text-sm font-medium text-foreground">{item.title}</p>
+          {item.kind === "review" && typeof item.score === "number" ? (
+            <ComplianceBadge score={item.score} />
+          ) : null}
+        </div>
+        <p className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground">
+          {meta.label}
+          {item.subtitle ? ` · ${item.subtitle}` : ""}
+          {item.status ? ` · ${item.status.replace(/_/g, " ")}` : ""}
+        </p>
+      </div>
+      <span className="shrink-0 font-mono text-[11px] text-muted-foreground">{timeAgo(item.at)}</span>
+    </>
+  );
+
+  const className =
+    "group flex items-center gap-3 px-5 py-3 transition-colors hover:bg-foreground/[0.03]";
+
+  if (item.href) {
+    return (
+      <Link href={item.href} className={className}>
+        {inner}
+      </Link>
+    );
+  }
+  if (item.externalUrl) {
+    return (
+      <a href={item.externalUrl} target="_blank" rel="noreferrer" className={className}>
+        {inner}
+        <ExternalLink aria-hidden className="size-3.5 shrink-0 text-foreground/20 group-hover:text-primary" />
+      </a>
+    );
+  }
+  return <div className={className}>{inner}</div>;
+}
+
+function OnboardingChecklist({
+  hasProjects,
+  hasRepos,
+}: {
+  hasProjects: boolean;
+  hasRepos: boolean;
+}) {
+  const steps = [
+    {
+      done: hasProjects,
+      title: "Create a project",
+      body: "Group your features, PRDs, tasks, and repositories.",
+      action: hasProjects ? null : (
+        <CreateProjectDialog
+          trigger={
+            <button className="inline-flex h-8 items-center gap-1.5 border border-border bg-foreground/[0.03] px-3 text-xs font-medium text-foreground transition-colors hover:border-foreground/20">
+              <FolderKanban className="size-3.5" /> New project
+            </button>
+          }
+        />
+      ),
+    },
+    {
+      done: hasRepos,
+      title: "Connect a repository",
+      body: "Link a GitHub repo so Reqraft can review pull requests.",
+      action: hasRepos ? null : (
+        <Link
+          href="/github"
+          className="inline-flex h-8 items-center gap-1.5 border border-border bg-foreground/[0.03] px-3 text-xs font-medium text-foreground transition-colors hover:border-foreground/20"
+        >
+          <Github className="size-3.5" /> Connect repo
+        </Link>
+      ),
+    },
+    {
+      done: false,
+      title: "Create your first feature",
+      body: "Drop in a rough ask — Reqraft clarifies it, writes a PRD, and plans the work.",
+      action: (
+        <Link
+          href="/features/new"
+          className="inline-flex h-8 items-center gap-1.5 bg-primary px-3 text-xs font-medium text-primary-foreground transition-transform hover:opacity-95 active:scale-[0.97]"
+        >
+          <Plus className="size-3.5" /> New feature
+        </Link>
+      ),
+    },
+  ];
+
   return (
-    <Link
-      href="/features/new"
-      className="inline-flex h-9 items-center gap-2 bg-primary px-4 text-sm font-medium text-primary-foreground transition-transform hover:opacity-95 active:scale-[0.97]"
+    <SectionCard
+      title="Get started with Reqraft"
+      subtitle="A few quick steps to light up your delivery pipeline."
     >
-      <Plus className="size-4" />
-      New request
-      <LinkPending />
-    </Link>
+      <div className="divide-y divide-border">
+        {steps.map((step) => (
+          <div key={step.title} className="flex items-start gap-3 px-5 py-4">
+            {step.done ? (
+              <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-success" />
+            ) : (
+              <Circle className="mt-0.5 size-5 shrink-0 text-muted-foreground/40" />
+            )}
+            <div className="min-w-0 flex-1">
+              <p className={step.done ? "text-sm font-medium text-muted-foreground line-through" : "text-sm font-medium text-foreground"}>
+                {step.title}
+              </p>
+              <p className="mt-0.5 text-xs text-muted-foreground">{step.body}</p>
+            </div>
+            {step.action ? <div className="shrink-0">{step.action}</div> : null}
+          </div>
+        ))}
+      </div>
+    </SectionCard>
   );
 }
 
 export default function DashboardPage() {
-  const { activeProjectId, activeProject, ready, isLoading } = useActiveProject();
+  const { activeProjectId, activeProject, projects, ready, isLoading } = useActiveProject();
   const { data: features = [] } = trpc.feature.list.useQuery(
     { projectId: activeProjectId ?? undefined },
     { enabled: ready && !isLoading },
   );
+  const { data: activity = [] } = trpc.feature.recentActivity.useQuery(
+    { limit: 10 },
+    { enabled: ready && !isLoading },
+  );
+  const { data: repos = [] } = trpc.github.repositories.useQuery(undefined, {
+    enabled: ready && !isLoading,
+  });
 
   const shipped = features.filter((f) => f.status === "shipped").length;
   const finished = features.filter((f) => finishedStatuses.has(f.status)).length;
@@ -60,13 +224,14 @@ export default function DashboardPage() {
     count: features.filter((f) => (stage.statuses as readonly string[]).includes(f.status)).length,
   }));
 
+  const showOnboarding = features.length === 0;
+
   return (
     <motion.div initial="hidden" animate="show" variants={STAGGER} className="space-y-8">
         <motion.div variants={FADE_UP}>
           <PageHeader
             title="Dashboard"
             description="One control room for product discovery, PRD generation, engineering tasks, AI review, and release approval."
-            action={<NewRequestButton />}
           />
         </motion.div>
 
@@ -100,11 +265,17 @@ export default function DashboardPage() {
           </div>
         </motion.div>
 
+        {/* Guided onboarding — only while the org has no features yet */}
+        {showOnboarding ? (
+          <motion.div variants={FADE_UP}>
+            <OnboardingChecklist hasProjects={projects.length > 0} hasRepos={repos.length > 0} />
+          </motion.div>
+        ) : null}
+
         {/* Active features */}
         <SectionCard
           title="Active features"
           subtitle={activeProject ? `Requests in ${activeProject.name}.` : "Real requests from your current organization."}
-          action={<NewRequestButton />}
         >
           {latest.length === 0 ? (
             <div className="p-16 text-center">
@@ -126,6 +297,8 @@ export default function DashboardPage() {
                       <div className="flex flex-wrap items-center gap-2.5">
                         <p className="truncate font-medium text-foreground">{feature.title}</p>
                         <StatusBadge status={status} />
+                        <EffortBadge hours={feature.estimatedHours} />
+                        <ComplianceBadge score={feature.complianceScore} />
                       </div>
                       <p className="mt-1.5 line-clamp-1 text-sm text-muted-foreground">{feature.description}</p>
                     </div>
@@ -142,6 +315,20 @@ export default function DashboardPage() {
             </div>
           )}
         </SectionCard>
+
+        {/* Recent activity — org-wide stream of features, reviews, and PRs */}
+        {activity.length > 0 ? (
+          <SectionCard
+            title="Recent activity"
+            subtitle="Latest feature updates, AI reviews, and pull requests across your organization."
+          >
+            <div className="divide-y divide-border">
+              {activity.map((item) => (
+                <ActivityRow key={item.id} item={item as ActivityItem} />
+              ))}
+            </div>
+          </SectionCard>
+        ) : null}
     </motion.div>
   );
 }

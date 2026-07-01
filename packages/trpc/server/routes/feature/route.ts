@@ -1,10 +1,11 @@
 import { TRPCError } from "@trpc/server";
-import { and, asc, desc, eq } from "@repo/database";
+import { and, asc, desc, eq, getTableColumns, sql } from "@repo/database";
 import {
   clarificationMessages,
   featureRequests,
   prds,
   pullRequests,
+  repositories,
   reviewCycles,
   reviewIssues,
   tasks,
@@ -103,11 +104,123 @@ export const featureRouter = router({
         conditions.push(eq(featureRequests.status, input.status));
       }
 
+      // Enrich each feature with its PRD effort estimate and the PRD-compliance
+      // score of its most recent review cycle so list/dashboard cards can show
+      // those badges without an extra round-trip. The score subquery is
+      // correlated (latest cycle per feature); the PRD join is 1:1.
       return ctx.db
-        .select()
+        .select({
+          ...getTableColumns(featureRequests),
+          estimatedHours: prds.estimatedTotalHours,
+          complianceScore: sql<number | null>`(
+            select rc.prd_compliance_score
+            from review_cycle rc
+            where rc.feature_id = ${featureRequests.id}
+            order by rc.created_at desc
+            limit 1
+          )`.as("compliance_score"),
+        })
         .from(featureRequests)
+        .leftJoin(prds, eq(prds.featureId, featureRequests.id))
         .where(and(...conditions))
         .orderBy(desc(featureRequests.createdAt));
+    }),
+
+  // Unified, org-wide activity stream for the dashboard: the most recent feature
+  // status changes, AI review cycles, and pull requests, merged and sorted by
+  // time. Reviews/PRs are scoped to the org via their connected repository.
+  recentActivity: orgProcedure
+    .input(z.object({ limit: z.number().min(1).max(30).optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      const limit = input?.limit ?? 12;
+
+      const recentFeatures = await ctx.db
+        .select({
+          id: featureRequests.id,
+          title: featureRequests.title,
+          status: featureRequests.status,
+          at: featureRequests.updatedAt,
+        })
+        .from(featureRequests)
+        .where(eq(featureRequests.organizationId, ctx.org.id))
+        .orderBy(desc(featureRequests.updatedAt))
+        .limit(limit);
+
+      const recentReviews = await ctx.db
+        .selectDistinct({
+          id: reviewCycles.id,
+          status: reviewCycles.status,
+          score: reviewCycles.prdComplianceScore,
+          at: reviewCycles.createdAt,
+          featureId: reviewCycles.featureId,
+          featureTitle: featureRequests.title,
+          prNumber: pullRequests.number,
+          prUrl: pullRequests.githubPrUrl,
+          repoFullName: pullRequests.repoFullName,
+        })
+        .from(reviewCycles)
+        .innerJoin(pullRequests, eq(reviewCycles.pullRequestId, pullRequests.id))
+        .innerJoin(repositories, eq(repositories.fullName, pullRequests.repoFullName))
+        .leftJoin(featureRequests, eq(reviewCycles.featureId, featureRequests.id))
+        .where(eq(repositories.organizationId, ctx.org.id))
+        .orderBy(desc(reviewCycles.createdAt))
+        .limit(limit);
+
+      const recentPrs = await ctx.db
+        .selectDistinct({
+          id: pullRequests.id,
+          title: pullRequests.title,
+          number: pullRequests.number,
+          state: pullRequests.state,
+          prUrl: pullRequests.githubPrUrl,
+          repoFullName: pullRequests.repoFullName,
+          at: pullRequests.updatedAt,
+        })
+        .from(pullRequests)
+        .innerJoin(repositories, eq(repositories.fullName, pullRequests.repoFullName))
+        .where(eq(repositories.organizationId, ctx.org.id))
+        .orderBy(desc(pullRequests.updatedAt))
+        .limit(limit);
+
+      const items = [
+        ...recentFeatures.map((f) => ({
+          id: `feature-${f.id}`,
+          kind: "feature" as const,
+          title: f.title,
+          subtitle: null as string | null,
+          status: f.status,
+          score: null as number | null,
+          at: f.at,
+          href: `/features/${f.id}`,
+          externalUrl: null as string | null,
+        })),
+        ...recentReviews.map((r) => ({
+          id: `review-${r.id}`,
+          kind: "review" as const,
+          title: r.featureTitle ?? "Unlinked review",
+          subtitle: `${r.repoFullName} #${r.prNumber}`,
+          status: r.status,
+          score: r.score,
+          at: r.at,
+          href: r.featureId ? `/features/${r.featureId}?tab=review-history` : null,
+          externalUrl: r.prUrl,
+        })),
+        ...recentPrs.map((p) => ({
+          id: `pr-${p.id}`,
+          kind: "pr" as const,
+          title: p.title,
+          subtitle: `${p.repoFullName} #${p.number}`,
+          status: p.state,
+          score: null as number | null,
+          at: p.at,
+          href: null as string | null,
+          externalUrl: p.prUrl,
+        })),
+      ];
+
+      return items
+        .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
+        .slice(0, limit);
     }),
 
   getById: orgProcedure

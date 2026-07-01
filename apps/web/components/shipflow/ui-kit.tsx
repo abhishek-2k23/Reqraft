@@ -8,7 +8,7 @@ import {
   useReducedMotion,
   type Variants,
 } from "framer-motion";
-import type { LucideIcon } from "lucide-react";
+import { Clock, Lightbulb, ShieldCheck, type LucideIcon } from "lucide-react";
 
 import { statusLabel, statusTone } from "./status";
 import { cn } from "~/lib/utils";
@@ -146,6 +146,85 @@ export function SectionCard({
       </div>
       {children}
     </motion.section>
+  );
+}
+
+/** Red asterisk marking a required form field. */
+export function RequiredMark({ className }: { className?: string }) {
+  return (
+    <span aria-hidden className={cn("text-destructive", className)}>
+      *
+    </span>
+  );
+}
+
+/** Small idea/tip note (lightbulb) — used to flag what's required to proceed. */
+export function Hint({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <p className={cn("flex items-start gap-1.5 text-xs leading-5 text-muted-foreground", className)}>
+      <Lightbulb className="mt-0.5 size-3.5 shrink-0 text-amber-500 dark:text-amber-400" />
+      <span>{children}</span>
+    </p>
+  );
+}
+
+/** Tone classes for a 0–100 PRD-compliance score (green / amber / red). */
+function complianceTone(score: number) {
+  if (score >= 80) return "border-success/30 bg-success/10 text-success";
+  if (score >= 60) return "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400";
+  return "border-destructive/30 bg-destructive/10 text-destructive";
+}
+
+/** PRD-compliance score chip — only renders when a score exists. */
+export function ComplianceBadge({
+  score,
+  className,
+}: {
+  score: number | null | undefined;
+  className?: string;
+}) {
+  if (score == null) return null;
+  return (
+    <span
+      className={cn(
+        "inline-flex shrink-0 items-center gap-1 border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider",
+        complianceTone(score),
+        className,
+      )}
+      title="PRD compliance score from the latest AI review"
+    >
+      <ShieldCheck className="size-3" />
+      {score}%
+    </span>
+  );
+}
+
+/** Estimated-effort chip (hours) — only renders when an estimate exists. */
+export function EffortBadge({
+  hours,
+  className,
+}: {
+  hours: number | null | undefined;
+  className?: string;
+}) {
+  if (hours == null) return null;
+  return (
+    <span
+      className={cn(
+        "inline-flex shrink-0 items-center gap-1 border border-border bg-foreground/[0.03] px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground",
+        className,
+      )}
+      title="AI-estimated effort"
+    >
+      <Clock className="size-3" />
+      ~{hours}h
+    </span>
   );
 }
 

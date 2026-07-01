@@ -7,7 +7,14 @@ import { ArrowRight, Plus, Sparkles } from "lucide-react";
 import { ProjectTag, useActiveProject } from "~/components/shipflow/project-context";
 import { LinkPending } from "~/components/shipflow/link-pending";
 import { CardGridSkeleton } from "~/components/shipflow/page-skeletons";
-import { FADE_UP, PageHeader, STAGGER, StatusBadge } from "~/components/shipflow/ui-kit";
+import {
+  ComplianceBadge,
+  EffortBadge,
+  FADE_UP,
+  PageHeader,
+  STAGGER,
+  StatusBadge,
+} from "~/components/shipflow/ui-kit";
 import { statusLabel } from "~/components/shipflow/status";
 import { trpc } from "~/trpc/client";
 
@@ -41,7 +48,6 @@ export default function FeaturesPage() {
         <PageHeader
           title="Feature requests"
           description="Capture rough product asks, clarify missing context, generate PRDs, and track each feature until it ships."
-          action={<NewFeatureButton />}
         />
       </motion.div>
 
@@ -87,7 +93,11 @@ export default function FeaturesPage() {
                     <h2 className="text-base font-medium text-foreground">{feature.title}</h2>
                     <StatusBadge status={status} />
                   </div>
-                  <ProjectTag projectId={feature.projectId} className="mt-3 self-start" />
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <ProjectTag projectId={feature.projectId} />
+                    <EffortBadge hours={feature.estimatedHours} />
+                    <ComplianceBadge score={feature.complianceScore} />
+                  </div>
                   <p className="mt-3 line-clamp-3 flex-1 text-sm leading-6 text-muted-foreground">{feature.description}</p>
                   <div className="mt-5 flex items-center justify-between text-xs text-muted-foreground">
                     <span className="capitalize">{feature.priority} priority</span>
