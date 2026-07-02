@@ -9,6 +9,7 @@ import {
   Settings,
   ShieldCheck,
   Sparkles,
+  UserCircle,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -34,6 +35,7 @@ export const navItems: NavItem[] = [
   { href: "/projects", label: "Projects", icon: FolderKanban, group: "Workspace", shortcut: "alt+o" },
   { href: "/billing", label: "Billing", icon: BadgeIndianRupee, group: "Workspace", shortcut: "alt+b" },
   { href: "/settings/team", label: "Team", icon: Users, group: "Workspace", shortcut: "alt+m" },
+  { href: "/profile", label: "Profile", icon: UserCircle, group: "Workspace", shortcut: "alt+u" },
   { href: "/settings", label: "Settings", icon: Settings, group: "Workspace", shortcut: "alt+s" },
 ];
 

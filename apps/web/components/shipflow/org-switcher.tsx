@@ -1,7 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronsUpDown, Building2, Plus } from "lucide-react";
+import { ChevronsUpDown, Building2, Plus, Loader2 } from "lucide-react";
 
 import { authClient } from "@/lib/auth-client";
 import { trpc } from "@/trpc/client";
@@ -15,12 +16,26 @@ import {
 
 export function OrgSwitcher() {
   const router = useRouter();
+  const utils = trpc.useUtils();
   const { data: orgs = [] } = trpc.org.list.useQuery();
   const { data: current } = trpc.org.current.useQuery();
+  const [switching, setSwitching] = useState<string | null>(null);
 
   async function switchOrg(organizationId: string) {
-    await authClient.organization.setActive({ organizationId });
-    router.refresh();
+    if (organizationId === current?.id || switching) return;
+    setSwitching(organizationId);
+    try {
+      // Persist the new active org onto the server session.
+      await authClient.organization.setActive({ organizationId });
+      // Every org-scoped tRPC query (org.current, projects, features, tasks,
+      // reviews, billing, …) is now stale — router.refresh() alone only
+      // re-renders server components and leaves the React Query cache untouched.
+      // Invalidate everything so the whole app refetches against the new org.
+      await utils.invalidate();
+      router.refresh();
+    } finally {
+      setSwitching(null);
+    }
   }
 
   return (
@@ -39,14 +54,21 @@ export function OrgSwitcher() {
         {orgs.map((org) => (
           <DropdownMenuItem
             key={org.id}
-            onSelect={() => switchOrg(org.id)}
+            // Keep the menu open while the switch is in flight so the spinner is visible.
+            onSelect={(event) => {
+              event.preventDefault();
+              void switchOrg(org.id);
+            }}
+            disabled={!!switching}
             className={`text-sm ${org.id === current?.id ? "text-primary" : "text-muted-foreground"} cursor-pointer`}
           >
             <Building2 className="mr-2 size-4 shrink-0" />
             <span className="truncate">{org.name}</span>
-            {org.id === current?.id && (
+            {switching === org.id ? (
+              <Loader2 className="ml-auto size-3.5 shrink-0 animate-spin text-primary" />
+            ) : org.id === current?.id ? (
               <span className="ml-auto font-mono text-[10px] uppercase tracking-wider text-primary">active</span>
-            )}
+            ) : null}
           </DropdownMenuItem>
         ))}
 
