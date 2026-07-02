@@ -40,15 +40,49 @@ export function CreateProjectDialog({ trigger }: { trigger: React.ReactNode }) {
   const [description, setDescription] = useState("");
 
   const create = trpc.project.create.useMutation({
-    onSuccess: (project) => {
+    // Optimistically drop the new project into the list cache so it appears in
+    // the switcher/lists instantly; reconcile with the server row on success.
+    onMutate: async (vars) => {
+      await utils.project.list.cancel();
+      const previous = utils.project.list.getData();
+      const optimisticId = `optimistic-${Date.now()}`;
+      utils.project.list.setData(undefined, (old) => [
+        ...(old ?? []),
+        {
+          id: optimisticId,
+          organizationId: "",
+          name: vars.name,
+          slug: vars.slug,
+          description: vars.description ?? null,
+          createdBy: "",
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+      ]);
+      return { previous, optimisticId };
+    },
+    onError: (err, _vars, ctx) => {
+      // Roll the list back to its pre-mutation state.
+      if (ctx?.previous) utils.project.list.setData(undefined, ctx.previous);
+      toast.error(err.message);
+    },
+    onSuccess: (project, _vars, ctx) => {
       toast.success(`Project “${project?.name}” created`);
-      void utils.project.list.invalidate();
-      if (project) setActiveProjectId(project.id);
+      if (project) {
+        // Swap the placeholder for the authoritative server row before switching
+        // scope, so the "active project must exist" guard never resets to All.
+        utils.project.list.setData(undefined, (old) =>
+          (old ?? []).map((p) => (p.id === ctx?.optimisticId ? project : p)),
+        );
+        setActiveProjectId(project.id);
+      }
       setName("");
       setDescription("");
       setOpen(false);
     },
-    onError: (err) => toast.error(err.message),
+    onSettled: () => {
+      void utils.project.list.invalidate();
+    },
   });
 
   const slug = slugify(name);

@@ -16,19 +16,49 @@ function toSlug(value: string) {
 
 export function CreateOrgForm() {
   const router = useRouter();
+  const utils = trpc.useUtils();
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [open, setOpen] = useState(false);
 
   const create = trpc.org.create.useMutation({
-    onSuccess: () => {
+    // Optimistically add the org to the list (sidebar switcher, settings) so it
+    // shows up the moment the user hits Create.
+    onMutate: async (vars) => {
+      await utils.org.list.cancel();
+      const previous = utils.org.list.getData();
+      const optimisticId = `optimistic-${Date.now()}`;
+      utils.org.list.setData(undefined, (old) => [
+        ...(old ?? []),
+        { id: optimisticId, name: vars.name, slug: vars.slug, logo: null },
+      ]);
+      return { previous, optimisticId };
+    },
+    onError: (error, _vars, ctx) => {
+      if (ctx?.previous) utils.org.list.setData(undefined, ctx.previous);
+      toast.error(error.message);
+    },
+    onSuccess: (org, _vars, ctx) => {
       toast.success("Organization created");
+      if (org) {
+        utils.org.list.setData(undefined, (old) =>
+          (old ?? []).map((o) =>
+            o.id === ctx?.optimisticId
+              ? { id: org.id, name: org.name, slug: org.slug, logo: org.logo }
+              : o,
+          ),
+        );
+      }
+      // The server made the new org active — refresh current + server components.
+      void utils.org.current.invalidate();
       router.refresh();
       setOpen(false);
       setName("");
       setSlug("");
     },
-    onError: (error) => toast.error(error.message),
+    onSettled: () => {
+      void utils.org.list.invalidate();
+    },
   });
 
   if (!open) {
