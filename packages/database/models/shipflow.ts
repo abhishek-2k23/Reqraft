@@ -8,6 +8,7 @@ import {
   text,
   timestamp,
   uniqueIndex,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 
 import { usersTable } from "./user";
@@ -228,6 +229,25 @@ export const tasks = pgTable("task", {
     onDelete: "set null",
   }),
   order: integer("order").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Threaded discussion notes on a task. `parentId` self-references to support
+// replies (a null parent is a top-level note); replies cascade-delete with
+// their parent, and all notes cascade-delete with the task.
+export const taskNotes = pgTable("task_note", {
+  id: text("id").primaryKey().$defaultFn(randomUUID),
+  taskId: text("task_id")
+    .notNull()
+    .references(() => tasks.id, { onDelete: "cascade" }),
+  userId: text("user_id")
+    .notNull()
+    .references(() => usersTable.id, { onDelete: "cascade" }),
+  parentId: text("parent_id").references((): AnyPgColumn => taskNotes.id, {
+    onDelete: "cascade",
+  }),
+  content: text("content").notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

@@ -21,6 +21,7 @@ import {
   Link2,
   ListChecks,
   Loader2,
+  Maximize2,
   MessageSquareText,
   Pencil,
   Rocket,
@@ -53,6 +54,7 @@ import {
 } from "~/components/ui/alert-dialog";
 import { statusLabel } from "~/components/shipflow/status";
 import { StatusBadge } from "~/components/shipflow/ui-kit";
+import { TaskNotesModal } from "~/components/shipflow/task-notes-modal";
 import {
   PrdDocActions,
   PrdDocumentView,
@@ -467,6 +469,10 @@ function KanbanBoard({
   const [dragOverCol, setDragOverCol] = useState<TaskStatus | null>(null);
   const [pendingBlock, setPendingBlock] = useState<{ taskId: string; beforeId: string | null } | null>(null);
   const [blockReason, setBlockReason] = useState("");
+  // Task whose notes/details modal is open. Looked up from the live server data
+  // so the modal reflects the latest note count / status.
+  const [notesTaskId, setNotesTaskId] = useState<string | null>(null);
+  const notesTask = serverTasks.find((t) => t.id === notesTaskId) ?? null;
 
   // Re-sync from the server whenever it sends fresh task data (generation, polling, etc.)
   const serverKey = serverTasks.map((t) => `${t.id}:${t.status}:${t.order}`).join("|");
@@ -640,7 +646,7 @@ function KanbanBoard({
                                 )}
                               </button>
                             </PopoverTrigger>
-                            <PopoverContent className="w-48 border-foreground/10 bg-[#0d1118] p-1" align="start">
+                            <PopoverContent className="w-48 border-foreground/10 bg-popover p-1" align="start">
                               <p className="px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Reassign to</p>
                               {orgMembers.map((m) => (
                                 <button
@@ -667,26 +673,29 @@ function KanbanBoard({
                             </PopoverContent>
                           </Popover>
 
-                          {/* Quick-move buttons (accessible fallback for drag-and-drop) */}
-                          <div className="mt-3 flex flex-wrap gap-1.5">
-                            {KANBAN_COLUMNS.filter((t) => t.key !== task.status).map((target) => (
-                              <button
-                                key={target.key}
-                                type="button"
-                                disabled={reorder.isPending}
-                                onClick={() => {
-                                  if (target.key === "blocked") {
-                                    setPendingBlock({ taskId: task.id, beforeId: null });
-                                    setBlockReason("");
-                                  } else {
-                                    commitMove(task.id, target.key, null, null);
-                                  }
-                                }}
-                                className="rounded-full border border-foreground/10 px-2 py-0.5 text-[10px] text-muted-foreground transition hover:bg-foreground/10 hover:text-foreground disabled:opacity-40"
-                              >
-                                → {target.label}
-                              </button>
-                            ))}
+                          {/* Expand (bottom-left) + notes — both open the task discussion modal */}
+                          <div className="mt-3 flex items-center justify-between gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setNotesTaskId(task.id)}
+                              className="inline-flex cursor-pointer items-center gap-1.5 rounded-md bg-foreground/[0.06] px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground"
+                            >
+                              <Maximize2 className="size-3" />
+                              Expand
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setNotesTaskId(task.id)}
+                              title={task.noteCount > 0 ? `${task.noteCount} note${task.noteCount === 1 ? "" : "s"}` : "Add note"}
+                              className="inline-flex cursor-pointer items-center gap-1.5 rounded-md bg-primary/10 px-2 py-1 text-[11px] font-medium text-primary transition-colors hover:bg-primary/15"
+                            >
+                              <MessageSquareText className="size-3" />
+                              {task.noteCount > 0 ? (
+                                <span className="tabular-nums">{task.noteCount}</span>
+                              ) : (
+                                "Add note"
+                              )}
+                            </button>
                           </div>
                         </div>
                       </div>
@@ -701,7 +710,7 @@ function KanbanBoard({
 
       {/* Blocked reason dialog */}
       <AlertDialog open={pendingBlock !== null} onOpenChange={(open) => { if (!open) setPendingBlock(null); }}>
-        <AlertDialogContent className="border-foreground/10 bg-[#0d1118]">
+        <AlertDialogContent className="border-foreground/10 bg-popover">
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2 text-foreground">
               <Ban className="size-4 text-red-400" />
@@ -728,6 +737,12 @@ function KanbanBoard({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <TaskNotesModal
+        task={notesTask}
+        open={notesTaskId !== null}
+        onOpenChange={(open) => !open && setNotesTaskId(null)}
+      />
     </>
   );
 }
@@ -1350,7 +1365,7 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
                         Approve PRD
                       </Button>
                     </AlertDialogTrigger>
-                    <AlertDialogContent className="border-foreground/10 bg-[#0d1118] sm:max-w-lg">
+                    <AlertDialogContent className="border-foreground/10 bg-popover sm:max-w-lg">
                       <AlertDialogHeader>
                         <AlertDialogTitle className="text-foreground">Team coverage before task generation</AlertDialogTitle>
                         <AlertDialogDescription className="text-muted-foreground">
@@ -1375,7 +1390,7 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
                                   <SelectTrigger className="h-7 border-foreground/10 bg-foreground/5 text-xs text-foreground/80">
                                     <SelectValue placeholder="Assign to…" />
                                   </SelectTrigger>
-                                  <SelectContent className="border-foreground/10 bg-[#0d1118]">
+                                  <SelectContent className="border-foreground/10 bg-popover">
                                     {orgMembers.data?.map((m) => (
                                       <SelectItem key={m.userId} value={m.userId} className="text-foreground/80 focus:bg-foreground/10 focus:text-foreground text-xs">
                                         {m.name}
@@ -1494,7 +1509,7 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
 
       {/* ── Generate tasks dialog (triggered from tasks tab) ── */}
       <AlertDialog open={taskGenDialogOpen} onOpenChange={setTaskGenDialogOpen}>
-        <AlertDialogContent className="border-foreground/10 bg-[#0d1118] sm:max-w-lg">
+        <AlertDialogContent className="border-foreground/10 bg-popover sm:max-w-lg">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-foreground">Team coverage before task generation</AlertDialogTitle>
             <AlertDialogDescription className="text-muted-foreground">
@@ -1519,7 +1534,7 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
                       <SelectTrigger className="h-7 border-foreground/10 bg-foreground/5 text-xs text-foreground/80">
                         <SelectValue placeholder="Assign to…" />
                       </SelectTrigger>
-                      <SelectContent className="border-foreground/10 bg-[#0d1118]">
+                      <SelectContent className="border-foreground/10 bg-popover">
                         {orgMembers.data?.map((m) => (
                           <SelectItem key={m.userId} value={m.userId} className="text-foreground/80 focus:bg-foreground/10 focus:text-foreground text-xs">
                             {m.name}

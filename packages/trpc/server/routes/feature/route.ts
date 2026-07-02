@@ -312,6 +312,9 @@ export const featureRouter = router({
           updatedAt: tasks.updatedAt,
           assigneeName: usersTable.name,
           assigneeImage: usersTable.image,
+          noteCount: sql<number>`(
+            select count(*)::int from task_note tn where tn.task_id = ${tasks.id}
+          )`.as("note_count"),
         })
         .from(tasks)
         .leftJoin(usersTable, eq(tasks.assignedTo, usersTable.id))

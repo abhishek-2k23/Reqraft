@@ -1,9 +1,23 @@
-import { asc, eq } from "@repo/database";
-import { tasks } from "@repo/database/schema";
+import { TRPCError } from "@trpc/server";
+import { and, asc, eq } from "@repo/database";
+import { featureRequests, taskNotes, tasks, usersTable } from "@repo/database/schema";
 
 import type { Context } from "../../context";
 import { orgProcedure, router } from "../../trpc";
 import { z } from "../../schema";
+
+// Guard: the task exists AND belongs to the caller's active org (tasks are
+// org-scoped through their feature). Throws NOT_FOUND otherwise.
+async function assertTaskInOrg(ctx: Context, taskId: string, orgId: string) {
+  const [row] = await ctx.db
+    .select({ id: tasks.id })
+    .from(tasks)
+    .innerJoin(featureRequests, eq(featureRequests.id, tasks.featureId))
+    .where(and(eq(tasks.id, taskId), eq(featureRequests.organizationId, orgId)));
+  if (!row) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Task not found." });
+  }
+}
 
 async function listGroupedTasks(ctx: Context, featureId: string) {
   const all = await ctx.db
@@ -114,5 +128,71 @@ export const taskRouter = router({
       }
 
       return updated;
+    }),
+
+  // ── Task notes (threaded discussion) ──────────────────────────────────
+  listNotes: orgProcedure
+    .input(z.object({ taskId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      await assertTaskInOrg(ctx, input.taskId, ctx.org.id);
+      return ctx.db
+        .select({
+          id: taskNotes.id,
+          taskId: taskNotes.taskId,
+          userId: taskNotes.userId,
+          parentId: taskNotes.parentId,
+          content: taskNotes.content,
+          createdAt: taskNotes.createdAt,
+          authorName: usersTable.name,
+          authorImage: usersTable.image,
+        })
+        .from(taskNotes)
+        .innerJoin(usersTable, eq(usersTable.id, taskNotes.userId))
+        .where(eq(taskNotes.taskId, input.taskId))
+        .orderBy(asc(taskNotes.createdAt));
+    }),
+
+  addNote: orgProcedure
+    .input(
+      z.object({
+        taskId: z.string(),
+        content: z.string().trim().min(1).max(4000),
+        // Present when this note is a reply to an existing note.
+        parentId: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      await assertTaskInOrg(ctx, input.taskId, ctx.org.id);
+
+      if (input.parentId) {
+        // The reply target must belong to the same task.
+        const [parent] = await ctx.db
+          .select({ id: taskNotes.id })
+          .from(taskNotes)
+          .where(
+            and(eq(taskNotes.id, input.parentId), eq(taskNotes.taskId, input.taskId)),
+          );
+        if (!parent) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Reply target not found." });
+        }
+      }
+
+      const [note] = await ctx.db
+        .insert(taskNotes)
+        .values({
+          taskId: input.taskId,
+          userId: ctx.session.user.id,
+          parentId: input.parentId ?? null,
+          content: input.content,
+        })
+        .returning();
+
+      if (!note) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      return {
+        ...note,
+        authorName: ctx.session.user.name ?? null,
+        authorImage: ctx.session.user.image ?? null,
+      };
     }),
 });
