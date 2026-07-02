@@ -1,16 +1,40 @@
 "use client";
 
 import Link from "next/link";
+import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
 
 import { ProjectTag, useActiveProject } from "~/components/shipflow/project-context";
 import { TasksListSkeleton } from "~/components/shipflow/page-skeletons";
+import { ListToolbar, type ToolbarOption } from "~/components/shipflow/list-toolbar";
 import { FADE_UP, PageHeader, STAGGER, StatusBadge } from "~/components/shipflow/ui-kit";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { statusLabel } from "~/components/shipflow/status";
 import { trpc } from "~/trpc/client";
 
 type FeatureStatus = keyof typeof statusLabel;
+
+type TaskFilter = "all" | "active" | "review" | "done" | "blocked";
+type TaskSort = "newest" | "oldest" | "title" | "priority";
+
+const TASK_FILTERS: ToolbarOption<TaskFilter>[] = [
+  { value: "all", label: "All" },
+  { value: "active", label: "Active" },
+  { value: "review", label: "In review" },
+  { value: "done", label: "Done" },
+  { value: "blocked", label: "Blocked" },
+];
+
+const TASK_SORTS: ToolbarOption<TaskSort>[] = [
+  { value: "newest", label: "Newest first" },
+  { value: "oldest", label: "Oldest first" },
+  { value: "title", label: "Title A–Z" },
+  { value: "priority", label: "Priority" },
+];
+
+// High → low ordering for the "Priority" sort.
+const PRIORITY_RANK: Record<string, number> = { urgent: 0, high: 1, medium: 2, low: 3 };
 
 export default function TasksPage() {
   const { activeProjectId, activeProject, ready, isLoading: projectsLoading } = useActiveProject();
@@ -19,9 +43,42 @@ export default function TasksPage() {
     { enabled: ready && !projectsLoading },
   );
 
-  const activeFeatures = features.filter(
-    (feature) => !["intake", "clarifying", "prd_ready"].includes(feature.status),
+  const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search, 200);
+  const [filter, setFilter] = useState<TaskFilter>("all");
+  const [sort, setSort] = useState<TaskSort>("newest");
+
+  const activeFeatures = useMemo(
+    () =>
+      features.filter(
+        (feature) => !["intake", "clarifying", "prd_ready"].includes(feature.status),
+      ),
+    [features],
   );
+
+  const visible = useMemo(() => {
+    const query = debouncedSearch.trim().toLowerCase();
+    const filtered = activeFeatures.filter((f) => {
+      if (query && !`${f.title} ${f.description ?? ""}`.toLowerCase().includes(query)) {
+        return false;
+      }
+      if (filter === "active") return ["tasks_ready", "in_progress"].includes(f.status);
+      if (filter === "review") return f.status === "in_review";
+      if (filter === "done") return ["approved", "shipped"].includes(f.status);
+      if (filter === "blocked") return f.status === "blocked";
+      return true;
+    });
+
+    return [...filtered].sort((a, b) => {
+      if (sort === "title") return a.title.localeCompare(b.title);
+      if (sort === "priority") {
+        return (PRIORITY_RANK[a.priority] ?? 99) - (PRIORITY_RANK[b.priority] ?? 99);
+      }
+      const diff = new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      return sort === "oldest" ? -diff : diff;
+    });
+  }, [activeFeatures, debouncedSearch, filter, sort]);
+
   const showSkeleton = !ready || projectsLoading || isLoading;
 
   return (
@@ -33,15 +90,33 @@ export default function TasksPage() {
         />
       </motion.div>
 
+      {!showSkeleton && activeFeatures.length > 0 ? (
+        <ListToolbar
+          search={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="Search tasks…"
+          filters={TASK_FILTERS}
+          activeFilter={filter}
+          onFilterChange={setFilter}
+          sortOptions={TASK_SORTS}
+          activeSort={sort}
+          onSortChange={setSort}
+        />
+      ) : null}
+
       {showSkeleton ? (
         <TasksListSkeleton rows={3} />
       ) : activeFeatures.length === 0 ? (
         <motion.div variants={FADE_UP} className="border border-border bg-card p-12 text-center">
           <p className="text-sm text-muted-foreground">No tasks yet. Approve a PRD to generate engineering tasks.</p>
         </motion.div>
+      ) : visible.length === 0 ? (
+        <motion.div variants={FADE_UP} className="border border-border bg-card p-12 text-center">
+          <p className="text-sm text-muted-foreground">No tasks match your search or filter.</p>
+        </motion.div>
       ) : (
         <div className="space-y-3">
-          {activeFeatures.map((feature) => {
+          {visible.map((feature) => {
             const status = feature.status as FeatureStatus;
             return (
               <motion.div variants={FADE_UP} key={feature.id}>

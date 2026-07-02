@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import {
   CheckCircle2,
@@ -15,7 +15,9 @@ import {
 import { toast } from "sonner";
 
 import { useActiveProject } from "~/components/shipflow/project-context";
+import { ListToolbar, type ToolbarOption } from "~/components/shipflow/list-toolbar";
 import { FADE_UP, PageHeader, STAGGER } from "~/components/shipflow/ui-kit";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -36,12 +38,20 @@ import { cn } from "~/lib/utils";
 import { trpc } from "~/trpc/client";
 
 type StatusFilter = "all" | "running" | "passed" | "failed";
+type ReviewSort = "newest" | "oldest" | "score_high" | "score_low";
 
-const FILTERS: { value: StatusFilter; label: string }[] = [
+const FILTERS: ToolbarOption<StatusFilter>[] = [
   { value: "all", label: "All" },
   { value: "running", label: "Running" },
   { value: "passed", label: "Passed" },
   { value: "failed", label: "Failed" },
+];
+
+const REVIEW_SORTS: ToolbarOption<ReviewSort>[] = [
+  { value: "newest", label: "Newest first" },
+  { value: "oldest", label: "Oldest first" },
+  { value: "score_high", label: "Score high → low" },
+  { value: "score_low", label: "Score low → high" },
 ];
 
 function verdictBadge(status: string) {
@@ -85,6 +95,9 @@ function formatDate(value: string | Date | null) {
 export default function ReviewsPage() {
   const { activeProjectId, ready, isLoading } = useActiveProject();
   const [filter, setFilter] = useState<StatusFilter>("all");
+  const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search, 200);
+  const [sort, setSort] = useState<ReviewSort>("newest");
   const [openCycleId, setOpenCycleId] = useState<string | null>(null);
   const utils = trpc.useUtils();
 
@@ -96,6 +109,32 @@ export default function ReviewsPage() {
       },
       { enabled: ready && !isLoading },
     );
+
+  // Search (feature title / PR number / repo) and sort are applied client-side
+  // over the status-filtered cycles the server returns.
+  const visibleCycles = useMemo(() => {
+    const query = debouncedSearch.trim().toLowerCase();
+    const filtered = cycles.filter((cycle) => {
+      if (!query) return true;
+      const haystack = `${cycle.featureTitle ?? ""} #${cycle.prNumber} ${cycle.repoFullName}`.toLowerCase();
+      return haystack.includes(query);
+    });
+
+    return [...filtered].sort((a, b) => {
+      if (sort === "score_high" || sort === "score_low") {
+        // Missing scores sort last regardless of direction.
+        const sa = a.prdComplianceScore ?? -1;
+        const sb = b.prdComplianceScore ?? -1;
+        if (sa === -1 && sb === -1) return 0;
+        if (sa === -1) return 1;
+        if (sb === -1) return -1;
+        return sort === "score_high" ? sb - sa : sa - sb;
+      }
+      const at = new Date(a.completedAt ?? a.createdAt).getTime();
+      const bt = new Date(b.completedAt ?? b.createdAt).getTime();
+      return sort === "oldest" ? at - bt : bt - at;
+    });
+  }, [cycles, debouncedSearch, sort]);
 
   // Features the user can attach a review to (current scope).
   const { data: features = [] } = trpc.feature.list.useQuery(
@@ -130,24 +169,18 @@ export default function ReviewsPage() {
         />
       </motion.div>
 
-      {/* Status filter */}
-      <motion.div variants={FADE_UP} className="flex flex-wrap gap-2">
-        {FILTERS.map((f) => (
-          <button
-            key={f.value}
-            type="button"
-            onClick={() => setFilter(f.value)}
-            className={cn(
-              "border px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider transition-colors",
-              filter === f.value
-                ? "border-primary/40 bg-primary/10 text-primary"
-                : "border-border bg-card text-muted-foreground hover:border-foreground/20 hover:text-foreground",
-            )}
-          >
-            {f.label}
-          </button>
-        ))}
-      </motion.div>
+      {/* Search + status filter + sort */}
+      <ListToolbar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search by feature, PR #, or repo…"
+        filters={FILTERS}
+        activeFilter={filter}
+        onFilterChange={setFilter}
+        sortOptions={REVIEW_SORTS}
+        activeSort={sort}
+        onSortChange={setSort}
+      />
 
       {cyclesLoading ? (
         <motion.div variants={FADE_UP} className="border border-border bg-card p-12 text-center">
@@ -160,6 +193,10 @@ export default function ReviewsPage() {
               ? "No reviews yet. Link a GitHub PR to trigger AI review."
               : `No ${filter} reviews.`}
           </p>
+        </motion.div>
+      ) : visibleCycles.length === 0 ? (
+        <motion.div variants={FADE_UP} className="border border-border bg-card p-12 text-center">
+          <p className="text-sm text-muted-foreground">No reviews match your search.</p>
         </motion.div>
       ) : (
         <motion.div variants={FADE_UP} className="overflow-hidden border border-border bg-card">
@@ -174,7 +211,7 @@ export default function ReviewsPage() {
           </div>
 
           <div className="divide-y divide-border">
-            {cycles.map((cycle) => {
+            {visibleCycles.map((cycle) => {
               const badge = verdictBadge(cycle.status);
               return (
                 <div

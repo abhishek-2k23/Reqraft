@@ -1117,13 +1117,17 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="gap-5">
-        <PipelineStepper
-          status={status}
-          value={activeTab}
-          onSelect={setActiveTab}
-          isGeneratingPrd={isGeneratingPrd}
-          isGeneratingTasks={isGeneratingTasks}
-        />
+        {/* Pipeline stepper stays pinned under the top nav while scrolling the
+            active stage's content, so switching stages is always in reach. */}
+        <div className="sticky top-14 z-20 -mx-1 bg-background/80 px-1 py-3 backdrop-blur-md">
+          <PipelineStepper
+            status={status}
+            value={activeTab}
+            onSelect={setActiveTab}
+            isGeneratingPrd={isGeneratingPrd}
+            isGeneratingTasks={isGeneratingTasks}
+          />
+        </div>
 
       {/* ── Clarify ──────────────────────────────────────── */}
       <TabsContent value="clarify">

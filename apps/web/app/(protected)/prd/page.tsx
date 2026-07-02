@@ -2,14 +2,32 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { CheckCircle2, Clock, FileText, Loader2, Plus, Sparkles } from "lucide-react";
 
 import { ProjectTag, useActiveProject } from "~/components/shipflow/project-context";
 import { LinkPending } from "~/components/shipflow/link-pending";
+import { ListToolbar, type ToolbarOption } from "~/components/shipflow/list-toolbar";
 import { FADE_UP, PageHeader, STAGGER } from "~/components/shipflow/ui-kit";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { trpc } from "~/trpc/client";
+
+type PrdFilter = "all" | "generating" | "pending" | "active";
+type PrdSort = "newest" | "oldest" | "title";
+
+const PRD_FILTERS: ToolbarOption<PrdFilter>[] = [
+  { value: "all", label: "All" },
+  { value: "generating", label: "Generating" },
+  { value: "pending", label: "Pending" },
+  { value: "active", label: "Active" },
+];
+
+const PRD_SORTS: ToolbarOption<PrdSort>[] = [
+  { value: "newest", label: "Newest first" },
+  { value: "oldest", label: "Oldest first" },
+  { value: "title", label: "Title A–Z" },
+];
 
 export default function PrdListPage() {
   const router = useRouter();
@@ -18,8 +36,36 @@ export default function PrdListPage() {
     { projectId: activeProjectId ?? undefined },
     { enabled: ready && !isLoading },
   );
-  const withPrd = features.filter((f) => !["intake", "clarifying"].includes(f.status));
+
+  const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search, 200);
+  const [filter, setFilter] = useState<PrdFilter>("all");
+  const [sort, setSort] = useState<PrdSort>("newest");
+
+  const withPrd = useMemo(
+    () => features.filter((f) => !["intake", "clarifying"].includes(f.status)),
+    [features],
+  );
   const hasGenerating = withPrd.some((f) => f.status === "prd_generating");
+
+  const visible = useMemo(() => {
+    const query = debouncedSearch.trim().toLowerCase();
+    const filtered = withPrd.filter((f) => {
+      if (query && !`${f.title} ${f.description ?? ""}`.toLowerCase().includes(query)) {
+        return false;
+      }
+      if (filter === "generating") return f.status === "prd_generating";
+      if (filter === "pending") return f.status === "prd_ready";
+      if (filter === "active") return !["prd_generating", "prd_ready"].includes(f.status);
+      return true;
+    });
+
+    return [...filtered].sort((a, b) => {
+      if (sort === "title") return a.title.localeCompare(b.title);
+      const diff = new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      return sort === "oldest" ? -diff : diff;
+    });
+  }, [withPrd, debouncedSearch, filter, sort]);
 
   // Poll while any PRD is being generated
   useEffect(() => {
@@ -34,6 +80,20 @@ export default function PrdListPage() {
         <PageHeader title="PRDs" description="Product Requirements Documents for all features." />
       </motion.div>
 
+      {withPrd.length > 0 ? (
+        <ListToolbar
+          search={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="Search PRDs…"
+          filters={PRD_FILTERS}
+          activeFilter={filter}
+          onFilterChange={setFilter}
+          sortOptions={PRD_SORTS}
+          activeSort={sort}
+          onSortChange={setSort}
+        />
+      ) : null}
+
       {withPrd.length === 0 ? (
         <motion.div variants={FADE_UP} className="border border-border bg-card p-12 text-center">
           <p className="text-sm text-muted-foreground">No PRDs yet. Create a feature request to generate your first PRD.</p>
@@ -46,9 +106,13 @@ export default function PrdListPage() {
             <LinkPending />
           </Link>
         </motion.div>
+      ) : visible.length === 0 ? (
+        <motion.div variants={FADE_UP} className="border border-border bg-card p-12 text-center">
+          <p className="text-sm text-muted-foreground">No PRDs match your search or filter.</p>
+        </motion.div>
       ) : (
         <div className="grid gap-3">
-          {withPrd.map((feature) => {
+          {visible.map((feature) => {
             const isGenerating = feature.status === "prd_generating";
             return (
               <motion.div variants={FADE_UP} key={feature.id}>
