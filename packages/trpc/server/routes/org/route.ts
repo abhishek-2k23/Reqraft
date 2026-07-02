@@ -1,6 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { and, eq } from "@repo/database";
-import { members, organizations, sessionsTable } from "@repo/database/schema";
+import { members, organizations, sessionsTable, subscriptions } from "@repo/database/schema";
+import { bestPlan, getPlanDetails, type BillingPlan } from "@repo/services/shipflow/billing";
 
 import { orgProcedure, protectedProcedure, router } from "../../trpc";
 import { z } from "../../schema";
@@ -14,6 +15,24 @@ export const orgRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      // Cap how many organizations a user may own. The cap follows their
+      // highest-tier owned org (a user on a paid org gets the higher allowance).
+      const ownedOrgs = await ctx.db
+        .select({ plan: subscriptions.plan })
+        .from(members)
+        .leftJoin(subscriptions, eq(subscriptions.organizationId, members.organizationId))
+        .where(and(eq(members.userId, ctx.session.user.id), eq(members.role, "owner")));
+
+      const plan = bestPlan(ownedOrgs.map((o) => (o.plan ?? "free") as BillingPlan));
+      const orgLimit = getPlanDetails(plan).organizationLimit;
+
+      if (orgLimit !== -1 && ownedOrgs.length >= orgLimit) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: `Your ${plan} plan allows up to ${orgLimit} organizations. Upgrade to create more.`,
+        });
+      }
+
       const id = crypto.randomUUID();
       const [org] = await ctx.db
         .insert(organizations)

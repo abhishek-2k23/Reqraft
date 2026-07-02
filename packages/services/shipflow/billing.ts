@@ -12,7 +12,30 @@ export type PlanDetails = {
   seatsIncluded: number;
   /** Project cap. `-1` means unlimited. */
   projectLimit: number;
+  /** Feature-request cap per organization. `-1` means unlimited. */
+  featureLimit: number;
+  /** How many organizations a user may create/own. `-1` means unlimited. */
+  organizationLimit: number;
 };
+
+/**
+ * Plan tiers, low → high. Used to resolve a user's *best* entitlement when they
+ * belong to several organizations on different plans (e.g. the org-creation cap
+ * follows their highest-tier org).
+ */
+export const planRank: Record<BillingPlan, number> = {
+  free: 0,
+  pro: 1,
+  scale: 2,
+};
+
+/** Highest-tier plan among the given plans (defaults to free when empty). */
+export function bestPlan(plans: BillingPlan[]): BillingPlan {
+  return plans.reduce<BillingPlan>(
+    (best, plan) => (planRank[plan] > planRank[best] ? plan : best),
+    "free",
+  );
+}
 
 export type CreditUsageInput = {
   usedCredits: number;
@@ -54,6 +77,8 @@ const planDetails: Record<BillingPlan, PlanDetails> = {
     repositoryLimit: 3,
     seatsIncluded: 3,
     projectLimit: 3,
+    featureLimit: 5,
+    organizationLimit: 2,
   },
   pro: {
     plan: "pro",
@@ -63,6 +88,8 @@ const planDetails: Record<BillingPlan, PlanDetails> = {
     repositoryLimit: 10,
     seatsIncluded: 10,
     projectLimit: 10,
+    featureLimit: 200,
+    organizationLimit: 5,
   },
   scale: {
     plan: "scale",
@@ -72,6 +99,9 @@ const planDetails: Record<BillingPlan, PlanDetails> = {
     repositoryLimit: 50,
     seatsIncluded: -1,
     projectLimit: 50,
+    // Top tier — scaled up an order of magnitude from Pro.
+    featureLimit: 2000,
+    organizationLimit: 20,
   },
 };
 

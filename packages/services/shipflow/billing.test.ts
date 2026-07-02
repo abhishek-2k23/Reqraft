@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  bestPlan,
   calculateCreditUsage,
   getPlanDetails,
   normalizeRazorpaySubscriptionEvent,
@@ -17,6 +18,8 @@ test("getPlanDetails returns the product limits for each plan", () => {
     repositoryLimit: 10,
     seatsIncluded: 10,
     projectLimit: 10,
+    featureLimit: 200,
+    organizationLimit: 5,
   });
 });
 
@@ -56,6 +59,22 @@ test("getPlanDetails exposes the free and scale tiers", () => {
   // Scale has no team-size cap.
   assert.equal(getPlanDetails("scale").seatsIncluded, -1);
   assert.equal(getPlanDetails("scale").projectLimit, 50);
+});
+
+test("getPlanDetails caps feature requests and organizations per tier", () => {
+  assert.equal(getPlanDetails("free").featureLimit, 5);
+  assert.equal(getPlanDetails("free").organizationLimit, 2);
+  assert.equal(getPlanDetails("pro").featureLimit, 200);
+  assert.equal(getPlanDetails("pro").organizationLimit, 5);
+  assert.equal(getPlanDetails("scale").featureLimit, 2000);
+  assert.equal(getPlanDetails("scale").organizationLimit, 20);
+});
+
+test("bestPlan resolves the highest tier a user belongs to", () => {
+  assert.equal(bestPlan([]), "free");
+  assert.equal(bestPlan(["free", "free"]), "free");
+  assert.equal(bestPlan(["free", "pro"]), "pro");
+  assert.equal(bestPlan(["pro", "scale", "free"]), "scale");
 });
 
 test("normalizeRazorpaySubscriptionEvent ignores unknown events", () => {

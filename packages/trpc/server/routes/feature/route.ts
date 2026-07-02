@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { and, asc, desc, eq, getTableColumns, sql } from "@repo/database";
+import { and, asc, count, desc, eq, getTableColumns, sql } from "@repo/database";
 import {
   clarificationMessages,
   featureRequests,
@@ -9,9 +9,11 @@ import {
   repositories,
   reviewCycles,
   reviewIssues,
+  subscriptions,
   tasks,
   usersTable,
 } from "@repo/database/schema";
+import { getPlanDetails, type BillingPlan } from "@repo/services/shipflow/billing";
 
 import { ensureFeatureBranchName } from "@repo/database/branch";
 
@@ -43,6 +45,29 @@ export const featureRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      // Enforce the plan's feature-request cap (-1 = unlimited).
+      const [subscription] = await ctx.db
+        .select({ plan: subscriptions.plan })
+        .from(subscriptions)
+        .where(eq(subscriptions.organizationId, ctx.org.id));
+
+      const plan = (subscription?.plan ?? "free") as BillingPlan;
+      const featureLimit = getPlanDetails(plan).featureLimit;
+
+      if (featureLimit !== -1) {
+        const [used] = await ctx.db
+          .select({ value: count() })
+          .from(featureRequests)
+          .where(eq(featureRequests.organizationId, ctx.org.id));
+
+        if ((used?.value ?? 0) >= featureLimit) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: `Your ${plan} plan allows up to ${featureLimit} feature requests. Upgrade to create more.`,
+          });
+        }
+      }
+
       const [feature] = await ctx.db
         .insert(featureRequests)
         .values({

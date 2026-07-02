@@ -26,6 +26,8 @@ const plans: Plan[] = [
     tagline: "For trying the whole loop end to end.",
     features: [
       "100 AI review credits / month",
+      "5 feature requests",
+      "2 organizations",
       "3 connected repositories",
       "3 projects",
       "Up to 3 teammates",
@@ -41,6 +43,8 @@ const plans: Plan[] = [
     tagline: "For teams shipping features every week.",
     features: [
       "1,000 AI review credits / month",
+      "200 feature requests",
+      "5 organizations",
       "10 connected repositories",
       "10 projects",
       "Up to 10 teammates",
@@ -57,6 +61,8 @@ const plans: Plan[] = [
     tagline: "For larger orgs with many repos.",
     features: [
       "5,000 AI review credits / month",
+      "2,000 feature requests",
+      "20 organizations",
       "50 connected repositories",
       "50 projects",
       "Unlimited teammates",

@@ -97,6 +97,7 @@ export const billingRouter = router({
         projectsUsed: projectsCount?.value ?? 0,
         projectLimit: planDetails.projectLimit,
         featuresCreated: features?.value ?? 0,
+        featureLimit: planDetails.featureLimit,
         creditsUsed,
         creditsIncluded: subscription?.aiReviewCredits ?? planDetails.includedCredits,
       },

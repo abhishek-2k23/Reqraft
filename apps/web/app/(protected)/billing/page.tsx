@@ -17,13 +17,15 @@ function planFeatures(plan: BillingPlan): string[] {
   const credits = d.includedCredits >= 0 ? `${INR.format(d.includedCredits)} AI review credits/mo` : "Unlimited AI reviews";
   const repos = d.repositoryLimit >= 0 ? `${d.repositoryLimit} ${d.repositoryLimit === 1 ? "repository" : "repositories"}` : "Unlimited repositories";
   const projectsLine = d.projectLimit >= 0 ? `${d.projectLimit} projects` : "Unlimited projects";
+  const featuresLine = d.featureLimit >= 0 ? `${INR.format(d.featureLimit)} feature requests` : "Unlimited feature requests";
+  const orgsLine = d.organizationLimit >= 0 ? `${d.organizationLimit} ${d.organizationLimit === 1 ? "organization" : "organizations"}` : "Unlimited organizations";
   const seats = d.seatsIncluded >= 0 ? `${d.seatsIncluded} team seats` : "Unlimited team seats";
   const extras: Record<BillingPlan, string> = {
-    free: "Community support",
+    free: "",
     pro: "Priority support & analytics",
     scale: "SLA & dedicated support",
   };
-  return [repos, projectsLine, credits, seats, extras[plan]];
+  return [featuresLine, orgsLine, projectsLine, repos, credits, seats, extras[plan]].filter(Boolean);
 }
 
 function UsageBar({ label, used, limit }: { label: string; used: number; limit: number | null }) {
@@ -65,6 +67,7 @@ export default async function BillingPage() {
     projectsUsed: 0,
     projectLimit: details.projectLimit,
     featuresCreated: 0,
+    featureLimit: details.featureLimit,
     creditsUsed: 0,
     creditsIncluded: details.includedCredits,
   };
@@ -102,7 +105,7 @@ export default async function BillingPage() {
             <UsageBar label="Repositories connected" used={usage.repositoriesUsed} limit={usage.repositoryLimit} />
             <UsageBar label="Projects" used={usage.projectsUsed} limit={usage.projectLimit} />
             <UsageBar label="Team seats" used={usage.seatsUsed} limit={usage.seatLimit} />
-            <UsageBar label="Feature requests created" used={usage.featuresCreated} limit={null} />
+            <UsageBar label="Feature requests created" used={usage.featuresCreated} limit={usage.featureLimit >= 0 ? usage.featureLimit : null} />
           </div>
         </div>
 
@@ -117,13 +120,19 @@ export default async function BillingPage() {
               <div
                 key={planId}
                 className={cn(
-                  "flex flex-col rounded-lg border p-5",
-                  highlight ? "border-primary/40 bg-primary/5" : "border-foreground/10 bg-foreground/[0.03]",
-                  isCurrent && "ring-1 ring-primary/50",
+                  "relative flex flex-col rounded-lg border p-5 transition-colors",
+                  // Background follows the plan (Pro highlight vs default) only —
+                  // never changed by "current", so the Free card keeps its bg.
+                  highlight ? "bg-primary/5" : "bg-foreground/[0.03]",
+                  isCurrent
+                    ? " "
+                    : highlight
+                      ? "border-primary/40"
+                      : "border-foreground/10",
                 )}
               >
                 {isCurrent ? (
-                  <span className="mb-3 inline-block w-fit rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 text-[10px] font-semibold text-primary">
+                  <span className="absolute right-4 top-4 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 text-[10px] font-semibold text-primary">
                     Current plan
                   </span>
                 ) : null}
@@ -146,7 +155,10 @@ export default async function BillingPage() {
                   {!isCurrent && planId !== "free" ? (
                     <UpgradeButton plan={planId as "pro" | "scale"} label={plan.label} highlight={highlight} />
                   ) : isCurrent ? (
-                    <p className="text-center text-xs text-muted-foreground">Your active plan</p>
+                    <div className="flex h-10 items-center justify-center gap-1.5 rounded-md border  text-xs font-semibold text-primary">
+                      <CheckCircle2 className="size-3.5" />
+                      Your active plan
+                    </div>
                   ) : (
                     <p className="text-center text-xs text-muted-foreground">No charge</p>
                   )}
