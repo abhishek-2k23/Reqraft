@@ -27,8 +27,30 @@ export function SmoothScroll() {
     }
     frame = requestAnimationFrame(raf);
 
+    // Lenis drives scrolling from window `wheel` events, which sidesteps the
+    // `overflow: hidden` body lock that Radix modals apply via
+    // react-remove-scroll — so without this, scrolling inside an open dialog
+    // (⌘K palette, sheets, …) still scrolls the page behind it. react-remove
+    // -scroll-bar tags <body> with `data-scroll-locked` whenever a modal locks
+    // scroll; mirror that by pausing Lenis so the modal's own scroll container
+    // takes over, and resume once every modal has closed.
+    const syncLenisWithScrollLock = () => {
+      if (document.body.hasAttribute("data-scroll-locked")) {
+        lenis.stop();
+      } else {
+        lenis.start();
+      }
+    };
+    syncLenisWithScrollLock();
+    const observer = new MutationObserver(syncLenisWithScrollLock);
+    observer.observe(document.body, {
+      attributes: true,
+      attributeFilter: ["data-scroll-locked"],
+    });
+
     return () => {
       cancelAnimationFrame(frame);
+      observer.disconnect();
       lenis.destroy();
     };
   }, []);
