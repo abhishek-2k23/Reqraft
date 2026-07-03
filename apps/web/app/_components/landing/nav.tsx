@@ -9,11 +9,13 @@ import { SiGithub } from "react-icons/si";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 
+// Root-anchored so they navigate home first when clicked from /docs/* pages
 const links = [
-  { href: "#demo", label: "Demo" },
-  { href: "#how-it-works", label: "How it works" },
-  { href: "#features", label: "Features" },
-  { href: "#pricing", label: "Pricing" },
+  { href: "/#demo", label: "Demo" },
+  { href: "/#how-it-works", label: "How it works" },
+  { href: "/#features", label: "Features" },
+  { href: "/#cli", label: "CLI" },
+  { href: "/#pricing", label: "Pricing" },
 ];
 
 export function LandingNav() {
@@ -62,14 +64,14 @@ export function LandingNav() {
         {/* links */}
         <div className="hidden items-center gap-1 md:flex">
           {links.map((l) => (
-            <a
+            <Link
               key={l.href}
               href={l.href}
               className="group relative px-3 py-2 font-mono text-[11px] uppercase tracking-[0.16em] text-muted-foreground transition-colors hover:text-foreground"
             >
               <span className="absolute inset-x-3 bottom-1 h-px origin-left scale-x-0 bg-primary transition-transform duration-300 group-hover:scale-x-100" />
               {l.label}
-            </a>
+            </Link>
           ))}
         </div>
 

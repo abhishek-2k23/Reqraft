@@ -51,69 +51,6 @@ export function LandingHero() {
         <HeroBackground className="absolute inset-0" />
       </div>
 
-      {/* quiet geometry — blueprint accents, no gradients */}
-      <div aria-hidden className="pointer-events-none absolute inset-0 -z-[5]">
-        {/* dashed ring behind the headline */}
-        <svg
-          viewBox="0 0 600 600"
-          className="absolute left-1/2 top-[46%] size-[560px] -translate-x-1/2 -translate-y-1/2 opacity-[0.35] sm:size-[680px]"
-          fill="none"
-          style={{ animation: "orbit-spin 150s linear infinite" }}
-        >
-          <circle cx="300" cy="300" r="272" className="stroke-border" strokeDasharray="3 9" />
-          <circle cx="300" cy="300" r="216" className="stroke-border/60" strokeDasharray="2 12" />
-          {[45, 135, 225, 315].map((a) => {
-            const rad = (a * Math.PI) / 180;
-            return (
-              <line
-                key={a}
-                x1={300 + 264 * Math.cos(rad)}
-                y1={300 + 264 * Math.sin(rad)}
-                x2={300 + 280 * Math.cos(rad)}
-                y2={300 + 280 * Math.sin(rad)}
-                className="stroke-border"
-              />
-            );
-          })}
-        </svg>
-
-        {/* scattered plus marks */}
-        {[
-          { l: "12%", t: "24%" },
-          { l: "86%", t: "20%" },
-          { l: "7%", t: "62%" },
-          { l: "91%", t: "58%" },
-          { l: "22%", t: "84%" },
-        ].map((p, i) => (
-          <span
-            key={i}
-            className="absolute font-mono text-sm text-border"
-            style={{ left: p.l, top: p.t, animation: `decor-pulse 5s ease-in-out ${i * 0.9}s infinite` }}
-          >
-            +
-          </span>
-        ))}
-
-        {/* floating wireframe shapes */}
-        <span
-          className="absolute left-[9%] top-[38%] hidden size-10 rotate-45 border border-border/80 lg:block"
-          style={{ animation: "decor-float 9s ease-in-out infinite" }}
-        />
-        <span
-          className="absolute right-[8%] top-[34%] hidden lg:block"
-          style={{ animation: "decor-float 11s ease-in-out 1.4s infinite" }}
-        >
-          <svg width="52" height="52" viewBox="0 0 52 52" fill="none">
-            <circle cx="26" cy="26" r="22" className="stroke-border/80" />
-            <circle cx="26" cy="4" r="2.5" className="fill-primary/70" />
-          </svg>
-        </span>
-        <span
-          className="absolute bottom-[30%] right-[14%] hidden size-6 border border-primary/25 lg:block"
-          style={{ animation: "decor-float 8s ease-in-out 0.6s infinite" }}
-        />
-      </div>
-
       <motion.div
         initial="hidden"
         animate="show"

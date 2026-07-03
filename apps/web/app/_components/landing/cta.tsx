@@ -4,11 +4,10 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { ArrowRight, MessageSquareText } from "lucide-react";
 
-import { ScrambleText } from "./scramble-text";
-
 export function LandingCta() {
   return (
-    <section className="mx-auto mt-32 w-full max-w-7xl px-5 sm:px-8 lg:px-10">
+    <section className="mt-32 w-full px-3 sm:px-5">
+      <div className="mx-auto w-full max-w-6xl">
       <motion.div
         initial={{ opacity: 0, y: 28 }}
         whileInView={{ opacity: 1, y: 0 }}
@@ -21,7 +20,7 @@ export function LandingCta() {
         <div className="relative mx-auto max-w-2xl">
           <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-primary">Ship with confidence</p>
           <h2 className="mt-5 font-[family-name:var(--font-display)] text-4xl tracking-tight sm:text-5xl">
-            <ScrambleText text="Ship what the PRD" />{" "}
+            Ship what the PRD{" "}
             <span className="font-[family-name:var(--font-serif)] italic text-foreground/60">
               promised.
             </span>
@@ -48,6 +47,7 @@ export function LandingCta() {
           </div>
         </div>
       </motion.div>
+      </div>
     </section>
   );
 }

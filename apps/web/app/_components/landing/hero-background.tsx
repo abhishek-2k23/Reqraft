@@ -27,9 +27,10 @@ function palette(): Palette {
         bg: new THREE.Color(0x14161c),
       }
     : {
-        dot: new THREE.Color(0x9aa0b0),
-        hot: new THREE.Color(0xd97e0f),
-        bg: new THREE.Color(0xf2f3f7),
+        // light mode needs far darker dots — mid grays wash out on the pale bg
+        dot: new THREE.Color(0x525a6e),
+        hot: new THREE.Color(0xc26a05),
+        bg: new THREE.Color(0xdfe2ea),
       };
 }
 

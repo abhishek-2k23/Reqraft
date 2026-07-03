@@ -45,8 +45,8 @@ function CountUp({ value, decimals, suffix }: { value: number; decimals: number;
 
 export function LandingMetrics() {
   return (
-    <section className="mx-auto mt-32 w-full max-w-7xl px-5 sm:px-8 lg:px-10">
-      <div className="grid grid-cols-2 border-l border-t border-border lg:grid-cols-4">
+    <section className="mt-32 w-full px-3 sm:px-5">
+      <div className="mx-auto grid w-full max-w-6xl grid-cols-2 border-l border-t border-border lg:grid-cols-4">
         {metrics.map((m, i) => (
           <motion.div
             key={m.label}

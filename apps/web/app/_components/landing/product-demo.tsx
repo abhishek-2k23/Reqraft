@@ -21,7 +21,8 @@ export function ProductDemo() {
   const inView = useInView(frameRef, { margin: "-60px" });
 
   return (
-    <section id="demo" className="relative z-10 mx-auto -mt-44 w-full max-w-6xl scroll-mt-24 px-4 sm:px-8 lg:px-10">
+    <section id="demo" className="relative z-10 -mt-44 w-full scroll-mt-24 px-3 sm:px-5">
+      <div className="mx-auto w-full max-w-6xl">
       <motion.div
         ref={frameRef}
         initial={{ opacity: 0, y: 34 }}
@@ -120,6 +121,7 @@ export function ProductDemo() {
           </AnimatePresence>
         </div>
       </motion.div>
+      </div>
     </section>
   );
 }

@@ -103,7 +103,7 @@ function Kbd({ children }: { children: React.ReactNode }) {
 function PageTitle({ title, sub }: { title: string; sub: string }) {
   return (
     <div>
-      <p className="font-[family-name:var(--font-display)] text-lg font-medium leading-tight text-foreground sm:text-xl">
+      <p className="text-lg font-medium leading-tight text-foreground sm:text-xl">
         {title}
       </p>
       <p className="mt-1 line-clamp-1 text-[10.5px] leading-relaxed text-muted-foreground">{sub}</p>
@@ -619,7 +619,7 @@ function DashboardView() {
                 <s.icon className="size-3" />
               </span>
             </div>
-            <p className="mt-2 font-[family-name:var(--font-display)] text-xl text-foreground">{s.value}</p>
+            <p className="mt-2 text-xl text-foreground">{s.value}</p>
             <p className="mt-1 text-[8.5px] text-muted-foreground">{s.sub}</p>
           </div>
         ))}

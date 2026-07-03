@@ -14,7 +14,6 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { ScrambleText } from "./scramble-text";
 
 /**
  * "How Reqraft works" — the agentic core powers up each pipeline station in
@@ -311,11 +310,12 @@ export function HowItWorks() {
         }`;
 
   return (
-    <section id="how-it-works" className="mx-auto mt-32 w-full max-w-7xl scroll-mt-24 px-5 sm:px-8 lg:px-10">
+    <section id="how-it-works" className="mt-32 w-full scroll-mt-24 px-3 sm:px-5">
+      <div className="mx-auto w-full max-w-6xl">
       <div className="max-w-2xl">
         <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-primary">How Reqraft works</p>
         <h2 className="mt-4 font-[family-name:var(--font-display)] text-3xl tracking-tight sm:text-4xl">
-          <ScrambleText text="One core, powering every" />{" "}
+          One core, powering every{" "}
           <span className="font-[family-name:var(--font-serif)] italic text-foreground/60">
             station in the loop.
           </span>
@@ -383,6 +383,7 @@ export function HowItWorks() {
             );
           })}
         </div>
+      </div>
       </div>
     </section>
   );

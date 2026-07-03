@@ -14,7 +14,7 @@
   --radius-4xl: 0px;
 
   /* Type — Geist (sans) + Geist Mono, Regular-led.
-     Landing-only accents: Space Grotesk (display headings) + Instrument Serif (special text). */
+     Landing accents: Space Grotesk (display headings) + Instrument Serif (special text). */
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
   --font-display: var(--font-space-grotesk), var(--font-geist-sans), ui-sans-serif, sans-serif;
@@ -288,54 +288,29 @@ html.lenis body {
 
 /* ---- Landing page: premium neon cards + route-map visuals ---- */
 
-/* Registered so the conic-gradient angle can animate smoothly */
-@property --neon-angle {
-  syntax: "<angle>";
-  initial-value: 0deg;
-  inherits: false;
-}
-
-/* Bento card with a neon gradient border that comes alive on hover */
+/* Feature card — hover frosts it into glass over the page background,
+   with a hairline top highlight and a calm amber border. No gradients. */
 .neon-card {
   position: relative;
   border: 1px solid var(--border);
   background: color-mix(in oklab, var(--card) 72%, transparent);
-  transition: box-shadow 0.45s ease, border-color 0.45s ease;
-}
-.neon-card::before {
-  content: "";
-  position: absolute;
-  inset: -1px;
-  padding: 1px;
-  background: conic-gradient(
-    from var(--neon-angle),
-    transparent 0%,
-    var(--primary) 10%,
-    transparent 24%,
-    transparent 55%,
-    color-mix(in oklab, var(--success) 70%, transparent) 68%,
-    transparent 82%
-  );
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  mask-composite: exclude;
-  opacity: 0;
-  transition: opacity 0.45s ease;
-  pointer-events: none;
+  -webkit-backdrop-filter: blur(0);
+  backdrop-filter: blur(0);
+  transition:
+    box-shadow 0.45s ease,
+    border-color 0.45s ease,
+    background 0.45s ease,
+    backdrop-filter 0.45s ease,
+    -webkit-backdrop-filter 0.45s ease;
 }
 .neon-card:hover {
-  border-color: transparent;
-  box-shadow: 0 0 22px var(--glow-primary);
-}
-.neon-card:hover::before {
-  opacity: 1;
-  animation: neon-rotate 3.4s linear infinite;
-}
-@keyframes neon-rotate {
-  to {
-    --neon-angle: 360deg;
-  }
+  border-color: color-mix(in oklab, var(--primary) 40%, var(--border));
+  background: color-mix(in oklab, var(--card) 42%, transparent);
+  -webkit-backdrop-filter: blur(14px) saturate(1.25);
+  backdrop-filter: blur(14px) saturate(1.25);
+  box-shadow:
+    inset 0 1px 0 0 color-mix(in oklab, var(--foreground) 10%, transparent),
+    0 0 18px var(--glow-primary);
 }
 
 /* Hero orbital rings — parent spins, chips counter-spin to stay upright */
@@ -345,25 +320,6 @@ html.lenis body {
   }
 }
 
-/* Hero blueprint decor — slow drift + soft pulsing plus-marks */
-@keyframes decor-float {
-  0%,
-  100% {
-    transform: translateY(0) rotate(45deg);
-  }
-  50% {
-    transform: translateY(-12px) rotate(45deg);
-  }
-}
-@keyframes decor-pulse {
-  0%,
-  100% {
-    opacity: 0.25;
-  }
-  50% {
-    opacity: 0.7;
-  }
-}
 
 /* Footer wordmark — a light sheen sweeps along the outlined brand letters */
 .wordmark-outline {

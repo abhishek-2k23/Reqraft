@@ -5,7 +5,6 @@ import { motion } from "framer-motion";
 import { ArrowRight, Check, Zap } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { ScrambleText } from "./scramble-text";
 
 type Plan = {
   name: string;
@@ -77,11 +76,12 @@ const plans: Plan[] = [
 
 export function LandingPricing() {
   return (
-    <section id="pricing" className="mx-auto mt-32 w-full max-w-7xl scroll-mt-24 px-5 sm:px-8 lg:px-10">
+    <section id="pricing" className="mt-32 w-full scroll-mt-24 px-3 sm:px-5">
+      <div className="mx-auto w-full max-w-6xl">
       <div className="mx-auto max-w-2xl text-center">
         <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-primary">Pricing</p>
         <h2 className="mt-4 font-[family-name:var(--font-display)] text-3xl tracking-tight sm:text-4xl">
-          <ScrambleText text="Start free." />{" "}
+          Start free.{" "}
           <span className="font-[family-name:var(--font-serif)] italic text-foreground/60">
             Pay as you ship more.
           </span>
@@ -173,6 +173,7 @@ export function LandingPricing() {
       <p className="mt-6 text-center font-mono text-[11px] text-muted-foreground">
         Prices in INR, billed monthly via Razorpay. Cancel anytime — access lasts to the period end.
       </p>
+      </div>
     </section>
   );
 }
