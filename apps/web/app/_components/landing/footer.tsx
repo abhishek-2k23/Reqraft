@@ -1,15 +1,18 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
+import { ArrowUpRight } from "lucide-react";
+import { SiGithub } from "react-icons/si";
 
 const columns = [
   {
     title: "Product",
     links: [
-      { href: "/features", label: "Features" },
-      { href: "/prd", label: "PRDs" },
-      { href: "/reviews", label: "Reviews" },
-      { href: "/billing", label: "Pricing" },
+      { href: "/#demo", label: "Demo" },
+      { href: "/#how-it-works", label: "How it works" },
+      { href: "/#features", label: "Features" },
+      { href: "/#pricing", label: "Pricing" },
     ],
   },
   {
@@ -17,6 +20,7 @@ const columns = [
     links: [
       { href: "/sign-in?callbackUrl=/features/new", label: "Generate a PRD" },
       { href: "/sign-in?callbackUrl=/tasks", label: "Task board" },
+      { href: "/sign-in?callbackUrl=/reviews", label: "AI reviews" },
       { href: "/sign-in?callbackUrl=/github", label: "GitHub sync" },
     ],
   },
@@ -32,26 +36,63 @@ const columns = [
 
 export function LandingFooter() {
   return (
-    <footer className="mt-32 w-full border-t border-border">
+    <footer className="relative mt-32 w-full overflow-hidden border-t border-border">
+      {/* faint top glow */}
+      <div className="pointer-events-none absolute left-1/2 top-0 h-40 w-[720px] max-w-full -translate-x-1/2 -translate-y-1/2 bg-[var(--glow-primary)] blur-[120px]" />
+
       <div className="mx-auto w-full max-w-7xl px-5 py-16 sm:px-8 lg:px-10">
         <div className="grid gap-10 sm:grid-cols-3 lg:grid-cols-[1.4fr_repeat(3,1fr)]">
           <div>
-            <span className="text-sm font-medium tracking-tight">Reqraft</span>
-            <p className="mt-3 max-w-xs font-mono text-xs leading-relaxed text-muted-foreground">
-              From feature request to reviewed, approved, shipped software.
+            <div className="flex items-center gap-2.5">
+              <Image
+                src="/icons/reqraft-icon-transparent-512.png"
+                alt="Reqraft"
+                width={28}
+                height={28}
+                className="size-7"
+              />
+              <div>
+                <p className="text-sm font-medium tracking-tight">Reqraft</p>
+                <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted-foreground">
+                  Product delivery OS
+                </p>
+              </div>
+            </div>
+            <p className="mt-4 max-w-xs font-mono text-xs leading-relaxed text-muted-foreground">
+              From feature request to reviewed, approved, shipped software — one agentic core.
             </p>
+            <div className="mt-5 flex items-center gap-2">
+              <a
+                href="https://github.com/abhishek-2k23/Reqraft"
+                target="_blank"
+                rel="noreferrer"
+                aria-label="Reqraft on GitHub"
+                className="grid size-9 place-items-center border border-border bg-foreground/[0.03] text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+              >
+                <SiGithub className="size-4" />
+              </a>
+              <Link
+                href="/sign-in?callbackUrl=/features/new"
+                className="group inline-flex h-9 items-center gap-1.5 border border-border bg-foreground/[0.03] px-3 font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+              >
+                Start shipping
+                <ArrowUpRight className="size-3.5 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+              </Link>
+            </div>
           </div>
+
           {columns.map((col) => (
             <div key={col.title}>
               <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
                 {col.title}
               </p>
-              <ul className="mt-4 space-y-2.5">
+              {/* hovering one link lights its border; the rest of the column picks up a soft text glow */}
+              <ul className="group mt-4 space-y-1.5">
                 {col.links.map((l) => (
                   <li key={l.label}>
                     <Link
                       href={l.href}
-                      className="text-sm text-foreground/70 transition-colors hover:text-foreground"
+                      className="-mx-2 inline-block border border-transparent px-2 py-1 text-sm text-foreground/70 transition-all duration-300 group-hover:[text-shadow:0_0_12px_var(--glow-primary)] hover:border-primary/35 hover:bg-primary/[0.04] hover:text-foreground hover:shadow-[0_0_14px_var(--glow-primary)]"
                     >
                       {l.label}
                     </Link>
@@ -63,13 +104,18 @@ export function LandingFooter() {
         </div>
       </div>
 
-      {/* Oversized outlined wordmark — aligned to the global container width;
-          its outline glows amber on hover */}
+      {/* Oversized outlined wordmark with a slow light sheen sweeping through */}
       <div className="overflow-hidden border-t border-border">
-        <div className="mx-auto w-full max-w-7xl px-5 py-10 text-center sm:px-8 lg:px-10">
+        <div className="relative mx-auto w-full max-w-7xl px-5 py-10 text-center sm:px-8 lg:px-10">
           <span
             aria-hidden
-            className="inline-block w-full select-none text-[clamp(3rem,18vw,14rem)] font-semibold leading-[0.8] tracking-tighter text-transparent transition-all duration-300 [-webkit-text-stroke:1px_var(--border)] hover:[-webkit-text-stroke:1px_var(--primary)] hover:[filter:drop-shadow(0_0_28px_var(--glow-primary))]"
+            className="wordmark-outline inline-block w-full select-none font-[family-name:var(--font-display)] text-[clamp(3rem,17vw,13rem)] font-semibold leading-[0.85] tracking-tighter"
+          >
+            Reqraft
+          </span>
+          <span
+            aria-hidden
+            className="wordmark-sheen pointer-events-none absolute inset-x-5 top-10 inline-block w-[calc(100%-2.5rem)] select-none font-[family-name:var(--font-display)] text-[clamp(3rem,17vw,13rem)] font-semibold leading-[0.85] tracking-tighter sm:inset-x-8 sm:w-[calc(100%-4rem)] lg:inset-x-10 lg:w-[calc(100%-5rem)]"
           >
             Reqraft
           </span>
@@ -82,6 +128,9 @@ export function LandingFooter() {
             <span className="size-1.5 bg-success" />
             All systems operational
           </div>
+          <p className="font-mono text-[11px] text-muted-foreground/70">
+            © {new Date().getFullYear()} Reqraft
+          </p>
           <div className="flex items-center gap-6 font-mono text-xs text-muted-foreground">
             <Link href="/privacy" className="transition-colors hover:text-foreground">
               Privacy policy

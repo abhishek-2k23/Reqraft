@@ -51,11 +51,11 @@ export default function ProfilePage() {
   const [orgFilter, setOrgFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
 
-  const tasks = myTasks.data ?? [];
+  const tasks = myTasks.data;
   const hasMultipleOrgs = (memberships.data?.length ?? 0) > 1;
 
   const filteredTasks = useMemo(() => {
-    return tasks.filter((task) => {
+    return (tasks ?? []).filter((task) => {
       if (orgFilter !== "all" && task.organizationId !== orgFilter) return false;
       if (statusFilter === "all") return true;
       if (statusFilter === "done") return task.status === "done";
@@ -224,7 +224,7 @@ export default function ProfilePage() {
       >
         {myTasks.isPending ? (
           <CardSkeleton />
-        ) : tasks.length === 0 ? (
+        ) : (tasks ?? []).length === 0 ? (
           <EmptyState text="No tasks assigned to you yet." />
         ) : filteredTasks.length === 0 ? (
           <EmptyState text="No tasks match the selected filters." />

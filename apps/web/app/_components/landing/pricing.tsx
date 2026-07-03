@@ -2,15 +2,17 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { ArrowRight, Check } from "lucide-react";
+import { ArrowRight, Check, Zap } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { ScrambleText } from "./scramble-text";
 
 type Plan = {
   name: string;
   price: string;
   cadence: string;
   tagline: string;
+  credits: { label: string; pct: number };
   features: string[];
   cta: string;
   href: string;
@@ -24,8 +26,8 @@ const plans: Plan[] = [
     price: "₹0",
     cadence: "/mo",
     tagline: "For trying the whole loop end to end.",
+    credits: { label: "100 credits / mo", pct: 16 },
     features: [
-      "100 AI review credits / month",
       "5 feature requests",
       "2 organizations",
       "3 connected repositories",
@@ -41,8 +43,8 @@ const plans: Plan[] = [
     price: "₹999",
     cadence: "/mo",
     tagline: "For teams shipping features every week.",
+    credits: { label: "1,000 credits / mo", pct: 56 },
     features: [
-      "1,000 AI review credits / month",
       "200 feature requests",
       "5 organizations",
       "10 connected repositories",
@@ -59,8 +61,8 @@ const plans: Plan[] = [
     price: "₹1,999",
     cadence: "/mo",
     tagline: "For larger orgs with many repos.",
+    credits: { label: "5,000 credits / mo", pct: 92 },
     features: [
-      "5,000 AI review credits / month",
       "2,000 feature requests",
       "20 organizations",
       "50 connected repositories",
@@ -76,18 +78,21 @@ const plans: Plan[] = [
 export function LandingPricing() {
   return (
     <section id="pricing" className="mx-auto mt-32 w-full max-w-7xl scroll-mt-24 px-5 sm:px-8 lg:px-10">
-      <div className="max-w-2xl">
+      <div className="mx-auto max-w-2xl text-center">
         <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-primary">Pricing</p>
-        <h2 className="mt-4 text-3xl tracking-tight sm:text-4xl">
-          Start free. <span className="text-foreground/45">Pay as you ship more.</span>
+        <h2 className="mt-4 font-[family-name:var(--font-display)] text-3xl tracking-tight sm:text-4xl">
+          <ScrambleText text="Start free." />{" "}
+          <span className="font-[family-name:var(--font-serif)] italic text-foreground/60">
+            Pay as you ship more.
+          </span>
         </h2>
         <p className="mt-4 font-mono text-sm leading-relaxed text-muted-foreground">
-          AI reviews are metered as credits and enforced server-side. Every plan includes the full
-          workflow and the CLI — bigger plans just lift the limits.
+          Every plan includes the full workflow and the CLI. AI reviews are metered as credits,
+          enforced server-side — bigger plans just lift the limits.
         </p>
       </div>
 
-      <div className="mt-10 grid gap-4 lg:grid-cols-3">
+      <div className="mt-12 grid gap-4 lg:grid-cols-3">
         {plans.map((plan, i) => (
           <motion.div
             key={plan.name}
@@ -96,33 +101,54 @@ export function LandingPricing() {
             viewport={{ once: true, margin: "-60px" }}
             transition={{ duration: 0.5, delay: i * 0.08 }}
             className={cn(
-              "relative flex flex-col border bg-card/40 p-6",
-              plan.highlighted
-                ? "border-primary/60 shadow-[0_0_60px_var(--glow-primary)]"
-                : "border-border",
+              "neon-card relative flex flex-col p-7",
+              plan.highlighted && "border-primary/50 shadow-[0_0_30px_var(--glow-primary)] lg:-mt-4 lg:mb-[-1px]",
             )}
           >
             {plan.highlighted ? (
-              <span className="absolute -top-3 left-6 border border-primary/60 bg-background px-2 py-1 font-mono text-[10px] uppercase tracking-widest text-primary">
-                Most popular
+              <span className="absolute -top-3 left-7 inline-flex items-center gap-1.5 border border-primary/60 bg-background px-2.5 py-1 font-mono text-[10px] uppercase tracking-widest text-primary">
+                <Zap className="size-3" /> Most popular
               </span>
             ) : null}
 
-            <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
-              {plan.name}
-            </p>
-            <div className="mt-4 flex items-baseline gap-1">
-              <span className="text-4xl tracking-tight">{plan.price}</span>
+            <div className="flex items-baseline justify-between">
+              <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
+                {plan.name}
+              </p>
+              <p className="font-mono text-[9px] uppercase tracking-widest text-muted-foreground/60">
+                billed monthly
+              </p>
+            </div>
+
+            <div className="mt-5 flex items-baseline gap-1">
+              <span className="text-[2.6rem] leading-none tracking-tight">{plan.price}</span>
               <span className="font-mono text-sm text-muted-foreground">{plan.cadence}</span>
             </div>
-            <p className="mt-2 font-mono text-xs leading-relaxed text-muted-foreground">
-              {plan.tagline}
-            </p>
+            <p className="mt-2.5 font-mono text-xs leading-relaxed text-muted-foreground">{plan.tagline}</p>
 
-            <ul className="mt-6 space-y-2.5">
+            {/* credit meter */}
+            <div className="mt-6 border border-border bg-foreground/[0.02] p-3">
+              <div className="flex items-center justify-between font-mono text-[9.5px] uppercase tracking-widest">
+                <span className="text-muted-foreground">AI review credits</span>
+                <span className={plan.highlighted ? "text-primary" : "text-foreground/70"}>
+                  {plan.credits.label}
+                </span>
+              </div>
+              <div className="mt-2 h-1 bg-foreground/10">
+                <motion.div
+                  initial={{ width: 0 }}
+                  whileInView={{ width: `${plan.credits.pct}%` }}
+                  viewport={{ once: true, margin: "-60px" }}
+                  transition={{ duration: 0.9, delay: 0.3 + i * 0.1, ease: "easeOut" }}
+                  className={cn("h-full", plan.highlighted ? "bg-primary" : "bg-foreground/35")}
+                />
+              </div>
+            </div>
+
+            <ul className="mt-5 divide-y divide-border/60">
               {plan.features.map((f) => (
-                <li key={f} className="flex items-start gap-2.5 text-sm">
-                  <Check className="mt-0.5 size-4 shrink-0 text-primary" />
+                <li key={f} className="flex items-start gap-2.5 py-2 text-sm">
+                  <Check className={cn("mt-0.5 size-3.5 shrink-0", plan.highlighted ? "text-primary" : "text-muted-foreground")} />
                   <span className="text-foreground/80">{f}</span>
                 </li>
               ))}
@@ -131,7 +157,7 @@ export function LandingPricing() {
             <Link
               href={plan.href}
               className={cn(
-                "group mt-8 inline-flex h-11 items-center justify-center gap-2 border px-5 text-sm font-medium transition-colors",
+                "group mt-7 inline-flex h-11 items-center justify-center gap-2 border px-5 text-sm font-medium transition-colors",
                 plan.highlighted
                   ? "border-primary bg-primary text-primary-foreground hover:bg-transparent hover:text-foreground"
                   : "border-border bg-foreground/[0.03] text-foreground hover:bg-foreground/[0.06]",

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Instrument_Serif, Space_Grotesk } from "next/font/google";
 import localFont from "next/font/local";
 import "./globals.css";
 import { GlobalProviders } from "~/providers/global";
@@ -12,6 +13,19 @@ const geistSans = localFont({
 const geistMono = localFont({
   src: "./fonts/GeistMonoVF.woff",
   variable: "--font-geist-mono",
+});
+// Display + accent pairing for landing headings / special text only
+const spaceGrotesk = Space_Grotesk({
+  subsets: ["latin"],
+  variable: "--font-space-grotesk",
+  display: "swap",
+});
+const instrumentSerif = Instrument_Serif({
+  subsets: ["latin"],
+  weight: "400",
+  style: ["normal", "italic"],
+  variable: "--font-instrument-serif",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -40,7 +54,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${geistSans.variable} ${geistMono.variable} relative min-h-screen bg-background text-foreground antialiased selection:bg-primary/25 selection:text-foreground`}>
+      <body className={`${geistSans.variable} ${geistMono.variable} ${spaceGrotesk.variable} ${instrumentSerif.variable} relative min-h-screen bg-background text-foreground antialiased selection:bg-primary/25 selection:text-foreground`}>
         <AnimatedBackground />
         <SmoothScroll />
         <GlobalProviders>

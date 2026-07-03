@@ -4,6 +4,8 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { ArrowRight, MessageSquareText } from "lucide-react";
 
+import { ScrambleText } from "./scramble-text";
+
 export function LandingCta() {
   return (
     <section className="mx-auto mt-32 w-full max-w-7xl px-5 sm:px-8 lg:px-10">
@@ -18,8 +20,11 @@ export function LandingCta() {
 
         <div className="relative mx-auto max-w-2xl">
           <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-primary">Ship with confidence</p>
-          <h2 className="mt-5 text-4xl tracking-tight sm:text-5xl">
-            Ship what the PRD <span className="text-foreground/45">promised.</span>
+          <h2 className="mt-5 font-[family-name:var(--font-display)] text-4xl tracking-tight sm:text-5xl">
+            <ScrambleText text="Ship what the PRD" />{" "}
+            <span className="font-[family-name:var(--font-serif)] italic text-foreground/60">
+              promised.
+            </span>
           </h2>
           <p className="mt-5 font-mono text-sm leading-relaxed text-muted-foreground">
             Capture an idea, generate the PRD, and let Reqraft gate every release on the
