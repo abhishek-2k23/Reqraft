@@ -126,8 +126,8 @@ export function TopNav({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
   const label = routeLabel(pathname);
 
   return (
-    <header className="sticky top-0 z-30 border-b border-border bg-background/70 backdrop-blur-md">
-      <div className="flex h-14 items-center justify-between gap-3 px-4 sm:px-6">
+    <header className="sticky top-0 z-30 border-b border-border bg-background/70 backdrop-blur-xl">
+      <div className="flex h-14 items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
         <div className="flex min-w-0 items-center gap-3">
           <button
             type="button"
@@ -185,7 +185,7 @@ export function TopNav({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
 
           <Link
             href="/features/new"
-            className="inline-flex h-9 items-center gap-2 bg-primary px-3 text-sm font-medium text-primary-foreground transition-transform hover:opacity-95 active:scale-[0.97]"
+            className="inline-flex h-9 items-center gap-2 border border-primary bg-primary px-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-transparent hover:text-foreground active:scale-[0.97]"
           >
             <Plus className="size-4" />
             <span className="hidden sm:inline">New feature</span>

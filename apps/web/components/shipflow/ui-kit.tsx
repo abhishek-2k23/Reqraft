@@ -87,7 +87,7 @@ export function StatTile({
           </span>
         ) : null}
       </div>
-      <p className="mt-5 text-4xl font-medium tracking-tight text-foreground">
+      <p className="mt-5 font-[family-name:var(--font-display)] text-4xl font-medium tracking-tight text-foreground">
         <CountUp value={value} suffix={suffix} />
       </p>
       <p className="mt-1.5 text-sm text-muted-foreground">{detail}</p>
@@ -108,7 +108,9 @@ export function PageHeader({
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
       <div>
-        <h1 className="text-2xl font-medium tracking-tight text-foreground sm:text-3xl">{title}</h1>
+        <h1 className="font-[family-name:var(--font-display)] text-2xl font-medium tracking-tight text-foreground sm:text-3xl">
+          {title}
+        </h1>
         {description ? (
           <p className="mt-1.5 max-w-3xl text-sm leading-6 text-muted-foreground">{description}</p>
         ) : null}

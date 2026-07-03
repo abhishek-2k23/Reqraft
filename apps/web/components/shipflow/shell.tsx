@@ -49,18 +49,30 @@ function SidebarBody({
 }) {
   return (
     <div className="flex h-full flex-col gap-1 px-3 py-4">
-      <Link href="/dashboard" onClick={onNavigate} className="flex items-center gap-2.5 px-2 py-1">
-        <Image
-          src="/icons/reqraft-icon-transparent-512.png"
-          alt="Reqraft"
-          width={32}
-          height={32}
-          className="size-8"
-          priority
-        />
+      <Link
+        href="/dashboard"
+        onClick={onNavigate}
+        className="group flex items-center gap-2.5 px-2 py-1 transition-opacity hover:opacity-90"
+      >
+        <span className="relative grid size-9 shrink-0 place-items-center border border-border bg-foreground/[0.03]">
+          <Image
+            src="/icons/reqraft-icon-transparent-512.png"
+            alt="Reqraft"
+            width={22}
+            height={22}
+            className="size-[22px]"
+            priority
+          />
+          <span
+            aria-hidden
+            className="absolute -bottom-px left-1.5 right-1.5 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent"
+          />
+        </span>
         <div className="min-w-0">
-          <p className="text-sm font-medium text-foreground">Reqraft</p>
-          <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+          <p className="font-[family-name:var(--font-display)] text-sm font-medium leading-tight text-foreground">
+            Reqraft
+          </p>
+          <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted-foreground">
             Product delivery OS
           </p>
         </div>
@@ -86,12 +98,15 @@ function SidebarBody({
                       className={cn(
                         "group relative flex items-center gap-3 px-3 py-2 text-sm transition-colors",
                         isActive
-                          ? "bg-primary/10 text-primary"
+                          ? "bg-primary/10 font-medium text-primary"
                           : "text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground",
                       )}
                     >
                       {isActive ? (
-                        <span aria-hidden className="absolute inset-y-0 left-0 w-0.5 bg-primary" />
+                        <span
+                          aria-hidden
+                          className="absolute inset-y-0 left-0 w-0.5 bg-primary shadow-[0_0_8px_var(--glow-primary)]"
+                        />
                       ) : null}
                       <Icon className="size-4 shrink-0" />
                       <span className="flex-1 truncate">{item.label}</span>
