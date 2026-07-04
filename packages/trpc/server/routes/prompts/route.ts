@@ -150,6 +150,38 @@ export const promptsRouter = router({
       return computePromptQuota(ctx, ctx.org.id, input.featureId);
     }),
 
+  // One-shot prompt from a plain message — no feature/PRD required. Powers the
+  // CLI's `reqraft prompt quick`. Rate-limited but not persisted.
+  generateFromMessage: orgProcedure
+    .input(
+      z.object({
+        message: z.string().trim().min(8).max(4000),
+        techStack: z.string().trim().min(1).max(120).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      enforceRateLimit({
+        key: `quick-prompt:${ctx.session.user.id}`,
+        limit: 5,
+        windowMs: 300_000,
+        message: "You're generating prompts too quickly — please wait a moment.",
+      });
+
+      const result = await ctx.ai.generateQuickPrompt({
+        message: input.message,
+        techStack: input.techStack ?? null,
+      });
+
+      if (!result.prompt.trim()) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Prompt generation is not available right now.",
+        });
+      }
+
+      return { prompt: result.prompt };
+    }),
+
   generate: orgProcedure
     .input(
       z.object({

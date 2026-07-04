@@ -72,6 +72,15 @@ export type GenerateImplPromptsResult = {
   combinedPrompt: string;
 };
 
+export type GenerateQuickPromptInput = {
+  message: string;
+  techStack?: string | null;
+};
+
+export type GenerateQuickPromptResult = {
+  prompt: string;
+};
+
 export type AssistantChatMessage = { role: "user" | "assistant"; content: string };
 
 export type AssistantChatInput = {
@@ -117,6 +126,7 @@ export type CreateContextOptions = {
     clarify: (input: ClarifyInput) => Promise<ClarifyResult>;
     editPrd: (input: { currentPrd: PrdContent; editPrompt: string }) => Promise<EditPrdResult>;
     generateImplPrompts: (input: GenerateImplPromptsInput) => Promise<GenerateImplPromptsResult>;
+    generateQuickPrompt: (input: GenerateQuickPromptInput) => Promise<GenerateQuickPromptResult>;
     assistantChat: (input: AssistantChatInput) => Promise<AssistantChatResult>;
   };
   sendInvite?: (input: SendInviteInput) => Promise<unknown>;
@@ -134,6 +144,7 @@ export type ContextValue = {
     clarify: (input: ClarifyInput) => Promise<ClarifyResult>;
     editPrd: (input: { currentPrd: PrdContent; editPrompt: string }) => Promise<EditPrdResult>;
     generateImplPrompts: (input: GenerateImplPromptsInput) => Promise<GenerateImplPromptsResult>;
+    generateQuickPrompt: (input: GenerateQuickPromptInput) => Promise<GenerateQuickPromptResult>;
     assistantChat: (input: AssistantChatInput) => Promise<AssistantChatResult>;
   };
   sendInvite: (input: SendInviteInput) => Promise<unknown>;
@@ -154,6 +165,9 @@ const noopEditPrd = async ({ currentPrd }: { currentPrd: PrdContent }): Promise<
 });
 const noopGenerateImplPrompts = async (): Promise<GenerateImplPromptsResult> => ({
   combinedPrompt: "",
+});
+const noopGenerateQuickPrompt = async (): Promise<GenerateQuickPromptResult> => ({
+  prompt: "",
 });
 const noopAssistantChat = async (): Promise<AssistantChatResult> => ({
   reply: "The assistant is not available in this environment.",
@@ -176,6 +190,7 @@ export async function createContext(
         clarify: noopClarify,
         editPrd: noopEditPrd,
         generateImplPrompts: noopGenerateImplPrompts,
+        generateQuickPrompt: noopGenerateQuickPrompt,
         assistantChat: noopAssistantChat,
       },
     sendInvite: options.sendInvite ?? noopSendInvite,

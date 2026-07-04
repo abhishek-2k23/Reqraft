@@ -111,3 +111,56 @@ ${taskList}`,
   const combinedPrompt = object.prompt.trim() || fallbackPrompt(input);
   return { combinedPrompt };
 }
+
+export type GenerateQuickPromptInput = {
+  /** Free-form description of what to build — no PRD required. */
+  message: string;
+  techStack?: string | null;
+};
+
+export type GenerateQuickPromptResult = {
+  prompt: string;
+};
+
+/**
+ * One-shot prompt generation from a plain message (CLI `reqraft prompt quick`).
+ * Same structured sections as the PRD-based prompt, but the requirements are
+ * distilled from the user's description instead of a PRD/task breakdown.
+ */
+export async function generateQuickPrompt(
+  input: GenerateQuickPromptInput,
+): Promise<GenerateQuickPromptResult> {
+  const stackLine = input.techStack?.trim()
+    ? `Tech stack: ${input.techStack.trim()}`
+    : "Tech stack: not specified — choose the most natural minimal stack for the request and name it explicitly.";
+
+  const { object } = await generateObject({
+    model: openai(process.env.OPENAI_MODEL ?? "gpt-4o-mini"),
+    schema: z.object({
+      prompt: z
+        .string()
+        .describe("One complete markdown implementation prompt for the request"),
+    }),
+    system: `You are a staff engineer writing ONE implementation prompt for an AI coding agent (Claude Code, Cursor, etc.). The user pastes it once and the agent builds the requested software from it.
+
+Write a single Markdown prompt with exactly these sections:
+# <short title for the request>
+## Goal — 2-3 sentences: what to build and the problem it solves.
+## Tech stack — the exact stack to use. Name every language, framework, and library, and state that no substitutions are allowed.
+## Files to create — one line per file: path — purpose — how it connects to the others (e.g. "index.html — page markup — loads styles.css via <link> and script.js via <script defer>").
+## Build steps — an ordered list (5-10 steps) from setup to done. Each step names what to produce and how to wire it to the previous steps.
+## Inputs & outputs — what the user provides or does (inputs, events) and what the system shows, returns, or persists (outputs, side effects).
+## Acceptance criteria — a short checklist of observable behaviors that prove the request is satisfied.
+
+Rules:
+- Tailor everything to the tech stack and its idioms. For plain HTML/CSS/JS, use concrete filenames (index.html, styles.css, script.js) and show the linking; for frameworks, use their conventional project layout.
+- Fill reasonable gaps in the request with sensible defaults instead of asking questions.
+- Be specific but brief: target 350-500 words total. No filler.`,
+    prompt: `${stackLine}
+
+Request:
+${input.message}`,
+  });
+
+  return { prompt: object.prompt.trim() };
+}

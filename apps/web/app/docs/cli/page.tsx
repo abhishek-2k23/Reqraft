@@ -84,6 +84,7 @@ const TOC = [
   { id: "workspace", label: "Orgs & workspace" },
   { id: "features", label: "Features" },
   { id: "prds", label: "PRDs" },
+  { id: "prompts", label: "AI prompts" },
   { id: "tasks", label: "Tasks" },
   { id: "reviews", label: "Reviews" },
   { id: "scripting", label: "Scripting & CI" },
@@ -284,6 +285,32 @@ export default function CliDocsPage() {
                 <code className="font-mono text-xs text-foreground/90">prd share</code> sends to
                 teammates and outside addresses alike; teammates must have a verified email — check
                 with <code className="font-mono text-xs text-foreground/90">reqraft member list</code>.
+              </p>
+            </DocSection>
+
+            <DocSection id="prompts" heading="AI prompts">
+              <p>
+                Generate a copy-paste-ready implementation prompt for an AI coding agent — from a
+                feature&apos;s approved PRD, or from a plain description with no PRD at all.
+              </p>
+              <CodeBlock
+                lines={[
+                  { c: "# the feature's implementation prompt (cached per tech stack)" },
+                  "reqraft prompt feature <featureId> [--stack <stack>]",
+                  { c: "# force a fresh generation (spends a generation credit)" },
+                  "reqraft prompt feature <featureId> --regenerate",
+                  { c: "# save it as markdown for your agent" },
+                  "reqraft prompt feature <featureId> -o prompt.md",
+                  { c: "# one-shot prompt from a plain message — no PRD needed" },
+                  'reqraft prompt quick "a pomodoro timer web app" --stack "HTML + CSS + JS"',
+                ]}
+              />
+              <p>
+                The prompt covers the goal, exact tech stack, files to create (and how they link),
+                ordered build steps, inputs &amp; outputs, and acceptance criteria. Omit{" "}
+                <code className="font-mono text-xs text-foreground/90">--stack</code> on{" "}
+                <code className="font-mono text-xs text-foreground/90">quick</code> and the AI picks
+                a sensible minimal stack.
               </p>
             </DocSection>
 

@@ -172,7 +172,7 @@ function PipelineStepper({
 
   return (
     <div className="overflow-x-auto border border-border bg-card p-4">
-      <div className="mx-auto grid w-full min-w-[420px] max-w-3xl grid-cols-5">
+      <div className="grid w-full min-w-[420px] grid-cols-5">
         {PIPELINE_STAGES.map((stage, i) => {
           const state = resolveState(i, stage);
           const selected = value === stage.value;

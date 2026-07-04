@@ -5,7 +5,7 @@ import { auth } from "@/lib/auth";
 import { inngest } from "@/features/inngest/client";
 import { runClarificationAgent } from "@/features/ai/clarification-agent";
 import { editPrdWithAI } from "@/features/ai/prd-generator";
-import { generateImplPrompts } from "@/features/ai/impl-prompt-generator";
+import { generateImplPrompts, generateQuickPrompt } from "@/features/ai/impl-prompt-generator";
 import { runAssistantChat } from "@/features/ai/assistant-chat";
 import { sendInviteEmail, sendPrdShareEmail, sendVerificationCodeEmail } from "@/lib/email";
 import { publishOrgEvent } from "@/lib/realtime/server";
@@ -29,6 +29,7 @@ async function handler(request: Request) {
           clarify: runClarificationAgent,
           editPrd: editPrdWithAI,
           generateImplPrompts,
+          generateQuickPrompt,
           assistantChat: runAssistantChat,
         },
         sendInvite: sendInviteEmail,

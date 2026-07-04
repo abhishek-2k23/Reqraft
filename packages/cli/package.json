@@ -1,7 +1,7 @@
 {
   "name": "reqraft",
-  "version": "0.2.0",
-  "description": "Reqraft CLI — drive your AI product delivery pipeline from the terminal.",
+  "version": "0.3.0",
+  "description": "Reqraft CLI â€” drive your AI product delivery pipeline from the terminal.",
   "type": "module",
   "bin": {
     "reqraft": "./dist/index.js"
