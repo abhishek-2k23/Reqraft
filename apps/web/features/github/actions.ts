@@ -5,7 +5,7 @@ import { Octokit } from "octokit";
 
 import { and, db, eq } from "@repo/database";
 import { accountsTable, pullRequestsTable, repositories } from "@repo/database/schema";
-import { resolveFeatureIdForBranch, resolveOrgIdForRepo } from "@repo/database/branch";
+import { resolveAutoLinkFeatureId, resolveOrgIdForRepo } from "@repo/database/branch";
 
 import { auth } from "@/lib/auth";
 import { getGithubApp } from "@/lib/github/app";
@@ -263,14 +263,22 @@ export async function syncRepoPullRequests(
 
     for (const pr of data) {
       const branch = pr.head.ref;
-      const featureId = await resolveFeatureIdForBranch(db, branch, organizationId);
-
       const prId = `pr_${pr.id}`;
+      // Guarded: never steals a feature already linked to another PR, and stays
+      // null for a PR that already holds the link (no re-stamping).
+      const featureId = await resolveAutoLinkFeatureId(db, {
+        branch,
+        organizationId,
+        prId,
+      });
+
       const saved = await db
         .insert(pullRequestsTable)
         .values({
           id: prId,
           featureId,
+          // Record which commit the PR was at when it got linked to the feature.
+          ...(featureId ? { linkedHeadSha: pr.head.sha, linkedAt: new Date() } : {}),
           repositoryId,
           installationId,
           githubPrId: pr.id,
@@ -288,9 +296,13 @@ export async function syncRepoPullRequests(
         .onConflictDoUpdate({
           target: pullRequestsTable.id,
           set: {
-            // Only overwrite the feature link when the branch actually resolved —
-            // a null here would wipe a manual link on every dashboard sync.
-            ...(featureId ? { featureId } : {}),
+            // Only overwrite the feature link when the guarded resolver says
+            // this is a genuine new link — a null here would wipe a manual link
+            // on every dashboard sync. The guard also means the link-time
+            // stamps only ever fire on the actual link transition.
+            ...(featureId
+              ? { featureId, linkedHeadSha: pr.head.sha, linkedAt: new Date() }
+              : {}),
             repositoryId,
             headSha: pr.head.sha,
             state: pr.merged_at ? "merged" : pr.state,

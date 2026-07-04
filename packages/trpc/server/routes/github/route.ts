@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { and, count, desc, eq, isNull } from "@repo/database";
+import { and, count, desc, eq, inArray, isNull, ne } from "@repo/database";
 import {
   featureRequests,
   githubInstallations,
@@ -189,15 +189,24 @@ export const githubRouter = router({
         .orderBy(desc(pullRequests.number));
     }),
 
-  // Link a cached PR to a feature directly (no branch rename). Re-points any
-  // existing review cycles for the PR to the feature and rolls the latest
-  // verdict up to it. Future commits on the branch keep this link.
+  // Link a cached PR to a feature directly (no branch rename), enforcing one
+  // active PR per feature: any previously linked PR — and its review history —
+  // is detached so the feature's Review tab starts fresh with this PR.
+  // - Open PR: no cycles are carried; the client immediately forces a fresh AI
+  //   review, which becomes Review #1 and drives the feature's status.
+  // - Closed/merged PR: no new review will come, so only the PR's newest
+  //   completed cycle is carried and its verdict rolls up to the feature.
   linkPullRequestToFeature: orgProcedure
     .input(z.object({ pullRequestId: z.string(), featureId: z.string() }))
     .mutation(async ({ ctx, input }) => {
       // The PR must belong to one of this org's connected repos.
       const [row] = await ctx.db
-        .select({ id: pullRequests.id, repoFullName: pullRequests.repoFullName })
+        .select({
+          id: pullRequests.id,
+          repoFullName: pullRequests.repoFullName,
+          headSha: pullRequests.headSha,
+          state: pullRequests.state,
+        })
         .from(pullRequests)
         .innerJoin(repositories, eq(repositories.fullName, pullRequests.repoFullName))
         .where(
@@ -223,34 +232,81 @@ export const githubRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "Feature not found" });
       }
 
-      await ctx.db
-        .update(pullRequests)
-        .set({ featureId: input.featureId, updatedAt: new Date() })
-        .where(eq(pullRequests.id, input.pullRequestId));
+      const now = new Date();
+      await ctx.db.transaction(async (tx) => {
+        // Detach the feature's previous PR(s) so this one becomes the only
+        // linked PR. Clearing the link stamps also keeps the auto-link guard
+        // from re-linking them on their next push/sync.
+        await tx
+          .update(pullRequests)
+          .set({ featureId: null, linkedHeadSha: null, linkedAt: null, updatedAt: now })
+          .where(
+            and(
+              eq(pullRequests.featureId, input.featureId),
+              ne(pullRequests.id, input.pullRequestId),
+            ),
+          );
 
-      // Carry the PR's review history over to the feature.
-      await ctx.db
-        .update(reviewCycles)
-        .set({ featureId: input.featureId })
-        .where(eq(reviewCycles.pullRequestId, input.pullRequestId));
+        // Their review history leaves the feature (still visible on the global
+        // Reviews page as unlinked cycles).
+        await tx
+          .update(reviewCycles)
+          .set({ featureId: null })
+          .where(
+            and(
+              eq(reviewCycles.featureId, input.featureId),
+              ne(reviewCycles.pullRequestId, input.pullRequestId),
+            ),
+          );
 
-      // Reflect the latest completed verdict on the feature.
-      const [latest] = await ctx.db
-        .select({ status: reviewCycles.status })
-        .from(reviewCycles)
-        .where(eq(reviewCycles.pullRequestId, input.pullRequestId))
-        .orderBy(desc(reviewCycles.createdAt))
-        .limit(1);
+        // This PR's pre-link cycles are not carried either — detach them from
+        // whatever feature they pointed at (e.g. a feature it was linked to
+        // before) so history starts fresh.
+        await tx
+          .update(reviewCycles)
+          .set({ featureId: null })
+          .where(eq(reviewCycles.pullRequestId, input.pullRequestId));
 
-      if (latest?.status === "passed" || latest?.status === "failed") {
-        await ctx.db
-          .update(featureRequests)
+        await tx
+          .update(pullRequests)
           .set({
-            status: latest.status === "passed" ? "approved" : "blocked",
-            updatedAt: new Date(),
+            featureId: input.featureId,
+            linkedHeadSha: row.headSha,
+            linkedAt: now,
+            updatedAt: now,
           })
-          .where(eq(featureRequests.id, input.featureId));
-      }
+          .where(eq(pullRequests.id, input.pullRequestId));
+
+        // A closed/merged PR never gets the forced link-time review, so carry
+        // its newest completed cycle and reflect that verdict on the feature.
+        if (row.state !== "open") {
+          const [latest] = await tx
+            .select({ id: reviewCycles.id, status: reviewCycles.status })
+            .from(reviewCycles)
+            .where(
+              and(
+                eq(reviewCycles.pullRequestId, input.pullRequestId),
+                inArray(reviewCycles.status, ["passed", "failed"]),
+              ),
+            )
+            .orderBy(desc(reviewCycles.createdAt))
+            .limit(1);
+
+          if (latest) {
+            await tx
+              .update(reviewCycles)
+              .set({ featureId: input.featureId })
+              .where(eq(reviewCycles.id, latest.id));
+            await tx
+              .update(featureRequests)
+              .set({
+                status: latest.status === "passed" ? "approved" : "blocked",
+                updatedAt: now,
+              })
+              .where(eq(featureRequests.id, input.featureId));
+          }
+        }
+      });
 
       return { linked: true };
     }),

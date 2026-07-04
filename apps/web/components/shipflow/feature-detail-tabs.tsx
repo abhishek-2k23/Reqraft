@@ -837,6 +837,17 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
     [feature.pullRequests],
   );
 
+  // The currently linked PR — prefer an open one, then the most recently
+  // updated. The Review tab header shows its real branch instead of the
+  // suggested slug once a PR is linked.
+  const linkedPr = useMemo(() => {
+    const prs = [...feature.pullRequests].sort(
+      (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+    );
+    return prs.find((p) => p.state === "open") ?? prs[0] ?? null;
+  }, [feature.pullRequests]);
+  const shownBranch = linkedPr?.headBranch ?? reviewBranch;
+
   const isGeneratingPrd = feature.status === "prd_generating";
   const isGeneratingTasks = feature.status === "in_progress" && feature.tasks.length === 0;
   const status = feature.status as FeatureStatus;
@@ -1634,15 +1645,15 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
       {/* ── Reviews ──────────────────────────────────────── */}
       <TabsContent value="review-history">
         <div className="rounded-lg border border-foreground/10 bg-foreground/[0.045] p-5">
-          {/* Branch hint + manual link control */}
+          {/* Branch (linked PR's real branch, or the suggested slug) + manual link control */}
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground">Branch:</span>
-              <span className="font-mono text-xs text-foreground/80">{reviewBranch}</span>
+              <span className="font-mono text-xs text-foreground/80">{shownBranch}</span>
               <button
                 type="button"
                 onClick={() => {
-                  void navigator.clipboard.writeText(reviewBranch);
+                  void navigator.clipboard.writeText(shownBranch);
                   toast.success("Branch name copied");
                 }}
                 className="text-muted-foreground transition hover:text-primary"
@@ -1652,7 +1663,10 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
               </button>
             </div>
 
-            <Popover open={linkOpen} onOpenChange={setLinkOpen}>
+            {/* Hidden once a PR/review is linked — re-linking a different PR is
+                done from the GitHub repo dashboard ("Change feature"). */}
+            {!alreadyLinked && (
+              <Popover open={linkOpen} onOpenChange={setLinkOpen}>
                 <PopoverTrigger asChild>
                   <Button type="button" variant="outline" size="sm" className="gap-1.5">
                     <Link2 className="size-3.5" />
@@ -1664,15 +1678,6 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
                     <p className="text-xs font-medium text-foreground">Link a pull request</p>
                     <p className="text-[11px] text-muted-foreground">Attach a PR whose branch didn&apos;t match this feature. Linking runs a fresh AI review against the latest PRD.</p>
                   </div>
-                  {alreadyLinked ? (
-                    <div className="border-b border-amber-500/20 bg-amber-500/10 px-3 py-2">
-                      <p className="text-[11px] leading-4 text-amber-700 dark:text-amber-300">
-                        <TriangleAlert className="mr-1 inline size-3" />
-                        This feature already has linked reviews. The new PR&apos;s review is added
-                        on top and the feature&apos;s status will follow the newest result.
-                      </p>
-                    </div>
-                  ) : null}
                   <div className="max-h-64 overflow-y-auto p-1">
                     {linkablePrs.isLoading ? (
                       <div className="flex items-center justify-center py-6">
@@ -1704,7 +1709,8 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
                     )}
                   </div>
                 </PopoverContent>
-            </Popover>
+              </Popover>
+            )}
           </div>
 
           {hasRunningReview && (
@@ -1839,7 +1845,9 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
                   { label: "PRD approved", done: Boolean(prd?.approvedAt) },
                   { label: "Engineering tasks created", done: feature.tasks.length > 0 },
                   { label: "Pull request linked", done: feature.pullRequests.length > 0 },
-                  { label: "AI review passed", done: feature.reviewCycles.some((c) => c.overallVerdict === "approve") },
+                  // Only the newest review counts (cycles arrive newest-first);
+                  // a running newest cycle has no verdict yet → unchecked.
+                  { label: "AI review passed", done: feature.reviewCycles[0]?.overallVerdict === "approve" },
                 ].map((check) => (
                   <div key={check.label} className="flex items-center gap-3 rounded-lg border border-foreground/5 bg-foreground/[0.02] px-4 py-3">
                     {check.done ? <CheckCircle2 className="size-4 shrink-0 text-success" /> : <Circle className="size-4 shrink-0 text-muted-foreground" />}

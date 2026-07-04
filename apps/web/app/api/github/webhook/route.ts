@@ -1,7 +1,7 @@
 import { getGithubApp } from "@/lib/github/app";
 import { db, eq } from "@repo/database";
 import { pullRequestsTable, repositories } from "@repo/database/schema";
-import { resolveFeatureIdForBranch, resolveOrgIdForRepo } from "@repo/database/branch";
+import { resolveAutoLinkFeatureId, resolveOrgIdForRepo } from "@repo/database/branch";
 import { inngest } from "@/features/inngest/client";
 import { refreshRepoContextIfStale } from "@/features/copilot/server/repo-context";
 import { runReviewForPullRequest, shouldSkipAutoReview } from "@/features/github/review";
@@ -51,13 +51,19 @@ export async function POST(request: Request) {
 
   // Resolve a feature branch to a real feature: stored branch slug within the
   // repo's org first (feature/add-dark-mode), then a raw feature id (back-compat).
+  // Guarded so a PR never steals a feature already linked to another PR, and so
+  // an already-linked PR doesn't re-stamp its link metadata on every push.
   const branchName: string = pr.head.ref;
   const organizationId = await resolveOrgIdForRepo(
     db,
     event.repository.full_name,
     event.installation?.id ?? null,
   );
-  const featureId = await resolveFeatureIdForBranch(db, branchName, organizationId);
+  const featureId = await resolveAutoLinkFeatureId(db, {
+    branch: branchName,
+    organizationId,
+    prId: `pr_${pr.id}`,
+  });
 
   // The connected repo row (billing org resolution + project scoping) — prefer
   // the row matching this installation when the same repo is connected twice.
@@ -78,6 +84,8 @@ export async function POST(request: Request) {
       .values({
         id: `pr_${pr.id}`,
         featureId,
+        // Record which commit the PR was at when it got linked to the feature.
+        ...(featureId ? { linkedHeadSha: pr.head.sha, linkedAt: new Date() } : {}),
         repositoryId,
         installationId: event.installation?.id || 0,
         githubPrId: pr.id,
@@ -95,9 +103,13 @@ export async function POST(request: Request) {
       .onConflictDoUpdate({
         target: pullRequestsTable.id,
         set: {
-          // Only overwrite the feature link when the branch actually resolved —
-          // a null here would wipe a manual link on every subsequent push.
-          ...(featureId ? { featureId } : {}),
+          // Only overwrite the feature link when the guarded resolver says this
+          // is a genuine new link — a null here would wipe a manual link on
+          // every subsequent push. The guard also means the link-time stamps
+          // only ever fire on the actual link transition.
+          ...(featureId
+            ? { featureId, linkedHeadSha: pr.head.sha, linkedAt: new Date() }
+            : {}),
           repositoryId,
           headSha: pr.head.sha,
           state: pr.merged_at ? "merged" : pr.state || "open",

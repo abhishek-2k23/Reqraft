@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { featureBranchRef, slugifyBranchName } from "@repo/services/shipflow/github";
 
-import { featureRequests, repositories } from "./schema";
+import { featureRequests, pullRequests, repositories } from "./schema";
 import type { Database } from "./index";
 
 type FeatureForBranch = {
@@ -110,6 +110,34 @@ export async function resolveFeatureIdForBranch(
     .from(featureRequests)
     .where(eq(featureRequests.id, ref));
   return byId?.id ?? null;
+}
+
+/**
+ * Branch-match auto-linking for the webhook / PR sync, guarded by the
+ * one-active-PR-per-feature invariant. Returns a feature id ONLY when this PR
+ * should genuinely become the feature's linked PR right now:
+ *
+ * - null when the branch doesn't resolve to a feature;
+ * - null when another PR already claims the feature (a detached/replaced PR
+ *   must never steal the link back on its next push or sync);
+ * - null when this PR is already linked to the feature (idempotent — avoids
+ *   re-stamping link metadata on every subsequent push).
+ */
+export async function resolveAutoLinkFeatureId(
+  db: Database,
+  opts: { branch: string; organizationId?: string | null; prId: string },
+): Promise<string | null> {
+  const resolved = await resolveFeatureIdForBranch(db, opts.branch, opts.organizationId);
+  if (!resolved) return null;
+
+  const claims = await db
+    .select({ id: pullRequests.id })
+    .from(pullRequests)
+    .where(eq(pullRequests.featureId, resolved));
+
+  if (claims.some((c) => c.id !== opts.prId)) return null;
+  if (claims.some((c) => c.id === opts.prId)) return null;
+  return resolved;
 }
 
 /**

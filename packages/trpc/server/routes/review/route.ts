@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, isNotNull, isNull } from "@repo/database";
+import { and, desc, eq, isNotNull, isNull, ne } from "@repo/database";
 import {
   featureRequests,
   pullRequests,
@@ -143,8 +143,10 @@ export const reviewRouter = router({
     }),
 
   // Attach a review cycle (often one whose branch never matched a feature) to a
-  // feature. Re-points the PR too so future commits auto-link, and rolls the
-  // verdict up to the feature when the cycle has completed.
+  // feature, enforcing one active PR per feature: the feature's previous PR and
+  // its cycles are detached first. Re-points the cycle's PR too so future
+  // commits auto-link, and rolls the verdict up to the feature when the cycle
+  // has completed (the user picked this cycle deliberately).
   linkCycleToFeature: orgProcedure
     .input(z.object({ cycleId: z.string(), featureId: z.string() }))
     .mutation(async ({ ctx, input }) => {
@@ -153,6 +155,7 @@ export const reviewRouter = router({
         .selectDistinct({
           pullRequestId: reviewCycles.pullRequestId,
           status: reviewCycles.status,
+          prHeadSha: pullRequests.headSha,
         })
         .from(reviewCycles)
         .innerJoin(pullRequests, eq(reviewCycles.pullRequestId, pullRequests.id))
@@ -183,27 +186,55 @@ export const reviewRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "Feature not found" });
       }
 
-      await ctx.db
-        .update(reviewCycles)
-        .set({ featureId: input.featureId })
-        .where(eq(reviewCycles.id, input.cycleId));
+      const now = new Date();
+      await ctx.db.transaction(async (tx) => {
+        // Detach the feature's previous PR(s) and their cycles — one active PR.
+        await tx
+          .update(pullRequests)
+          .set({ featureId: null, linkedHeadSha: null, linkedAt: null, updatedAt: now })
+          .where(
+            and(
+              eq(pullRequests.featureId, input.featureId),
+              ne(pullRequests.id, row.pullRequestId),
+            ),
+          );
+        await tx
+          .update(reviewCycles)
+          .set({ featureId: null })
+          .where(
+            and(
+              eq(reviewCycles.featureId, input.featureId),
+              ne(reviewCycles.pullRequestId, row.pullRequestId),
+            ),
+          );
 
-      // Re-point the PR so subsequent commits link automatically.
-      await ctx.db
-        .update(pullRequests)
-        .set({ featureId: input.featureId, updatedAt: new Date() })
-        .where(eq(pullRequests.id, row.pullRequestId));
-
-      // Reflect a completed verdict on the feature.
-      if (row.status === "passed" || row.status === "failed") {
-        await ctx.db
-          .update(featureRequests)
+        // Attach the chosen cycle and re-point its PR so subsequent commits
+        // link automatically.
+        await tx
+          .update(reviewCycles)
+          .set({ featureId: input.featureId })
+          .where(eq(reviewCycles.id, input.cycleId));
+        await tx
+          .update(pullRequests)
           .set({
-            status: row.status === "passed" ? "approved" : "blocked",
-            updatedAt: new Date(),
+            featureId: input.featureId,
+            linkedHeadSha: row.prHeadSha,
+            linkedAt: now,
+            updatedAt: now,
           })
-          .where(eq(featureRequests.id, input.featureId));
-      }
+          .where(eq(pullRequests.id, row.pullRequestId));
+
+        // Reflect a completed verdict on the feature.
+        if (row.status === "passed" || row.status === "failed") {
+          await tx
+            .update(featureRequests)
+            .set({
+              status: row.status === "passed" ? "approved" : "blocked",
+              updatedAt: now,
+            })
+            .where(eq(featureRequests.id, input.featureId));
+        }
+      });
 
       return { linked: true };
     }),
@@ -212,7 +243,10 @@ export const reviewRouter = router({
     .input(z.object({ cycleId: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const [row] = await ctx.db
-        .selectDistinct({ pullRequestId: reviewCycles.pullRequestId })
+        .selectDistinct({
+          pullRequestId: reviewCycles.pullRequestId,
+          featureId: reviewCycles.featureId,
+        })
         .from(reviewCycles)
         .innerJoin(pullRequests, eq(reviewCycles.pullRequestId, pullRequests.id))
         .innerJoin(repositories, eq(repositories.fullName, pullRequests.repoFullName))
@@ -227,16 +261,33 @@ export const reviewRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "Review not found" });
       }
 
-      await ctx.db
-        .update(reviewCycles)
-        .set({ featureId: null })
-        .where(eq(reviewCycles.id, input.cycleId));
+      const now = new Date();
+      await ctx.db.transaction(async (tx) => {
+        // Detach every sibling cycle of this PR on that feature — the feature's
+        // review history is all-or-nothing per linked PR.
+        if (row.featureId) {
+          await tx
+            .update(reviewCycles)
+            .set({ featureId: null })
+            .where(
+              and(
+                eq(reviewCycles.pullRequestId, row.pullRequestId),
+                eq(reviewCycles.featureId, row.featureId),
+              ),
+            );
+        } else {
+          await tx
+            .update(reviewCycles)
+            .set({ featureId: null })
+            .where(eq(reviewCycles.id, input.cycleId));
+        }
 
-      // Detach the PR too so new commits don't re-link to the old feature.
-      await ctx.db
-        .update(pullRequests)
-        .set({ featureId: null, updatedAt: new Date() })
-        .where(eq(pullRequests.id, row.pullRequestId));
+        // Detach the PR too so new commits don't re-link to the old feature.
+        await tx
+          .update(pullRequests)
+          .set({ featureId: null, linkedHeadSha: null, linkedAt: null, updatedAt: now })
+          .where(eq(pullRequests.id, row.pullRequestId));
+      });
 
       return { unlinked: true };
     }),
@@ -244,17 +295,20 @@ export const reviewRouter = router({
   resolveIssue: orgProcedure
     .input(z.object({ issueId: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      // Confirm the issue belongs to this org (via its cycle → feature) before
-      // mutating — otherwise any member could resolve another org's finding by id.
+      // Confirm the issue belongs to this org (via its cycle → PR → connected
+      // repo) before mutating — otherwise any member could resolve another
+      // org's finding by id. Scoped through the repo, not the feature, so
+      // issues on detached (feature-less) cycles stay resolvable.
       const [owned] = await ctx.db
-        .select({ id: reviewIssues.id })
+        .selectDistinct({ id: reviewIssues.id })
         .from(reviewIssues)
         .innerJoin(reviewCycles, eq(reviewIssues.reviewCycleId, reviewCycles.id))
-        .innerJoin(featureRequests, eq(reviewCycles.featureId, featureRequests.id))
+        .innerJoin(pullRequests, eq(reviewCycles.pullRequestId, pullRequests.id))
+        .innerJoin(repositories, eq(repositories.fullName, pullRequests.repoFullName))
         .where(
           and(
             eq(reviewIssues.id, input.issueId),
-            eq(featureRequests.organizationId, ctx.org.id),
+            eq(repositories.organizationId, ctx.org.id),
           ),
         );
 

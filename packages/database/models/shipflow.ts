@@ -360,6 +360,10 @@ export const pullRequests = pgTable("pull_request", {
   headSha: text("head_sha").notNull(),
   repoFullName: text("repo_full_name").notNull(),
   state: text("state").notNull().default("open"),
+  // Snapshot of the PR's head commit at the moment it was linked to a feature,
+  // and when that link happened. Null while unlinked; cleared on detach.
+  linkedHeadSha: text("linked_head_sha"),
+  linkedAt: timestamp("linked_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
