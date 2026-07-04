@@ -1,5 +1,6 @@
 import type { Command } from "commander";
 
+import { openBrowser } from "../auth-flow";
 import { CliError, colorStatus, dim, info, printJson, shortId, success, table } from "../output";
 import { ensureOrg, requireToken, type Runtime } from "../runtime";
 
@@ -120,6 +121,51 @@ export function registerFeatureCommands(program: Command, getRuntime: () => Runt
       if (rt.json) return printJson(result);
       info(`AI: ${result.reply}`);
       if (result.isDone) success("Clarification complete — PRD generation was triggered.");
+    });
+
+  feature
+    .command("open <featureId>")
+    .description("Open a feature in the web app.")
+    .action(async (featureId: string) => {
+      const rt = await prep(getRuntime);
+      const url = `${rt.apiUrl}/features/${featureId}`;
+      openBrowser(url);
+      if (rt.json) return printJson({ url });
+      info(url);
+    });
+
+  feature
+    .command("approve <featureId>")
+    .description("Approve a feature that is in review (manager+).")
+    .option("--notes <notes>", "Optional approval notes.")
+    .action(async (featureId: string, opts: { notes?: string }) => {
+      const rt = await prep(getRuntime);
+      const updated = await rt.client.approval.approve.mutate({ featureId, notes: opts.notes });
+      if (rt.json) return printJson(updated);
+      success(`Approved — ${updated?.title ?? featureId} is now ${colorStatus(updated?.status)}.`);
+    });
+
+  feature
+    .command("reject <featureId> <reason...>")
+    .description("Reject a feature with a reason (manager+). Marks it blocked.")
+    .action(async (featureId: string, reason: string[]) => {
+      const rt = await prep(getRuntime);
+      const updated = await rt.client.approval.reject.mutate({
+        featureId,
+        reason: reason.join(" "),
+      });
+      if (rt.json) return printJson(updated);
+      success(`Rejected — ${updated?.title ?? featureId} is now ${colorStatus(updated?.status)}.`);
+    });
+
+  feature
+    .command("ship <featureId>")
+    .description("Mark an approved feature as shipped (manager+).")
+    .action(async (featureId: string) => {
+      const rt = await prep(getRuntime);
+      const updated = await rt.client.approval.ship.mutate({ featureId });
+      if (rt.json) return printJson(updated);
+      success(`🚀 ${updated?.title ?? featureId} shipped.`);
     });
 
   feature

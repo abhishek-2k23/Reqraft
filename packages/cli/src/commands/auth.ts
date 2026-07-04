@@ -2,7 +2,7 @@ import type { Command } from "commander";
 
 import { fetchSession, openBrowser, pollForToken, requestDeviceCode, setActiveOrg } from "../auth-flow";
 import { createClient } from "../client";
-import { clearAuth, saveConfig } from "../config";
+import { clearAuth, DEFAULT_API_URL, saveConfig } from "../config";
 import { CliError, dim, info, printJson, success } from "../output";
 import { requireToken, type Runtime } from "../runtime";
 
@@ -13,15 +13,24 @@ export function registerAuthCommands(program: Command, getRuntime: () => Runtime
     .action(async () => {
       const rt = getRuntime();
 
-      // Persist the chosen API base so later commands hit the same deployment.
-      saveConfig({ apiUrl: rt.apiUrl });
+      // Persist the API base only when it was chosen explicitly for this call
+      // (--api flag or REQRAFT_API_URL). A previously stored URL must never be
+      // re-persisted silently — that's how logins end up stuck on an old dev
+      // deployment.
+      const explicitApi = Boolean(program.opts<{ api?: string }>().api ?? process.env.REQRAFT_API_URL);
+      if (explicitApi) saveConfig({ apiUrl: rt.apiUrl });
 
       const device = await requestDeviceCode(rt.apiUrl);
       const url = device.verification_uri_complete ?? device.verification_uri;
 
       if (rt.json) {
-        printJson({ user_code: device.user_code, verification_uri: url });
+        printJson({ user_code: device.user_code, verification_uri: url, api: rt.apiUrl });
       } else {
+        info("");
+        info(`  Signing in to ${rt.apiUrl}`);
+        if (rt.apiUrl !== DEFAULT_API_URL) {
+          dim(`  (non-default deployment — reset with \`reqraft config unset-api\`)`);
+        }
         info("");
         info(`  Open this URL to approve the login:\n    ${url}`);
         info(`  Your device code: ${device.user_code}`);

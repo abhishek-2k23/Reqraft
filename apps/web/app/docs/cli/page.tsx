@@ -57,14 +57,37 @@ function FlagRow({ flag, desc }: { flag: string; desc: string }) {
   );
 }
 
+function CommandRow({ cmd, desc }: { cmd: string; desc: string }) {
+  return (
+    <div className="grid grid-cols-1 items-baseline gap-1 border-b border-border/60 py-2 last:border-b-0 sm:grid-cols-[minmax(240px,340px)_1fr] sm:gap-3">
+      <code className="font-mono text-xs text-primary">{cmd}</code>
+      <span className="text-sm text-foreground/75">{desc}</span>
+    </div>
+  );
+}
+
+function CommandTable({ rows }: { rows: [string, string][] }) {
+  return (
+    <div className="border border-border bg-card/40 px-4 py-1">
+      {rows.map(([cmd, desc]) => (
+        <CommandRow key={cmd} cmd={cmd} desc={desc} />
+      ))}
+    </div>
+  );
+}
+
 const TOC = [
   { id: "install", label: "Install" },
   { id: "sign-in", label: "Sign in" },
   { id: "global-flags", label: "Global flags" },
-  { id: "organizations", label: "Organizations" },
-  { id: "features", label: "Features & the pipeline" },
+  { id: "configuration", label: "Configuration" },
+  { id: "workspace", label: "Orgs & workspace" },
+  { id: "features", label: "Features" },
+  { id: "prds", label: "PRDs" },
+  { id: "tasks", label: "Tasks" },
   { id: "reviews", label: "Reviews" },
-  { id: "session", label: "Session" },
+  { id: "scripting", label: "Scripting & CI" },
+  { id: "troubleshooting", label: "Troubleshooting" },
   { id: "how-it-works", label: "How it works" },
 ];
 
@@ -99,7 +122,7 @@ export default function CliDocsPage() {
               <ArrowUpRight className="size-3 text-muted-foreground transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
             </a>
             <span className="border border-border bg-foreground/[0.02] px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-              reqraft@0.1.0 · node ≥ 18
+              reqraft@0.2.0 · node ≥ 18
             </span>
           </div>
         </header>
@@ -134,7 +157,10 @@ export default function CliDocsPage() {
                 ]}
               />
               <p>
-                Requires Node.js ≥ 18. The binary is <code className="font-mono text-xs text-foreground/90">reqraft</code>.
+                Requires Node.js ≥ 18. The binary is{" "}
+                <code className="font-mono text-xs text-foreground/90">reqraft</code>. Run{" "}
+                <code className="font-mono text-xs text-foreground/90">reqraft &lt;command&gt; --help</code>{" "}
+                for the options of any command.
               </p>
             </DocSection>
 
@@ -143,10 +169,23 @@ export default function CliDocsPage() {
                 Reqraft uses the OAuth 2.0 Device Authorization flow — no passwords or tokens to
                 copy by hand:
               </p>
-              <CodeBlock lines={["reqraft login"]} />
+              <CodeBlock
+                lines={[
+                  "reqraft login",
+                  { c: "" },
+                  { c: "  Signing in to https://reqraft.in" },
+                  { c: "" },
+                  { c: "  Open this URL to approve the login:" },
+                  { c: "    https://reqraft.in/device?user_code=XXXX-XXXX" },
+                  { c: "  Your device code: XXXX-XXXX" },
+                ]}
+              />
               <p>
                 It prints a URL and a short code, opens your browser, and waits while you approve
-                the request. The credential is stored at{" "}
+                the request. If you belong to exactly one organization it becomes active
+                automatically; otherwise pick one with{" "}
+                <code className="font-mono text-xs text-foreground/90">reqraft org use &lt;slug&gt;</code>.
+                The credential is stored at{" "}
                 <code className="font-mono text-xs text-foreground/90">~/.reqraft/config.json</code>{" "}
                 (mode 0600).
               </p>
@@ -162,41 +201,103 @@ export default function CliDocsPage() {
               </p>
               <div className="border border-border bg-card/40 px-4 py-1">
                 <FlagRow flag="--json" desc="Machine-readable JSON output, for scripting and CI." />
-                <FlagRow flag="--api <url>" desc="Point at a non-default deployment (default https://reqraft.in)." />
+                <FlagRow flag="--api <url>" desc="Target a non-default deployment for this call (persisted on login)." />
                 <FlagRow flag="--org <slug>" desc="Run against a specific organization for this call." />
               </div>
             </DocSection>
 
-            <DocSection id="organizations" heading="Organizations">
-              <CodeBlock
-                lines={[
-                  { c: "# organizations you belong to (* = active)" },
-                  "reqraft org list",
-                  { c: "# set the active organization" },
-                  "reqraft org use <slug>",
+            <DocSection id="configuration" heading="Configuration">
+              <p>
+                The API base URL resolves in this order:{" "}
+                <code className="font-mono text-xs text-foreground/90">--api</code> flag →{" "}
+                <code className="font-mono text-xs text-foreground/90">REQRAFT_API_URL</code> env →
+                stored config → default{" "}
+                <code className="font-mono text-xs text-foreground/90">https://reqraft.in</code>.
+                Login always prints which deployment it targets, and only persists a URL you passed
+                explicitly.
+              </p>
+              <CommandTable
+                rows={[
+                  ["reqraft config list", "Show the effective configuration (token redacted)."],
+                  ["reqraft config set-api <url>", "Pin the CLI to a self-hosted or staging deployment."],
+                  ["reqraft config unset-api", "Go back to the default https://reqraft.in."],
+                  ["reqraft config path", "Print the config file location."],
+                  ["reqraft ping", "Check the configured deployment is reachable (+ latency)."],
+                  ["reqraft whoami", "Signed-in user, active org, and API URL."],
+                  ["reqraft logout", "Remove stored credentials from this machine."],
                 ]}
               />
             </DocSection>
 
-            <DocSection id="features" heading="Features & the pipeline">
+            <DocSection id="workspace" heading="Organizations & workspace">
+              <CommandTable
+                rows={[
+                  ["reqraft org list", "Organizations you belong to (* marks the active one)."],
+                  ["reqraft org use <slug>", "Set the active organization."],
+                  ["reqraft project list", "Projects in the active organization."],
+                  ["reqraft member list", "Teammates, roles, and email verification state."],
+                  ["reqraft status", "Pipeline snapshot: features by status, review cycles."],
+                  ["reqraft search <query>", "Search projects, features, tasks, PRDs, repos, reviews."],
+                ]}
+              />
+            </DocSection>
+
+            <DocSection id="features" heading="Features">
               <CodeBlock
                 lines={[
                   "reqraft feature list [--status prd_ready] [--project <id>]",
                   'reqraft feature create --title "Dark mode" --description "Add a theme toggle" [--priority high]',
                   "reqraft feature show <featureId>",
                   'reqraft feature clarify <featureId> "Target users are mobile web visitors"',
-                  "reqraft feature tasks <featureId>",
+                  "reqraft feature open <featureId>",
                 ]}
               />
-              <p>PRDs are generated, printed, and approved with the same feature id:</p>
+              <p>Managers can drive the approval pipeline end to end:</p>
+              <CodeBlock
+                lines={[
+                  { c: "# feature in review → approved" },
+                  "reqraft feature approve <featureId> [--notes <notes>]",
+                  { c: "# reject with a reason → blocked" },
+                  'reqraft feature reject <featureId> "Needs a security review first"',
+                  { c: "# approved → shipped 🚀" },
+                  "reqraft feature ship <featureId>",
+                ]}
+              />
+            </DocSection>
+
+            <DocSection id="prds" heading="PRDs">
               <CodeBlock
                 lines={[
                   { c: "# trigger PRD generation / regeneration" },
                   "reqraft prd generate <featureId>",
                   { c: "# print the PRD (markdown)" },
                   "reqraft prd show <featureId>",
-                  { c: "# approve the PRD → generates tasks" },
+                  { c: "# approve the PRD → generates engineering tasks" },
                   "reqraft prd approve <featureId>",
+                  { c: "# save the PRD as a PDF" },
+                  "reqraft prd download <featureId> [-o dark-mode.pdf]",
+                  { c: "# email the PRD (PDF attached) to anyone" },
+                  'reqraft prd share <featureId> --to pm@company.com --message "Please review"',
+                ]}
+              />
+              <p>
+                <code className="font-mono text-xs text-foreground/90">prd share</code> sends to
+                teammates and outside addresses alike; teammates must have a verified email — check
+                with <code className="font-mono text-xs text-foreground/90">reqraft member list</code>.
+              </p>
+            </DocSection>
+
+            <DocSection id="tasks" heading="Tasks">
+              <CommandTable
+                rows={[
+                  ["reqraft task list <featureId>", "The feature's task board, grouped by status."],
+                  ["reqraft task mine", "Tasks assigned to you, across all organizations."],
+                  ["reqraft task start <taskId>", "Move a task to in_progress."],
+                  ["reqraft task done <taskId>", "Mark a task as done."],
+                  ["reqraft task move <taskId> <status>", "Any move: todo, in_progress, done, blocked (--reason)."],
+                  ["reqraft task assign <taskId> <who>", 'Assign by email, name, or "me".'],
+                  ["reqraft task notes <taskId>", "Read a task's discussion thread."],
+                  ["reqraft task note <taskId> <text…>", "Add a note to the thread."],
                 ]}
               />
             </DocSection>
@@ -211,15 +312,63 @@ export default function CliDocsPage() {
               />
             </DocSection>
 
-            <DocSection id="session" heading="Session">
+            <DocSection id="scripting" heading="Scripting & CI">
+              <p>
+                Every command supports{" "}
+                <code className="font-mono text-xs text-foreground/90">--json</code>, so output
+                pipes cleanly into <code className="font-mono text-xs text-foreground/90">jq</code>:
+              </p>
               <CodeBlock
                 lines={[
-                  { c: "# current user + active org" },
-                  "reqraft whoami",
-                  { c: "# remove stored credentials" },
-                  "reqraft logout",
+                  { c: "# full ids of all features that are ready for PRD review" },
+                  "reqraft --json feature list | jq -r '.[] | select(.status == \"prd_ready\") | .id'",
+                  { c: "# fail a CI step if any AI review cycle failed" },
+                  "test \"$(reqraft --json review list --status failed | jq length)\" = \"0\"",
                 ]}
               />
+              <p>
+                In CI, authenticate with{" "}
+                <code className="font-mono text-xs text-foreground/90">REQRAFT_TOKEN</code> and pin
+                the deployment with{" "}
+                <code className="font-mono text-xs text-foreground/90">REQRAFT_API_URL</code> — no
+                interactive login needed.
+              </p>
+            </DocSection>
+
+            <DocSection id="troubleshooting" heading="Troubleshooting">
+              <div className="space-y-4">
+                <div>
+                  <p className="font-medium text-foreground/90">Login opens the wrong URL (an old dev or staging domain).</p>
+                  <p>
+                    The CLI is pinned to another deployment. Check with{" "}
+                    <code className="font-mono text-xs text-foreground/90">reqraft config list</code>, reset with{" "}
+                    <code className="font-mono text-xs text-foreground/90">reqraft config unset-api</code>, then{" "}
+                    <code className="font-mono text-xs text-foreground/90">reqraft login</code> again.
+                  </p>
+                </div>
+                <div>
+                  <p className="font-medium text-foreground/90">&ldquo;You&apos;re not signed in&rdquo; or 401 errors.</p>
+                  <p>
+                    Your token expired or belongs to a different deployment — run{" "}
+                    <code className="font-mono text-xs text-foreground/90">reqraft login</code>.
+                  </p>
+                </div>
+                <div>
+                  <p className="font-medium text-foreground/90">&ldquo;Select an organization before accessing this resource.&rdquo;</p>
+                  <p>
+                    Run <code className="font-mono text-xs text-foreground/90">reqraft org use &lt;slug&gt;</code>{" "}
+                    once, or pass <code className="font-mono text-xs text-foreground/90">--org &lt;slug&gt;</code>{" "}
+                    per command.
+                  </p>
+                </div>
+                <div>
+                  <p className="font-medium text-foreground/90">No browser opens on login.</p>
+                  <p>
+                    Headless environments can&apos;t spawn a browser — open the printed URL on any
+                    device and enter the device code.
+                  </p>
+                </div>
+              </div>
             </DocSection>
 
             <DocSection id="how-it-works" heading="How it works">

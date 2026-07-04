@@ -111,7 +111,7 @@ export async function setActiveOrg(
 }
 
 export interface SessionInfo {
-  user?: { email?: string | null; name?: string | null } | null;
+  user?: { id?: string; email?: string | null; name?: string | null } | null;
 }
 
 /** Fetch the signed-in user for `whoami`. Returns null if the token is invalid. */

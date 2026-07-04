@@ -18,7 +18,7 @@ export function LegalPage({
     <main className="relative flex min-h-screen flex-col overflow-x-hidden">
       <LandingNav />
 
-      <article className="mx-auto w-full max-w-7xl px-5 pb-24 pt-32 sm:px-8 lg:px-10">
+      <article className="mx-auto w-full max-w-[76.7rem] px-5 pb-24 pt-32 sm:px-8 lg:px-10">
         <header className="border-b border-border pb-8">
           <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
             Legal

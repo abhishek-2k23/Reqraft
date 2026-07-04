@@ -1,15 +1,18 @@
 import { Command } from "commander";
 
 import { registerAuthCommands } from "./commands/auth";
+import { registerConfigCommands } from "./commands/config";
 import { registerFeatureCommands } from "./commands/feature";
 import { registerOrgCommands } from "./commands/org";
 import { registerPrdCommands } from "./commands/prd";
 import { registerReviewCommands } from "./commands/review";
+import { registerTaskCommands } from "./commands/task";
+import { registerWorkspaceCommands } from "./commands/workspace";
 import { fail } from "./output";
 import { runtime } from "./runtime";
 
 // Bump in lockstep with package.json "version".
-const VERSION = "0.1.0";
+const VERSION = "0.2.0";
 
 const program = new Command();
 
@@ -26,10 +29,13 @@ program
 const getRuntime = () => runtime(program);
 
 registerAuthCommands(program, getRuntime);
+registerConfigCommands(program, getRuntime);
 registerOrgCommands(program, getRuntime);
 registerFeatureCommands(program, getRuntime);
 registerPrdCommands(program, getRuntime);
+registerTaskCommands(program, getRuntime);
 registerReviewCommands(program, getRuntime);
+registerWorkspaceCommands(program, getRuntime);
 
 program.parseAsync(process.argv).catch((err) => {
   fail(err, Boolean(program.opts().json));
