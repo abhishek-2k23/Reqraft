@@ -59,6 +59,17 @@ export async function POST(request: Request) {
   );
   const featureId = await resolveFeatureIdForBranch(db, branchName, organizationId);
 
+  // The connected repo row (billing org resolution + project scoping) — prefer
+  // the row matching this installation when the same repo is connected twice.
+  const repoRows = await db
+    .select({ id: repositories.id, installationId: repositories.installationId })
+    .from(repositories)
+    .where(eq(repositories.fullName, event.repository.full_name));
+  const repositoryId =
+    repoRows.find((r) => r.installationId === event.installation?.id)?.id ??
+    repoRows[0]?.id ??
+    null;
+
   // Cache every PR for connected repos — even ones not tied to a feature.
   let saved;
   try {
@@ -67,6 +78,7 @@ export async function POST(request: Request) {
       .values({
         id: `pr_${pr.id}`,
         featureId,
+        repositoryId,
         installationId: event.installation?.id || 0,
         githubPrId: pr.id,
         githubPrUrl: pr.html_url,
@@ -83,7 +95,10 @@ export async function POST(request: Request) {
       .onConflictDoUpdate({
         target: pullRequestsTable.id,
         set: {
-          featureId,
+          // Only overwrite the feature link when the branch actually resolved —
+          // a null here would wipe a manual link on every subsequent push.
+          ...(featureId ? { featureId } : {}),
+          repositoryId,
           headSha: pr.head.sha,
           state: pr.merged_at ? "merged" : pr.state || "open",
           title: pr.title,

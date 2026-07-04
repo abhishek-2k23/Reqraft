@@ -40,7 +40,7 @@ export function OrgSwitcher() {
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className="flex w-full items-center gap-2 border border-border bg-foreground/[0.02] px-2.5 py-2 text-left transition-colors hover:bg-foreground/[0.06] focus:outline-none">
+      <DropdownMenuTrigger className="flex w-full items-center gap-2 border border-border bg-foreground/[0.02] px-3 py-2 text-left transition-colors hover:bg-foreground/[0.06] focus:outline-none">
         <div className="grid size-6 shrink-0 place-items-center bg-primary/15 text-primary">
           <Building2 className="size-3.5" />
         </div>

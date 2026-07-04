@@ -20,6 +20,8 @@ test("getPlanDetails returns the product limits for each plan", () => {
     projectLimit: 10,
     featureLimit: 200,
     organizationLimit: 5,
+    promptGenerationLimit: 200,
+    chatConversationLimit: 50,
   });
 });
 

@@ -149,18 +149,32 @@ function PipelineStepper({
   onSelect,
   isGeneratingPrd,
   isGeneratingTasks,
+  hasPrd,
+  hasTasks,
 }: {
   status: FeatureStatus;
   value: string;
   onSelect: (value: string) => void;
   isGeneratingPrd: boolean;
   isGeneratingTasks: boolean;
+  hasPrd: boolean;
+  hasTasks: boolean;
 }) {
+  // A stage whose artifact already exists reads as done even while the
+  // pipeline status still sits on it (e.g. tasks generated → green tick).
+  function resolveState(index: number, stage: (typeof PIPELINE_STAGES)[number]): StageState {
+    const base = stageState(index, status);
+    if (base === "blocked") return base;
+    if (stage.value === "prd" && hasPrd) return "done";
+    if (stage.value === "tasks" && hasTasks) return "done";
+    return base;
+  }
+
   return (
     <div className="overflow-x-auto border border-border bg-card p-4">
-      <div className="flex min-w-max items-start sm:min-w-0">
+      <div className="mx-auto grid w-full min-w-[420px] max-w-3xl grid-cols-5">
         {PIPELINE_STAGES.map((stage, i) => {
-          const state = stageState(i, status);
+          const state = resolveState(i, stage);
           const selected = value === stage.value;
           const Icon = stage.icon;
           const generating =
@@ -168,12 +182,21 @@ function PipelineStepper({
             (stage.value === "tasks" && isGeneratingTasks);
 
           return (
-            <div key={stage.value} className="flex flex-1 items-start">
+            <div key={stage.value} className="relative flex flex-col items-center">
+              {i < PIPELINE_STAGES.length - 1 ? (
+                <span
+                  aria-hidden
+                  className={cn(
+                    "absolute left-[calc(50%+1.75rem)] top-5 h-px w-[calc(100%-3.5rem)]",
+                    state === "done" ? "bg-success/40" : "bg-border",
+                  )}
+                />
+              ) : null}
               <button
                 type="button"
                 onClick={() => onSelect(stage.value)}
                 aria-current={selected ? "step" : undefined}
-                className="group flex shrink-0 flex-col items-center gap-2 px-2 outline-none"
+                className="group flex flex-col items-center gap-2 outline-none"
               >
                 <span
                   className={cn(
@@ -199,12 +222,6 @@ function PipelineStepper({
                   {stage.label}
                 </span>
               </button>
-              {i < PIPELINE_STAGES.length - 1 ? (
-                <span
-                  aria-hidden
-                  className={cn("mx-1 mt-5 h-px flex-1", state === "done" ? "bg-success/40" : "bg-border")}
-                />
-              ) : null}
             </div>
           );
         })}
@@ -1147,6 +1164,8 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
             onSelect={setActiveTab}
             isGeneratingPrd={isGeneratingPrd}
             isGeneratingTasks={isGeneratingTasks}
+            hasPrd={Boolean(feature.prd)}
+            hasTasks={feature.tasks.length > 0}
           />
         </div>
 
@@ -1749,9 +1768,13 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
                           <div className="flex items-start justify-between gap-2">
                             <p className="text-sm text-foreground">{issue.title}</p>
                             <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium",
-                              issue.severity === "blocking" ? "bg-red-500/15 text-red-700 dark:text-red-300" : "bg-amber-500/15 text-amber-700 dark:text-amber-300",
+                              issue.severity === "blocking"
+                                ? "bg-red-500/15 text-red-700 dark:text-red-300"
+                                : issue.severity === "positive"
+                                  ? "bg-success/15 text-success"
+                                  : "bg-amber-500/15 text-amber-700 dark:text-amber-300",
                             )}>
-                              {issue.severity === "blocking" ? "Blocking" : "Non-blocking"}
+                              {issue.severity === "blocking" ? "Blocking" : issue.severity === "positive" ? "Positive" : "Non-blocking"}
                             </span>
                           </div>
                           {issue.filePath && <p className="mt-1 font-mono text-[11px] text-muted-foreground">{issue.filePath}{issue.lineNumber ? `:${issue.lineNumber}` : ""}</p>}

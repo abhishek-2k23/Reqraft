@@ -52,7 +52,7 @@ function SidebarBody({
       <Link
         href="/dashboard"
         onClick={onNavigate}
-        className="group flex items-center gap-2.5 px-2 py-1 transition-opacity hover:opacity-90"
+        className="group flex items-center gap-2.5 px-3 py-1 transition-opacity hover:opacity-90"
       >
         <span className="relative grid size-9 shrink-0 place-items-center border border-border bg-foreground/[0.03]">
           <Image
@@ -78,10 +78,10 @@ function SidebarBody({
         </div>
       </Link>
 
-      <nav className="mt-4 flex-1 overflow-y-auto">
+      <nav className="mt-5 flex-1 space-y-5 overflow-y-auto">
         {navGroups.map((group) => (
           <div key={group}>
-            <p className="px-3 pb-1.5 pt-4 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
+            <p className="px-3 pb-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
               {group}
             </p>
             <div className="grid gap-0.5">
@@ -119,10 +119,10 @@ function SidebarBody({
         ))}
       </nav>
 
-      <div className="mt-4 border-t border-border pt-4">
+      <div className="mt-4 space-y-2 border-t border-border pt-3">
         <KeyboardShortcutsButton />
         <OrgSwitcher />
-        <div className="mt-3 flex items-center gap-2 border border-border bg-foreground/[0.02] px-3 py-2">
+        <div className="flex items-center gap-2 border border-border bg-foreground/[0.02] px-3 py-2">
           <span aria-hidden className="size-1.5 bg-success" />
           <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
             All systems operational

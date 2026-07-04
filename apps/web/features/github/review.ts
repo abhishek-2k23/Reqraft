@@ -15,6 +15,16 @@ import { publishOrgEvent } from "@/lib/realtime/server";
 
 export { ReviewCreditError };
 
+function safeParseStringArray(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? (parsed as string[]) : [];
+  } catch {
+    return [];
+  }
+}
+
 /**
  * Runs the full AI review for a cached pull request and posts the result back
  * to GitHub. This is the single source of truth for review execution — it is
@@ -122,14 +132,38 @@ export async function runReviewForPullRequest(pullRequestId: string) {
   }
 
   // --- Run the AI review (with or without PRD context) ---
-  const review = await reviewPullRequestAgainstPrd({
-    repoFullName: pullRequest.repoFullName,
-    pullRequestTitle: pullRequest.title,
-    prdTitle: prd?.problem ?? null,
-    acceptanceCriteria: prd ? (JSON.parse(prd.acceptanceCriteria) as string[]) : null,
-    files,
-    commits,
-  });
+  // On failure, close the cycle as failed instead of leaving it "running"
+  // forever (which keeps the feature page spinner up and blocks re-runs).
+  let review;
+  try {
+    review = await reviewPullRequestAgainstPrd({
+      repoFullName: pullRequest.repoFullName,
+      pullRequestTitle: pullRequest.title,
+      prdTitle: prd?.problem ?? null,
+      acceptanceCriteria: prd ? safeParseStringArray(prd.acceptanceCriteria) : null,
+      files,
+      commits,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (reviewCycle) {
+      await db
+        .update(reviewCycles)
+        .set({
+          status: "failed",
+          summary: `Review failed to complete: ${message}`,
+          completedAt: new Date(),
+        })
+        .where(eq(reviewCycles.id, reviewCycle.id));
+    }
+    if (featureId) {
+      await db
+        .update(featureRequests)
+        .set({ status: "blocked", updatedAt: new Date() })
+        .where(eq(featureRequests.id, featureId));
+    }
+    throw error;
+  }
 
   // --- Persist results for every cycle; feature status only when linked ---
   if (reviewCycle) {
@@ -159,12 +193,16 @@ export async function runReviewForPullRequest(pullRequestId: string) {
           id: crypto.randomUUID(),
           reviewCycleId: reviewCycle.id,
           category: "prd_compliance",
-          severity: finding.severity === "blocking" ? "blocking" : "non_blocking",
+          // Keep "positive" verbatim — flattening it to non_blocking made
+          // passed reviews look like they carried unresolved issues.
+          severity: finding.severity,
           title: finding.message,
           description: finding.message,
           suggestion:
-            finding.suggestion?.trim() ||
-            "Update the pull request to satisfy the linked PRD.",
+            finding.severity === "positive"
+              ? finding.suggestion?.trim() ?? ""
+              : finding.suggestion?.trim() ||
+                "Update the pull request to satisfy the linked PRD.",
           filePath: finding.file,
           assignedTo: finding.severity === "blocking" ? prAuthorUserId : null,
         })),
