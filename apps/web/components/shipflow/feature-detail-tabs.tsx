@@ -62,6 +62,11 @@ import {
   type PrdDocMeta,
   type PrdView,
 } from "~/components/shipflow/prd-document-view";
+import {
+  ImplementationPromptsPanel,
+  TasksViewToggle,
+  type TasksView,
+} from "~/components/shipflow/implementation-prompts";
 import { cn } from "~/lib/utils";
 import { trpc } from "~/trpc/client";
 
@@ -775,6 +780,7 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
   const [prdView, setPrdView] = useState<PrdView>(
     searchParams.get("view") === "document" ? "document" : "structured",
   );
+  const [tasksView, setTasksView] = useState<TasksView>("board");
   const [shouldPoll, setShouldPoll] = useState(
     initialFeature.status === "prd_generating" ||
     (initialFeature.status === "in_progress" && initialFeature.tasks.length === 0) ||
@@ -1497,11 +1503,27 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
             </div>
           ) : (
             <>
-              <p className="flex items-center gap-2 text-xs text-muted-foreground">
-                <GripVertical className="size-3.5" />
-                Drag tasks between columns or use the quick-move buttons. Moving a task to <span className="font-medium text-red-300">Blocked</span> asks for a reason.
-              </p>
-              <KanbanBoard featureId={feature.id} tasks={feature.tasks} generating={isGeneratingTasks} />
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                  {tasksView === "board" ? (
+                    <>
+                      <GripVertical className="size-3.5" />
+                      Drag tasks between columns or use the quick-move buttons. Moving a task to <span className="font-medium text-red-300">Blocked</span> asks for a reason.
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="size-3.5" />
+                      Copy-paste-ready implementation prompts for an AI coding agent, tailored to your stack.
+                    </>
+                  )}
+                </p>
+                <TasksViewToggle view={tasksView} onChange={setTasksView} />
+              </div>
+              {tasksView === "board" ? (
+                <KanbanBoard featureId={feature.id} tasks={feature.tasks} generating={isGeneratingTasks} />
+              ) : (
+                <ImplementationPromptsPanel featureId={feature.id} />
+              )}
             </>
           )}
         </div>

@@ -4,6 +4,7 @@ import { requireAuth } from "@/features/auth/session";
 import { ProjectProvider } from "~/components/shipflow/project-context";
 import { ShipFlowShell } from "~/components/shipflow/shell";
 import { EmailVerificationPrompt } from "~/components/shipflow/verify-email";
+import { ReqraftAssistant } from "~/components/shipflow/assistant/assistant-widget";
 
 export default async function ProtectedLayout({
   children,
@@ -53,6 +54,7 @@ export default async function ProtectedLayout({
     <ProjectProvider>
       <ShipFlowShell>{children}</ShipFlowShell>
       <EmailVerificationPrompt />
+      <ReqraftAssistant />
     </ProjectProvider>
   );
 }

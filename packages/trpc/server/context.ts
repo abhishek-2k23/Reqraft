@@ -44,6 +44,45 @@ export type PrdContent = {
 
 export type EditPrdResult = PrdContent & { rawMarkdown: string };
 
+export type GenerateImplPromptsInput = {
+  feature: { title: string; description: string };
+  prd: {
+    problemStatement: string;
+    goals: string[];
+    nonGoals: string[];
+    userStories: string[];
+    acceptanceCriteria: string[];
+    edgeCases: string[];
+    technicalRequirements: string[];
+    dependencies: string[];
+    risks: string[];
+  };
+  tasks: Array<{
+    id: string;
+    title: string;
+    description: string;
+    type: string;
+    priority: string;
+    estimatedHours: number | null;
+  }>;
+  techStack: string;
+};
+
+export type GenerateImplPromptsResult = {
+  combinedPrompt: string;
+};
+
+export type AssistantChatMessage = { role: "user" | "assistant"; content: string };
+
+export type AssistantChatInput = {
+  // The org/product context block the router assembled from the DB.
+  context: string;
+  // Full conversation so far, ending with the latest user message.
+  messages: AssistantChatMessage[];
+};
+
+export type AssistantChatResult = { reply: string };
+
 export type SendInviteInput = {
   to: string;
   inviterName: string;
@@ -77,6 +116,8 @@ export type CreateContextOptions = {
   ai?: {
     clarify: (input: ClarifyInput) => Promise<ClarifyResult>;
     editPrd: (input: { currentPrd: PrdContent; editPrompt: string }) => Promise<EditPrdResult>;
+    generateImplPrompts: (input: GenerateImplPromptsInput) => Promise<GenerateImplPromptsResult>;
+    assistantChat: (input: AssistantChatInput) => Promise<AssistantChatResult>;
   };
   sendInvite?: (input: SendInviteInput) => Promise<unknown>;
   sendPrdShare?: (input: SendPrdShareInput) => Promise<unknown>;
@@ -92,6 +133,8 @@ export type ContextValue = {
   ai: {
     clarify: (input: ClarifyInput) => Promise<ClarifyResult>;
     editPrd: (input: { currentPrd: PrdContent; editPrompt: string }) => Promise<EditPrdResult>;
+    generateImplPrompts: (input: GenerateImplPromptsInput) => Promise<GenerateImplPromptsResult>;
+    assistantChat: (input: AssistantChatInput) => Promise<AssistantChatResult>;
   };
   sendInvite: (input: SendInviteInput) => Promise<unknown>;
   sendPrdShare: (input: SendPrdShareInput) => Promise<unknown>;
@@ -109,6 +152,12 @@ const noopEditPrd = async ({ currentPrd }: { currentPrd: PrdContent }): Promise<
   estimatedTotalHours: currentPrd.estimatedTotalHours ?? null,
   rawMarkdown: "",
 });
+const noopGenerateImplPrompts = async (): Promise<GenerateImplPromptsResult> => ({
+  combinedPrompt: "",
+});
+const noopAssistantChat = async (): Promise<AssistantChatResult> => ({
+  reply: "The assistant is not available in this environment.",
+});
 const noopSendInvite = async () => {};
 const noopSendPrdShare = async () => {};
 const noopSendVerificationCode = async () => {};
@@ -122,7 +171,13 @@ export async function createContext(
     request: options.request,
     session: options.session ?? null,
     emit: options.emit ?? noopEmit,
-    ai: options.ai ?? { clarify: noopClarify, editPrd: noopEditPrd },
+    ai:
+      options.ai ?? {
+        clarify: noopClarify,
+        editPrd: noopEditPrd,
+        generateImplPrompts: noopGenerateImplPrompts,
+        assistantChat: noopAssistantChat,
+      },
     sendInvite: options.sendInvite ?? noopSendInvite,
     sendPrdShare: options.sendPrdShare ?? noopSendPrdShare,
     sendVerificationCode: options.sendVerificationCode ?? noopSendVerificationCode,

@@ -5,6 +5,8 @@ import { auth } from "@/lib/auth";
 import { inngest } from "@/features/inngest/client";
 import { runClarificationAgent } from "@/features/ai/clarification-agent";
 import { editPrdWithAI } from "@/features/ai/prd-generator";
+import { generateImplPrompts } from "@/features/ai/impl-prompt-generator";
+import { runAssistantChat } from "@/features/ai/assistant-chat";
 import { sendInviteEmail, sendPrdShareEmail, sendVerificationCodeEmail } from "@/lib/email";
 import { publishOrgEvent } from "@/lib/realtime/server";
 
@@ -23,7 +25,12 @@ async function handler(request: Request) {
         session,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         emit: (event) => inngest.send(event as any),
-        ai: { clarify: runClarificationAgent, editPrd: editPrdWithAI },
+        ai: {
+          clarify: runClarificationAgent,
+          editPrd: editPrdWithAI,
+          generateImplPrompts,
+          assistantChat: runAssistantChat,
+        },
         sendInvite: sendInviteEmail,
         sendPrdShare: sendPrdShareEmail,
         sendVerificationCode: sendVerificationCodeEmail,

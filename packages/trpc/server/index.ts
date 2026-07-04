@@ -1,6 +1,7 @@
 import { router } from "./trpc";
 
 import { approvalRouter } from "./routes/approval/route";
+import { assistantRouter } from "./routes/assistant/route";
 import { billingRouter } from "./routes/billing/route";
 import { featureRouter } from "./routes/feature/route";
 import { githubRouter } from "./routes/github/route";
@@ -10,6 +11,7 @@ import { orgRouter } from "./routes/org/route";
 import { prdRouter } from "./routes/prd/route";
 import { profileRouter } from "./routes/profile/route";
 import { projectRouter } from "./routes/project/route";
+import { promptsRouter } from "./routes/prompts/route";
 import { reviewRouter } from "./routes/review/route";
 import { searchRouter } from "./routes/search/route";
 import { shipflowRouter } from "./routes/shipflow/route";
@@ -17,6 +19,7 @@ import { taskRouter } from "./routes/task/route";
 
 export const serverRouter = router({
   approval: approvalRouter,
+  assistant: assistantRouter,
   billing: billingRouter,
   feature: featureRouter,
   github: githubRouter,
@@ -26,6 +29,7 @@ export const serverRouter = router({
   prd: prdRouter,
   profile: profileRouter,
   project: projectRouter,
+  prompts: promptsRouter,
   review: reviewRouter,
   search: searchRouter,
   shipflow: shipflowRouter,

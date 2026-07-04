@@ -89,6 +89,10 @@ export const projects = pgTable("project", {
   name: text("name").notNull(),
   slug: text("slug").notNull(),
   description: text("description"),
+  // Default tech stack for the project's codebase (free text, e.g.
+  // "Next.js + tRPC + Drizzle + PostgreSQL"). Seeds the AI implementation-prompt
+  // stack selector so every feature defaults to the same stack.
+  techStack: text("tech_stack"),
   createdBy: text("created_by")
     .notNull()
     .references(() => usersTable.id, { onDelete: "restrict" }),
@@ -252,6 +256,89 @@ export const taskNotes = pgTable("task_note", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// AI-generated implementation prompts for a feature — one "master" prompt
+// covering the whole feature plus one self-contained prompt per task, tailored
+// to a tech stack. Cached per (feature, techStack) so switching the stack
+// selector back to a previously-generated stack is a free cache hit. Staleness
+// is tracked against the PRD version + the task id set, not content hashes.
+export const implementationPrompts = pgTable(
+  "implementation_prompt",
+  {
+    id: text("id").primaryKey().$defaultFn(randomUUID),
+    featureId: text("feature_id")
+      .notNull()
+      .references(() => featureRequests.id, { onDelete: "cascade" }),
+    prdId: text("prd_id")
+      .notNull()
+      .references(() => prds.id, { onDelete: "cascade" }),
+    // Normalized stack string — part of the cache key.
+    techStack: text("tech_stack").notNull(),
+    // Master prompt markdown covering the whole feature.
+    combinedPrompt: text("combined_prompt").notNull(),
+    // JSON Record<taskId, markdown> — one prompt per task.
+    taskPrompts: text("task_prompts").notNull().default("{}"),
+    // PRD version this was generated against (staleness anchor).
+    prdVersion: integer("prd_version").notNull(),
+    // JSON string[] of sorted task ids this was generated against.
+    taskFingerprint: text("task_fingerprint").notNull().default("[]"),
+    createdBy: text("created_by").references(() => usersTable.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    featureStackUnique: uniqueIndex("implementation_prompt_feature_stack_unique").on(
+      table.featureId,
+      table.techStack,
+    ),
+  }),
+);
+
+// Append-only ledger of billable AI actions (currently implementation-prompt
+// generations). We count rows here rather than the prompt table because prompts
+// are upserted per stack, so row count != generation count. `featureId` powers
+// the per-feature lifetime cap; `createdAt` powers the monthly org cap.
+export const aiUsageEvents = pgTable("ai_usage_event", {
+  id: text("id").primaryKey().$defaultFn(randomUUID),
+  organizationId: text("organization_id")
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  userId: text("user_id").references(() => usersTable.id, { onDelete: "set null" }),
+  // "prompt_generation" today; kept generic for future metered actions.
+  kind: text("kind").notNull(),
+  // Keep the count even if the feature is later deleted (global monthly cap).
+  featureId: text("feature_id").references(() => featureRequests.id, {
+    onDelete: "set null",
+  }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// A Reqraft-assistant chat conversation. One row per conversation is what the
+// monthly chat cap counts (chats are metered per conversation, not per message).
+export const aiConversations = pgTable("ai_conversation", {
+  id: text("id").primaryKey().$defaultFn(randomUUID),
+  organizationId: text("organization_id")
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  userId: text("user_id")
+    .notNull()
+    .references(() => usersTable.id, { onDelete: "cascade" }),
+  title: text("title").notNull().default("New chat"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const aiMessages = pgTable("ai_message", {
+  id: text("id").primaryKey().$defaultFn(randomUUID),
+  conversationId: text("conversation_id")
+    .notNull()
+    .references(() => aiConversations.id, { onDelete: "cascade" }),
+  role: text("role").notNull(), // "user" | "assistant"
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const pullRequests = pgTable("pull_request", {
   id: text("id").primaryKey().$defaultFn(randomUUID),
   // Nullable: we cache every PR for connected repos, even ones not tied to a feature branch
@@ -390,3 +477,5 @@ export type SelectProject = typeof projects.$inferSelect;
 export type InsertProject = typeof projects.$inferInsert;
 export type SelectFeatureRequest = typeof featureRequests.$inferSelect;
 export type InsertFeatureRequest = typeof featureRequests.$inferInsert;
+export type SelectImplementationPrompt = typeof implementationPrompts.$inferSelect;
+export type InsertImplementationPrompt = typeof implementationPrompts.$inferInsert;

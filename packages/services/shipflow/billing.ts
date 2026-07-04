@@ -16,7 +16,14 @@ export type PlanDetails = {
   featureLimit: number;
   /** How many organizations a user may create/own. `-1` means unlimited. */
   organizationLimit: number;
+  /** AI implementation-prompt generations per org per billing period. `-1` = unlimited. */
+  promptGenerationLimit: number;
+  /** AI-assistant chat conversations per org per billing period. `-1` = unlimited. */
+  chatConversationLimit: number;
 };
+
+/** A single feature may have at most this many prompt generations, ever. */
+export const PROMPTS_PER_FEATURE = 2;
 
 /**
  * Plan tiers, low → high. Used to resolve a user's *best* entitlement when they
@@ -79,6 +86,8 @@ const planDetails: Record<BillingPlan, PlanDetails> = {
     projectLimit: 3,
     featureLimit: 5,
     organizationLimit: 2,
+    promptGenerationLimit: 10,
+    chatConversationLimit: 10,
   },
   pro: {
     plan: "pro",
@@ -90,6 +99,8 @@ const planDetails: Record<BillingPlan, PlanDetails> = {
     projectLimit: 10,
     featureLimit: 200,
     organizationLimit: 5,
+    promptGenerationLimit: 200,
+    chatConversationLimit: 50,
   },
   scale: {
     plan: "scale",
@@ -102,6 +113,8 @@ const planDetails: Record<BillingPlan, PlanDetails> = {
     // Top tier — scaled up an order of magnitude from Pro.
     featureLimit: 2000,
     organizationLimit: 20,
+    promptGenerationLimit: 500,
+    chatConversationLimit: -1,
   },
 };
 
@@ -141,6 +154,23 @@ export function resolveCreditPeriod(
       ? currentPeriodEnd
       : new Date(now.getTime() + THIRTY_DAYS_MS);
   return { expired, nextResetAt };
+}
+
+/**
+ * Start of the current usage period for metered AI actions (prompt generation,
+ * chat conversations). Paid plans with an active billing cycle count from the
+ * current cycle's start (stepping 30-day windows back from `currentPeriodEnd`
+ * until the window contains `now`); everyone else uses a rolling 30-day window.
+ * Pure so quota checks and any usage UI share one rule.
+ */
+export function resolveUsagePeriodStart(now: Date, currentPeriodEnd: Date | null): Date {
+  const nowMs = now.getTime();
+  if (currentPeriodEnd && currentPeriodEnd.getTime() > nowMs) {
+    let start = currentPeriodEnd.getTime();
+    while (start > nowMs) start -= THIRTY_DAYS_MS;
+    return new Date(start);
+  }
+  return new Date(nowMs - THIRTY_DAYS_MS);
 }
 
 export function calculateCreditUsage(

@@ -8,7 +8,6 @@ import {
   ScrollText,
   Settings,
   ShieldCheck,
-  Sparkles,
   UserCircle,
   Users,
   type LucideIcon,
@@ -30,7 +29,6 @@ export const navItems: NavItem[] = [
   { href: "/prd", label: "PRDs", icon: ScrollText, group: "Delivery", shortcut: "alt+p" },
   { href: "/tasks", label: "Tasks", icon: ListChecks, group: "Delivery", shortcut: "alt+t" },
   { href: "/reviews", label: "Reviews", icon: ShieldCheck, group: "Delivery", shortcut: "alt+r" },
-  { href: "/copilot", label: "Copilot", icon: Sparkles, group: "Delivery", shortcut: "alt+c" },
   { href: "/github", label: "GitHub", icon: GitBranch, group: "Delivery", shortcut: "alt+g" },
   { href: "/projects", label: "Projects", icon: FolderKanban, group: "Workspace", shortcut: "alt+o" },
   { href: "/billing", label: "Billing", icon: BadgeIndianRupee, group: "Workspace", shortcut: "alt+b" },
@@ -44,6 +42,7 @@ export const navGroups: NavItem["group"][] = ["Delivery", "Workspace"];
 /** Extra (non-navigation) global shortcuts, shown in the help modal. */
 export const globalShortcuts: { label: string; shortcut: string }[] = [
   { label: "New feature request", shortcut: "alt+n" },
+  { label: "Reqraft assistant", shortcut: "alt+c" },
   { label: "Command palette / search", shortcut: "mod+k" },
   { label: "Show keyboard shortcuts", shortcut: "shift+?" },
 ];

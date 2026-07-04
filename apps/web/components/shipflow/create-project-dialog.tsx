@@ -54,6 +54,7 @@ export function CreateProjectDialog({ trigger }: { trigger: React.ReactNode }) {
           name: vars.name,
           slug: vars.slug,
           description: vars.description ?? null,
+          techStack: null,
           createdBy: "",
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),

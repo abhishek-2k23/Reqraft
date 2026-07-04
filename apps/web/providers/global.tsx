@@ -33,7 +33,10 @@ export const GlobalProviders: React.FC<{ children: React.ReactNode }> = ({ child
       >
         <trpc.Provider queryClient={queryClient} client={trpcClient}>
           {children}
-          <Toaster />
+          {/* Lift bottom toasts above the floating Reqraft assistant launcher
+              (size-14 at bottom-6) so the persistent unverified-email prompt
+              doesn't sit behind it. */}
+          <Toaster offset={{ bottom: "96px", right: "24px" }} />
         </trpc.Provider>
       </NextThemesProvider>
     </QueryClientProvider>
