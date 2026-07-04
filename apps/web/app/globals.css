@@ -175,6 +175,22 @@
   }
 }
 
+/* Theme switch: circular reveal via the View Transitions API. The new theme
+   snapshot sits on top and is clipped open by the WAAPI clip-path animation in
+   theme-toggle.tsx; the old snapshot stays static beneath it (no cross-fade),
+   so the incoming theme wipes over the outgoing one from the toggle button. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-old(root) {
+  z-index: 0;
+}
+::view-transition-new(root) {
+  z-index: 1;
+}
+
 /* Lenis smooth scroll */
 html.lenis,
 html.lenis body {

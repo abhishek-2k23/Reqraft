@@ -6,12 +6,21 @@ import { motion, type Variants } from "framer-motion";
 import {
   CheckCircle2, ChevronRight, ExternalLink, GitBranch, Github,
   Loader2, Lock, Globe, Search, ShieldCheck, Link2, Settings, Unlink2,
+  FolderGit2, FolderPlus, Plus,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import { PageHeader } from "~/components/shipflow/ui-kit";
 import { GithubPageSkeleton } from "~/components/shipflow/page-skeletons";
 import { Button } from "~/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "~/components/ui/dialog";
+import { Input } from "~/components/ui/input";
 import { cn } from "~/lib/utils";
 import { ProjectTag, useActiveProject } from "~/components/shipflow/project-context";
 import { GithubRepoDashboard, type ConnectedRepo } from "~/components/shipflow/github-repo-dashboard";
@@ -47,6 +56,144 @@ function getManageUrl(installationId: number) {
   return `https://github.com/settings/installations/${installationId}`;
 }
 
+function slugifyProject(value: string) {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+/**
+ * Dialog shown when a repo is connected without an active project selected.
+ * Lets the user pick one of the org's existing projects — or create a new one
+ * inline — as the connection target, then connects the repo to it.
+ */
+function ProjectPickerDialog({
+  open,
+  onOpenChange,
+  repoName,
+  onPick,
+  connecting,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  repoName: string;
+  onPick: (projectId: string, projectName: string) => void;
+  connecting: boolean;
+}) {
+  const { projects, setActiveProjectId } = useActiveProject();
+  const utils = trpc.useUtils();
+  const [creating, setCreating] = useState(projects.length === 0);
+  const [name, setName] = useState("");
+
+  // With no projects at all there's nothing to pick — go straight to create.
+  useEffect(() => {
+    if (open) setCreating(projects.length === 0);
+  }, [open, projects.length]);
+
+  const createProject = trpc.project.create.useMutation({
+    onError: (err) => toast.error(err.message),
+    onSuccess: (project) => {
+      if (!project) return;
+      void utils.project.list.invalidate();
+      // Make the new project the active scope so later connects default to it.
+      setActiveProjectId(project.id);
+      onPick(project.id, project.name);
+    },
+  });
+
+  const slug = slugifyProject(name);
+  const busy = connecting || createProject.isPending;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="border-border bg-popover sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Connect {repoName}</DialogTitle>
+          <DialogDescription>
+            {creating
+              ? "Create a project to connect this repository to."
+              : "Select the project you want to connect this repository to, or create a new one."}
+          </DialogDescription>
+        </DialogHeader>
+
+        {!creating ? (
+          <div className="space-y-3 py-1">
+            <div className="max-h-64 space-y-1.5 overflow-y-auto" data-lenis-prevent>
+              {projects.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  disabled={busy}
+                  onClick={() => onPick(p.id, p.name)}
+                  className="flex w-full items-center gap-3 rounded-lg border border-border bg-background px-3 py-2.5 text-left transition hover:border-primary/40 hover:bg-foreground/[0.04] disabled:opacity-50"
+                >
+                  <FolderGit2 className="size-4 shrink-0 text-primary" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium text-foreground">{p.name}</span>
+                    {p.description ? (
+                      <span className="block truncate text-xs text-muted-foreground">{p.description}</span>
+                    ) : null}
+                  </span>
+                  <Link2 className="size-3.5 shrink-0 text-muted-foreground" />
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => setCreating(true)}
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-primary transition hover:underline"
+            >
+              <Plus className="size-3.5" />
+              Create a new project instead
+            </button>
+          </div>
+        ) : (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!name.trim() || !slug) return;
+              createProject.mutate({ name: name.trim(), slug });
+            }}
+            className="space-y-3 py-1"
+          >
+            <div className="grid gap-1.5">
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Project name, e.g. Mobile App"
+                autoFocus
+                required
+              />
+              {slug ? <p className="font-mono text-[11px] text-muted-foreground">/{slug}</p> : null}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="submit"
+                disabled={!name.trim() || !slug || busy}
+                className="inline-flex h-9 items-center justify-center gap-2 bg-primary px-4 text-sm font-medium text-primary-foreground transition-transform hover:opacity-95 active:scale-[0.97] disabled:opacity-50 disabled:active:scale-100"
+              >
+                {busy ? <Loader2 className="size-4 animate-spin" /> : <FolderPlus className="size-4" />}
+                Create &amp; connect
+              </button>
+              {projects.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setCreating(false)}
+                  className="h-9 rounded-lg border border-foreground/10 px-3 text-sm text-muted-foreground transition hover:bg-foreground/5"
+                >
+                  Back
+                </button>
+              )}
+            </div>
+          </form>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function RepoRow({
   repo,
   projectId,
@@ -58,19 +205,36 @@ function RepoRow({
   installationId: number;
   onConnected: (repo: ConnectedRepo) => void;
 }) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const { activeProject } = useActiveProject();
+
   const connectRepo = trpc.github.connectRepo.useMutation({
-    onSuccess: () => {
-      toast.success(`${repo.name} connected`);
-      onConnected({
-        fullName: repo.fullName,
-        name: repo.name,
-        installationId,
-        defaultBranch: repo.defaultBranch,
-        projectId,
-      });
-    },
     onError: (err) => toast.error(err.message),
   });
+
+  function connectTo(pid: string, pname: string) {
+    connectRepo.mutate(
+      {
+        projectId: pid,
+        fullName: repo.fullName,
+        githubRepoId: repo.id,
+        installationId,
+      },
+      {
+        onSuccess: () => {
+          toast.success(`${repo.name} connected to ${pname}`);
+          setPickerOpen(false);
+          onConnected({
+            fullName: repo.fullName,
+            name: repo.name,
+            installationId,
+            defaultBranch: repo.defaultBranch,
+            projectId: pid,
+          });
+        },
+      },
+    );
+  }
 
   return (
     <div className="flex items-center gap-4 px-5 py-3.5">
@@ -83,20 +247,29 @@ function RepoRow({
       </div>
       <Button
         size="sm"
-        disabled={!projectId || connectRepo.isPending}
-        onClick={() =>
-          connectRepo.mutate({
-            projectId: projectId as string,
-            fullName: repo.fullName,
-            githubRepoId: repo.id,
-            installationId,
-          })
-        }
+        disabled={connectRepo.isPending}
+        onClick={() => {
+          // With an active project, connect straight to it. Otherwise let the
+          // user pick or create the target project first.
+          if (projectId) {
+            connectTo(projectId, activeProject?.name ?? "project");
+          } else {
+            setPickerOpen(true);
+          }
+        }}
         className="shrink-0 bg-primary text-primary-foreground hover:bg-primary disabled:opacity-40"
       >
         {connectRepo.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Link2 className="size-3.5" />}
         Connect
       </Button>
+
+      <ProjectPickerDialog
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        repoName={repo.name}
+        onPick={connectTo}
+        connecting={connectRepo.isPending}
+      />
     </div>
   );
 }
@@ -560,8 +733,8 @@ export default function GithubPage() {
           className="mt-8 max-w-5xl space-y-6"
         >
           {!activeProjectId && (
-            <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-300">
-              Select or create a project (top bar) to connect repositories.
+            <p className="rounded-xl border border-foreground/10 bg-foreground/[0.03] px-4 py-3 text-sm text-muted-foreground">
+              No project selected — you&apos;ll pick (or create) the project to connect a repository to when you hit Connect.
             </p>
           )}
 
@@ -620,11 +793,13 @@ export default function GithubPage() {
               <h2 className="text-sm font-semibold text-foreground">
                 {loadingRepos ? "Loading repositories…" : `Available repositories (${unconnectedRepos.length})`}
               </h2>
-              {activeProject && (
-                <span className="text-xs text-muted-foreground">
-                  Connecting to <span className="font-medium text-primary">{activeProject.name}</span>
-                </span>
-              )}
+              <span className="text-xs text-muted-foreground">
+                {activeProject ? (
+                  <>Connecting to <span className="font-medium text-primary">{activeProject.name}</span></>
+                ) : (
+                  "Choose a project on connect"
+                )}
+              </span>
             </div>
 
             {loadingRepos ? (

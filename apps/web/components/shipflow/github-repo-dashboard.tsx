@@ -60,16 +60,45 @@ function timeAgo(value: string | Date | null) {
   return d.toLocaleDateString("en-IN");
 }
 
-function StatPill({ icon, label, value }: { icon: React.ReactNode; label: string; value: number | string }) {
-  return (
-    <div className="flex items-center gap-3 rounded-xl border border-foreground/10 bg-foreground/[0.03] px-4 py-3">
-      <div className="text-muted-foreground">{icon}</div>
+function StatPill({
+  icon,
+  label,
+  value,
+  href,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: number | string;
+  href?: string;
+}) {
+  const inner = (
+    <>
+      <div className="text-muted-foreground transition-colors group-hover:text-primary">{icon}</div>
       <div>
         <p className="text-lg font-semibold text-foreground">{value}</p>
         <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
       </div>
-    </div>
+    </>
   );
+
+  const base =
+    "group flex items-center gap-3 rounded-xl border border-foreground/10 bg-foreground/[0.03] px-4 py-3";
+
+  if (href) {
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noreferrer"
+        className={cn(base, "cursor-pointer transition hover:border-primary/30 hover:bg-foreground/[0.06]")}
+        title={`Open ${label.toLowerCase()} on GitHub`}
+      >
+        {inner}
+      </a>
+    );
+  }
+
+  return <div className={base}>{inner}</div>;
 }
 
 function ReviewBadge({ review }: { review: { status: string; overallVerdict: string | null; prdComplianceScore: number | null } | null }) {
@@ -368,6 +397,9 @@ export function GithubRepoDashboard({ repo, onBack }: { repo: ConnectedRepo; onB
 
   const prsQuery = trpc.github.pullRequestsByRepo.useQuery({ repoFullName: repo.fullName });
   const prs = prsQuery.data ?? [];
+  const openPrCount = prs.filter((p) => p.state === "open").length;
+  // GitHub reports issues + PRs together in open_issues_count; strip the PRs.
+  const openIssuesOnly = Math.max(0, (overview?.openIssues ?? 0) - openPrCount);
 
   // Features for the branch-rename picker (scoped to the repo's project when known).
   const featuresQuery = trpc.feature.list.useQuery(
@@ -470,11 +502,14 @@ export function GithubRepoDashboard({ repo, onBack }: { repo: ConnectedRepo; onB
           ) : (
             <div className="space-y-5">
               {overview.description && <p className="text-sm leading-6 text-foreground/80">{overview.description}</p>}
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <StatPill icon={<Star className="size-5" />} label="Stars" value={overview.stars} />
-                <StatPill icon={<GitFork className="size-5" />} label="Forks" value={overview.forks} />
-                <StatPill icon={<CircleDot className="size-5" />} label="Open issues" value={overview.openIssues} />
-                <StatPill icon={<Eye className="size-5" />} label="Watchers" value={overview.watchers} />
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                <StatPill icon={<Star className="size-5" />} label="Stars" value={overview.stars} href={`${overview.htmlUrl}/stargazers`} />
+                <StatPill icon={<GitFork className="size-5" />} label="Forks" value={overview.forks} href={`${overview.htmlUrl}/forks`} />
+                {/* GitHub's open_issues_count lumps PRs in with issues — subtract
+                    the open PRs so this card shows real issues only. */}
+                <StatPill icon={<CircleDot className="size-5" />} label="Open issues" value={openIssuesOnly} href={`${overview.htmlUrl}/issues`} />
+                <StatPill icon={<GitPullRequest className="size-5" />} label="Open PRs" value={openPrCount} href={`${overview.htmlUrl}/pulls`} />
+                <StatPill icon={<Eye className="size-5" />} label="Watchers" value={overview.watchers} href={`${overview.htmlUrl}/watchers`} />
               </div>
               <div className="grid gap-3 sm:grid-cols-3">
                 <div className="rounded-xl border border-foreground/10 bg-foreground/[0.03] p-4">

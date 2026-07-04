@@ -326,7 +326,12 @@ export function ImplementationPromptsPanel({ featureId }: { featureId: string })
             </span>
             <CopyButton text={record.combinedPrompt} />
           </div>
-          <pre className="max-h-[32rem] overflow-auto whitespace-pre-wrap px-4 py-3 font-mono text-[11px] leading-relaxed text-foreground/90">
+          {/* data-lenis-prevent lets the mouse wheel scroll this natively —
+              without it Lenis hijacks the wheel and scrolls the page instead. */}
+          <pre
+            data-lenis-prevent
+            className="max-h-[32rem] overflow-auto overscroll-contain whitespace-pre-wrap px-4 py-3 font-mono text-[11px] leading-relaxed text-foreground/90"
+          >
             {record.combinedPrompt}
           </pre>
         </div>
