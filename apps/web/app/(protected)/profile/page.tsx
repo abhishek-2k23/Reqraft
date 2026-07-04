@@ -9,10 +9,12 @@ import {
   ListTodo,
   Loader2,
   LogOut,
+  ShieldCheck,
 } from "lucide-react";
 
 import { authClient } from "@/lib/auth-client";
 import { trpc } from "@/trpc/client";
+import { EmailVerifiedBadge, VerifyEmailDialog } from "~/components/shipflow/verify-email";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -44,8 +46,13 @@ export default function ProfilePage() {
     enabled: !!session?.user,
   });
 
+  const { data: emailStatus } = trpc.profile.emailStatus.useQuery(undefined, {
+    enabled: !!session?.user,
+  });
+
   const [signingOut, setSigningOut] = useState(false);
   const [switchingOrg, setSwitchingOrg] = useState<string | null>(null);
+  const [verifyOpen, setVerifyOpen] = useState(false);
 
   // Task filters — org scope + status. Org filter only matters with 2+ orgs.
   const [orgFilter, setOrgFilter] = useState<string>("all");
@@ -114,7 +121,26 @@ export default function ProfilePage() {
         </Avatar>
         <div className="flex-1 min-w-0">
           <h1 className="truncate text-2xl font-bold text-foreground">{displayName}</h1>
-          {user.email ? <p className="truncate text-sm text-muted-foreground">{user.email}</p> : null}
+          {user.email ? (
+            <div className="mt-0.5 flex flex-wrap items-center gap-2">
+              <p className="truncate text-sm text-muted-foreground">{user.email}</p>
+              {emailStatus ? (
+                <>
+                  <EmailVerifiedBadge verified={emailStatus.emailVerified} />
+                  {!emailStatus.emailVerified && (
+                    <button
+                      type="button"
+                      onClick={() => setVerifyOpen(true)}
+                      className="inline-flex items-center gap-1 text-xs font-medium text-primary underline-offset-2 hover:underline"
+                    >
+                      <ShieldCheck className="size-3.5" />
+                      Verify email
+                    </button>
+                  )}
+                </>
+              ) : null}
+            </div>
+          ) : null}
         </div>
         <Button
           variant="ghost"
@@ -127,6 +153,8 @@ export default function ProfilePage() {
           Sign out
         </Button>
       </div>
+
+      <VerifyEmailDialog open={verifyOpen} onOpenChange={setVerifyOpen} />
 
       {/* Organizations */}
       <Section icon={<Building2 className="size-4" />} title="Organizations">

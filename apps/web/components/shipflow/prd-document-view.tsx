@@ -3,19 +3,24 @@
 import { useMemo, useState } from "react";
 import {
   AlertTriangle,
+  AtSign,
   Check,
   Download,
   FileText,
   LayoutList,
   Loader2,
+  MailWarning,
+  Plus,
   Send,
   Share2,
   Users,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
+import { Input } from "~/components/ui/input";
 import { Textarea } from "~/components/ui/textarea";
 import {
   Dialog,
@@ -169,6 +174,8 @@ function initials(name: string | null, email: string): string {
   return src.slice(0, 1).toUpperCase();
 }
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 function PrdShareDialog({
   open,
   onOpenChange,
@@ -184,30 +191,41 @@ function PrdShareDialog({
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [message, setMessage] = useState("");
+  const [emailInput, setEmailInput] = useState("");
+  const [externalEmails, setExternalEmails] = useState<string[]>([]);
 
   const { data: members = [], isLoading } = trpc.member.list.useQuery(undefined, { enabled: open });
 
-  // Only teammates with a real email address can receive the PRD.
+  // Only teammates with a verified email address can receive the PRD — the
+  // rest (typically GitHub sign-ins with noreply addresses) show as disabled.
   const eligible = useMemo(
-    () => members.filter((m) => m.email && m.email.includes("@")),
+    () => members.filter((m) => m.emailVerified && m.email && m.email.includes("@")),
     [members],
   );
+  const eligibleIds = useMemo(() => new Set(eligible.map((m) => m.userId)), [eligible]);
+
+  function reset() {
+    setSelected(new Set());
+    setMessage("");
+    setEmailInput("");
+    setExternalEmails([]);
+  }
 
   const share = trpc.prd.share.useMutation({
     onSuccess: ({ sent, failed }) => {
       toast.success(
         failed > 0
-          ? `Shared with ${sent} teammate${sent === 1 ? "" : "s"} · ${failed} failed`
-          : `PRD shared with ${sent} teammate${sent === 1 ? "" : "s"}`,
+          ? `PRD sent to ${sent} recipient${sent === 1 ? "" : "s"} · ${failed} failed`
+          : `PRD sent to ${sent} recipient${sent === 1 ? "" : "s"}`,
       );
       onOpenChange(false);
-      setSelected(new Set());
-      setMessage("");
+      reset();
     },
     onError: (error) => toast.error(error.message),
   });
 
   function toggle(userId: string) {
+    if (!eligibleIds.has(userId)) return;
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(userId)) next.delete(userId);
@@ -221,6 +239,45 @@ function PrdShareDialog({
     setSelected(allSelected ? new Set() : new Set(eligible.map((m) => m.userId)));
   }
 
+  function addEmail(): boolean {
+    const email = emailInput.trim().toLowerCase();
+    if (!email) return true;
+    if (!EMAIL_RE.test(email)) {
+      toast.error("Enter a valid email address");
+      return false;
+    }
+    if (!externalEmails.includes(email)) setExternalEmails((prev) => [...prev, email]);
+    setEmailInput("");
+    return true;
+  }
+
+  function handleSend() {
+    // Fold a valid, not-yet-added address in the input into the send.
+    const pending = emailInput.trim().toLowerCase();
+    if (pending && !EMAIL_RE.test(pending)) {
+      toast.error("Enter a valid email address");
+      return;
+    }
+    const emails = pending && !externalEmails.includes(pending)
+      ? [...externalEmails, pending]
+      : externalEmails;
+
+    if (selected.size === 0 && emails.length === 0) return;
+
+    share.mutate({
+      prdId,
+      featureId,
+      recipientUserIds: [...selected],
+      externalEmails: emails,
+      message: message.trim() || undefined,
+    });
+  }
+
+  const recipientCount =
+    selected.size +
+    externalEmails.length +
+    (emailInput.trim() && !externalEmails.includes(emailInput.trim().toLowerCase()) ? 1 : 0);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="border-foreground/10 bg-card sm:max-w-lg">
@@ -230,7 +287,7 @@ function PrdShareDialog({
             Share PRD with your team
           </DialogTitle>
           <DialogDescription className="text-muted-foreground">
-            Selected teammates get an email with a link to view “{featureTitle}” in Reqraft and the full PRD attached as a PDF.
+            Recipients get an email with a link to view “{featureTitle}” in Reqraft and the full PRD attached as a PDF. Teammates need a verified email to receive it.
           </DialogDescription>
         </DialogHeader>
 
@@ -251,24 +308,31 @@ function PrdShareDialog({
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="size-4 animate-spin text-muted-foreground" />
               </div>
-            ) : eligible.length === 0 ? (
+            ) : members.length === 0 ? (
               <p className="px-3 py-8 text-center text-xs text-muted-foreground">
-                No teammates with an email address yet. Invite members from Settings → Team.
+                No teammates yet. Invite members from Settings → Team, or send the PRD to an email address below.
               </p>
             ) : (
-              eligible.map((m) => {
+              members.map((m) => {
+                const enabled = eligibleIds.has(m.userId);
                 const checked = selected.has(m.userId);
                 return (
                   <button
                     key={m.userId}
                     type="button"
                     onClick={() => toggle(m.userId)}
+                    disabled={!enabled}
+                    title={enabled ? undefined : "This teammate hasn't verified their email address yet."}
                     className={cn(
                       "flex w-full items-center gap-3 rounded-md px-2.5 py-2 text-left transition-colors",
-                      checked ? "bg-primary/10" : "hover:bg-foreground/[0.04]",
+                      !enabled
+                        ? "cursor-not-allowed opacity-50"
+                        : checked
+                          ? "bg-primary/10"
+                          : "hover:bg-foreground/[0.04]",
                     )}
                   >
-                    <Checkbox checked={checked} className="pointer-events-none" />
+                    <Checkbox checked={checked} disabled={!enabled} className="pointer-events-none" />
                     {m.image ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={m.image} alt={m.name ?? m.email} className="size-7 rounded-full object-cover ring-1 ring-foreground/10" />
@@ -281,11 +345,69 @@ function PrdShareDialog({
                       <p className="truncate text-sm text-foreground">{m.name ?? m.email}</p>
                       <p className="truncate text-xs text-muted-foreground">{m.email}</p>
                     </div>
+                    {!enabled && (
+                      <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-400/25 bg-amber-400/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-300">
+                        <MailWarning className="size-3" />
+                        Unverified
+                      </span>
+                    )}
                     <span className="shrink-0 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">{m.role}</span>
                     {checked && <Check className="size-4 shrink-0 text-primary" />}
                   </button>
                 );
               })
+            )}
+          </div>
+
+          <div>
+            <p className="mb-1.5 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              <AtSign className="size-3.5" /> Or send to an email address
+            </p>
+            <div className="flex items-center gap-2">
+              <Input
+                type="email"
+                value={emailInput}
+                onChange={(e) => setEmailInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addEmail();
+                  }
+                }}
+                placeholder="name@company.com"
+                className="h-9 flex-1 border-foreground/10 bg-foreground/5 text-sm text-foreground placeholder:text-muted-foreground"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={addEmail}
+                disabled={!emailInput.trim()}
+                className="h-9 gap-1 border-foreground/10 bg-foreground/5 px-3 text-foreground hover:bg-foreground/10"
+              >
+                <Plus className="size-3.5" />
+                Add
+              </Button>
+            </div>
+            {externalEmails.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {externalEmails.map((email) => (
+                  <span
+                    key={email}
+                    className="inline-flex items-center gap-1 rounded-full border border-primary/25 bg-primary/10 py-0.5 pl-2.5 pr-1 text-xs font-medium text-primary"
+                  >
+                    {email}
+                    <button
+                      type="button"
+                      aria-label={`Remove ${email}`}
+                      onClick={() => setExternalEmails((prev) => prev.filter((e) => e !== email))}
+                      className="rounded-full p-0.5 transition-colors hover:bg-primary/15"
+                    >
+                      <X className="size-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
             )}
           </div>
 
@@ -312,19 +434,12 @@ function PrdShareDialog({
           </Button>
           <Button
             type="button"
-            disabled={selected.size === 0 || share.isPending}
-            onClick={() =>
-              share.mutate({
-                prdId,
-                featureId,
-                recipientUserIds: [...selected],
-                message: message.trim() || undefined,
-              })
-            }
+            disabled={recipientCount === 0 || share.isPending}
+            onClick={handleSend}
             className="gap-1.5 bg-primary text-primary-foreground hover:bg-primary disabled:opacity-50"
           >
             {share.isPending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
-            {share.isPending ? "Sending…" : `Send${selected.size ? ` to ${selected.size}` : ""}`}
+            {share.isPending ? "Sending…" : `Send${recipientCount ? ` to ${recipientCount}` : ""}`}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -5,7 +5,7 @@ import { auth } from "@/lib/auth";
 import { inngest } from "@/features/inngest/client";
 import { runClarificationAgent } from "@/features/ai/clarification-agent";
 import { editPrdWithAI } from "@/features/ai/prd-generator";
-import { sendInviteEmail, sendPrdShareEmail } from "@/lib/email";
+import { sendInviteEmail, sendPrdShareEmail, sendVerificationCodeEmail } from "@/lib/email";
 import { publishOrgEvent } from "@/lib/realtime/server";
 
 async function handler(request: Request) {
@@ -26,6 +26,7 @@ async function handler(request: Request) {
         ai: { clarify: runClarificationAgent, editPrd: editPrdWithAI },
         sendInvite: sendInviteEmail,
         sendPrdShare: sendPrdShareEmail,
+        sendVerificationCode: sendVerificationCodeEmail,
         publish: publishOrgEvent,
       }),
   });

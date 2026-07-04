@@ -139,6 +139,113 @@ export async function sendInviteEmail(input: SendInviteEmailInput) {
   });
 }
 
+export type SendVerificationCodeEmailInput = {
+  to: string;
+  name: string | null;
+  code: string;
+  expiresInMinutes: number;
+};
+
+// 6-digit email ownership check. Square-cornered layout by design — all edges
+// are sharp (border-radius: 0) to match the product's document aesthetic.
+export async function sendVerificationCodeEmail(input: SendVerificationCodeEmailInput) {
+  const firstName = input.name?.trim().split(/\s+/)[0] ?? null;
+  const digits = input.code
+    .split("")
+    .map(
+      (d) =>
+        `<td style="width:44px;height:56px;background:#0d0f14;border:1px solid rgba(249,115,22,0.35);text-align:center;vertical-align:middle;font-family:'SF Mono',Consolas,'Liberation Mono',Menlo,monospace;font-size:26px;font-weight:700;color:#fdba74;">${d}</td>
+         <td style="width:8px;font-size:0;line-height:0;">&nbsp;</td>`,
+    )
+    .join("");
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="dark" />
+  <title>Your Reqraft verification code</title>
+</head>
+<body style="margin:0;padding:0;background:#0a0c10;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;">
+  <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:#0a0c10;padding:40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="560" cellpadding="0" cellspacing="0" role="presentation" style="width:560px;max-width:100%;background:#14171d;border:1px solid rgba(255,255,255,0.08);overflow:hidden;box-shadow:0 1px 0 rgba(255,255,255,0.04) inset;">
+
+          <!-- Accent bar -->
+          <tr><td style="height:3px;line-height:3px;font-size:0;background:linear-gradient(90deg,#f97316,#fb923c);">&nbsp;</td></tr>
+
+          <!-- Header -->
+          <tr>
+            <td style="padding:28px 40px 22px;border-bottom:1px solid rgba(255,255,255,0.07);">
+              <table cellpadding="0" cellspacing="0" role="presentation">
+                <tr>
+                  <td style="padding-right:10px;vertical-align:middle;">
+                    <img src="${APP_URL}/icons/reqraft-icon-transparent-512.png" alt="Reqraft" width="28" height="28" style="display:block;width:28px;height:28px;" />
+                  </td>
+                  <td style="vertical-align:middle;">
+                    <span style="font-size:19px;font-weight:700;color:#fb923c;letter-spacing:-0.4px;">Reqraft</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="padding:36px 40px 10px;">
+              <p style="margin:0 0 6px;font-size:13px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:#fb923c;">Verify your email</p>
+              <p style="margin:0;font-size:24px;font-weight:700;color:#f8fafc;letter-spacing:-0.4px;">Here's your 6-digit code</p>
+              <p style="margin:18px 0 0;font-size:15px;line-height:25px;color:#a8b0bd;">
+                ${firstName ? `Hi <strong style="color:#e8ecf2;">${firstName}</strong>, e` : "E"}nter this code in Reqraft to confirm you own this email address. Once verified, teammates can send you PRDs and invitations.
+              </p>
+            </td>
+          </tr>
+
+          <!-- Code -->
+          <tr>
+            <td style="padding:26px 40px 6px;">
+              <table cellpadding="0" cellspacing="0" role="presentation">
+                <tr>${digits}</tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Expiry -->
+          <tr>
+            <td style="padding:18px 40px 34px;">
+              <p style="margin:0;font-size:13px;line-height:20px;color:#6b7480;">
+                This code expires in <strong style="color:#a8b0bd;">${input.expiresInMinutes} minutes</strong> and can only be used once.
+                If you didn't request it, you can safely ignore this email.
+              </p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding:18px 40px;border-top:1px solid rgba(255,255,255,0.07);background:rgba(255,255,255,0.02);">
+              <p style="margin:0;font-size:12px;color:#5b636e;">
+                Reqraft · Product delivery cockpit · <a href="${APP_URL}" style="color:#fb923c;text-decoration:none;">reqraft.in</a>
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+  return getResend().emails.send({
+    from: FROM,
+    to: input.to,
+    subject: `${input.code} is your Reqraft verification code`,
+    html,
+  });
+}
+
 export type SendPrdShareEmailInput = {
   to: string;
   recipientName: string | null;
@@ -183,7 +290,7 @@ export async function sendPrdShareEmail(input: SendPrdShareEmailInput) {
   <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:#0a0c10;padding:40px 20px;">
     <tr>
       <td align="center">
-        <table width="560" cellpadding="0" cellspacing="0" role="presentation" style="width:560px;max-width:100%;background:#14171d;border:1px solid rgba(255,255,255,0.08);border-radius:14px;overflow:hidden;box-shadow:0 1px 0 rgba(255,255,255,0.04) inset;">
+        <table width="560" cellpadding="0" cellspacing="0" role="presentation" style="width:560px;max-width:100%;background:#14171d;border:1px solid rgba(255,255,255,0.08);overflow:hidden;box-shadow:0 1px 0 rgba(255,255,255,0.04) inset;">
 
           <!-- Accent bar -->
           <tr><td style="height:3px;line-height:3px;font-size:0;background:linear-gradient(90deg,#f97316,#fb923c);">&nbsp;</td></tr>
@@ -216,7 +323,7 @@ export async function sendPrdShareEmail(input: SendPrdShareEmailInput) {
               ${
                 input.message
                   ? `<table cellpadding="0" cellspacing="0" role="presentation" style="margin:18px 0 0;width:100%;">
-                       <tr><td style="padding:14px 16px;background:rgba(249,115,22,0.08);border:1px solid rgba(249,115,22,0.2);border-radius:10px;font-size:14px;line-height:22px;color:#c7ccd6;font-style:italic;">“${input.message}”</td></tr>
+                       <tr><td style="padding:14px 16px;background:rgba(249,115,22,0.08);border:1px solid rgba(249,115,22,0.2);font-size:14px;line-height:22px;color:#c7ccd6;font-style:italic;">“${input.message}”</td></tr>
                      </table>`
                   : ""
               }
@@ -228,8 +335,8 @@ export async function sendPrdShareEmail(input: SendPrdShareEmailInput) {
             <td style="padding:26px 40px 6px;">
               <table cellpadding="0" cellspacing="0" role="presentation">
                 <tr>
-                  <td style="border-radius:8px;background:#f97316;">
-                    <a href="${featureUrl}" style="display:inline-block;padding:14px 32px;font-size:15px;font-weight:700;color:#1a1205;text-decoration:none;border-radius:8px;">
+                  <td style="background:#f97316;">
+                    <a href="${featureUrl}" style="display:inline-block;padding:14px 32px;font-size:15px;font-weight:700;color:#1a1205;text-decoration:none;">
                       View PRD in Reqraft &nbsp;&rarr;
                     </a>
                   </td>
@@ -246,7 +353,7 @@ export async function sendPrdShareEmail(input: SendPrdShareEmailInput) {
             <td style="padding:22px 40px 8px;">
               <p style="margin:0 0 6px;font-size:12px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:#6b7480;">Project details</p>
               <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
-                ${detailRow("Status", `<span style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:600;color:#fdba74;background:rgba(249,115,22,0.12);border:1px solid rgba(249,115,22,0.3);">${statusLabel}</span>`)}
+                ${detailRow("Status", `<span style="display:inline-block;padding:2px 10px;font-size:12px;font-weight:600;color:#fdba74;background:rgba(249,115,22,0.12);border:1px solid rgba(249,115,22,0.3);">${statusLabel}</span>`)}
                 ${detailRow("Version", `v${doc.version}`)}
                 ${detailRow("Priority", doc.priority)}
                 ${detailRow("Created by", doc.createdByName ?? "Unknown")}

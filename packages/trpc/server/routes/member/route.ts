@@ -19,6 +19,7 @@ export const memberRouter = router({
         userId: usersTable.id,
         name: usersTable.name,
         email: usersTable.email,
+        emailVerified: usersTable.emailVerified,
         image: usersTable.image,
       })
       .from(members)

@@ -3,6 +3,7 @@ import { members, organizations, sessionsTable } from "@repo/database/schema";
 import { requireAuth } from "@/features/auth/session";
 import { ProjectProvider } from "~/components/shipflow/project-context";
 import { ShipFlowShell } from "~/components/shipflow/shell";
+import { EmailVerificationPrompt } from "~/components/shipflow/verify-email";
 
 export default async function ProtectedLayout({
   children,
@@ -51,6 +52,7 @@ export default async function ProtectedLayout({
   return (
     <ProjectProvider>
       <ShipFlowShell>{children}</ShipFlowShell>
+      <EmailVerificationPrompt />
     </ProjectProvider>
   );
 }

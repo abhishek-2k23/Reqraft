@@ -183,17 +183,23 @@ export const prdRouter = router({
       return { success: true };
     }),
 
-  // Share a PRD with teammates by email. Recipients must be members of the same
-  // org — the PRD document is rendered and attached to a details-rich email.
-  // Any org member may share (read-oriented action).
+  // Share a PRD by email — to teammates in the same org (verified emails only;
+  // GitHub sign-ins can carry unverified/noreply addresses we can't deliver to)
+  // and/or to external addresses typed in directly. The PRD document is
+  // rendered and attached as a PDF. Any org member may share (read-oriented).
   share: orgProcedure
     .input(
-      z.object({
-        prdId: z.string(),
-        featureId: z.string(),
-        recipientUserIds: z.array(z.string()).min(1).max(25),
-        message: z.string().max(1000).optional(),
-      }),
+      z
+        .object({
+          prdId: z.string(),
+          featureId: z.string(),
+          recipientUserIds: z.array(z.string()).max(25).default([]),
+          externalEmails: z.array(z.string().trim().toLowerCase().email()).max(10).default([]),
+          message: z.string().max(1000).optional(),
+        })
+        .refine((v) => v.recipientUserIds.length + v.externalEmails.length > 0, {
+          message: "Select at least one teammate or add an email address.",
+        }),
     )
     .mutation(async ({ ctx, input }) => {
       enforceRateLimit({
@@ -232,22 +238,37 @@ export const prdRouter = router({
         .from(organizations)
         .where(eq(organizations.id, ctx.org.id));
 
-      // Resolve recipients — restricted to members of this org.
-      const recipients = await ctx.db
-        .select({ userId: usersTable.id, name: usersTable.name, email: usersTable.email })
-        .from(members)
-        .innerJoin(usersTable, eq(members.userId, usersTable.id))
-        .where(
-          and(
-            eq(members.organizationId, ctx.org.id),
-            inArray(members.userId, input.recipientUserIds),
-          ),
-        );
+      // Resolve teammate recipients — restricted to members of this org whose
+      // email is verified (we refuse to send to unverified/noreply addresses).
+      const memberRecipients =
+        input.recipientUserIds.length > 0
+          ? await ctx.db
+              .select({ userId: usersTable.id, name: usersTable.name, email: usersTable.email })
+              .from(members)
+              .innerJoin(usersTable, eq(members.userId, usersTable.id))
+              .where(
+                and(
+                  eq(members.organizationId, ctx.org.id),
+                  inArray(members.userId, input.recipientUserIds),
+                  eq(usersTable.emailVerified, true),
+                ),
+              )
+          : [];
+
+      const memberEmails = new Set(memberRecipients.map((r) => r.email.toLowerCase()));
+      const externalRecipients = [...new Set(input.externalEmails)]
+        .filter((email) => !memberEmails.has(email))
+        .map((email) => ({ userId: null, name: null, email }));
+
+      const recipients = [...memberRecipients, ...externalRecipients];
 
       if (recipients.length === 0) {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: "None of the selected recipients are members of this organization.",
+          message:
+            input.recipientUserIds.length > 0
+              ? "None of the selected teammates have a verified email address."
+              : "Add at least one recipient.",
         });
       }
 
@@ -292,6 +313,9 @@ export const prdRouter = router({
           ),
       );
 
+      // Selected teammates that were dropped by the verified-email filter.
+      const skipped = input.recipientUserIds.length - memberRecipients.length;
+
       const sent = results.filter((r) => r.status === "fulfilled").length;
       const failed = results.length - sent;
 
@@ -302,6 +326,6 @@ export const prdRouter = router({
         });
       }
 
-      return { sent, failed };
+      return { sent, failed, skipped: Math.max(0, skipped) };
     }),
 });

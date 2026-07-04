@@ -63,6 +63,13 @@ export type SendPrdShareInput = {
   document: PrdDocumentData;
 };
 
+export type SendVerificationCodeInput = {
+  to: string;
+  name: string | null;
+  code: string;
+  expiresInMinutes: number;
+};
+
 export type CreateContextOptions = {
   request?: Request;
   session?: AuthSession;
@@ -73,6 +80,7 @@ export type CreateContextOptions = {
   };
   sendInvite?: (input: SendInviteInput) => Promise<unknown>;
   sendPrdShare?: (input: SendPrdShareInput) => Promise<unknown>;
+  sendVerificationCode?: (input: SendVerificationCodeInput) => Promise<unknown>;
   publish?: PublishOrgEvent;
 };
 
@@ -87,6 +95,7 @@ export type ContextValue = {
   };
   sendInvite: (input: SendInviteInput) => Promise<unknown>;
   sendPrdShare: (input: SendPrdShareInput) => Promise<unknown>;
+  sendVerificationCode: (input: SendVerificationCodeInput) => Promise<unknown>;
   publish: PublishOrgEvent;
 };
 
@@ -102,6 +111,7 @@ const noopEditPrd = async ({ currentPrd }: { currentPrd: PrdContent }): Promise<
 });
 const noopSendInvite = async () => {};
 const noopSendPrdShare = async () => {};
+const noopSendVerificationCode = async () => {};
 const noopPublish: PublishOrgEvent = async () => {};
 
 export async function createContext(
@@ -115,6 +125,7 @@ export async function createContext(
     ai: options.ai ?? { clarify: noopClarify, editPrd: noopEditPrd },
     sendInvite: options.sendInvite ?? noopSendInvite,
     sendPrdShare: options.sendPrdShare ?? noopSendPrdShare,
+    sendVerificationCode: options.sendVerificationCode ?? noopSendVerificationCode,
     publish: options.publish ?? noopPublish,
   };
 }
