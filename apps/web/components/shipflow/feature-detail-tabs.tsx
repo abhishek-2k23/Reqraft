@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { motion } from "framer-motion";
 import type { RouterOutputs } from "@repo/trpc/client";
 import {
   AlertTriangle,
@@ -69,6 +70,7 @@ import {
 } from "~/components/shipflow/implementation-prompts";
 import { cn } from "~/lib/utils";
 import { trpc } from "~/trpc/client";
+import { triggerPrReview } from "@/features/github/actions";
 
 type Feature = RouterOutputs["feature"]["getById"];
 type RawPrd = NonNullable<Feature["prd"]>;
@@ -952,21 +954,29 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
   const utils = trpc.useUtils();
   const refreshFeature = () => utils.feature.getById.invalidate({ featureId: feature.id });
 
-  // A feature that already has a PR (branch) or a review is fully linked — no
-  // need to offer the manual link control.
+  // Whether this feature already carries a PR or review history — linking
+  // another PR is still allowed, but gets a "history will change" warning.
   const alreadyLinked =
     feature.pullRequests.length > 0 || feature.reviewCycles.length > 0;
 
   // Unlinked PRs (with their branches) the user can attach to this feature.
+  const [linkOpen, setLinkOpen] = useState(false);
   const linkablePrs = trpc.github.listLinkablePullRequests.useQuery(
     { projectId: feature.projectId },
-    { enabled: !alreadyLinked },
+    { enabled: linkOpen },
   );
   const linkPr = trpc.github.linkPullRequestToFeature.useMutation({
-    onSuccess: () => {
-      toast.success("Pull request linked to this feature.");
-      refreshFeature();
+    onSuccess: async (_res, vars) => {
+      setLinkOpen(false);
+      toast.success("Pull request linked — starting AI review against the latest PRD…");
+      void refreshFeature();
       void utils.github.listLinkablePullRequests.invalidate();
+      // Catch the freshly-opened "running" cycle so the reviewing banner and
+      // polling kick in while the inline review is in flight.
+      setTimeout(() => void refreshFeature(), 2000);
+      const res = await triggerPrReview(vars.pullRequestId, { force: true });
+      if (!res.ok) toast.error(res.error ?? "Review failed to start");
+      void refreshFeature();
     },
     onError: (error) => toast.error(error.message),
   });
@@ -1642,8 +1652,7 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
               </button>
             </div>
 
-            {!alreadyLinked && (
-              <Popover>
+            <Popover open={linkOpen} onOpenChange={setLinkOpen}>
                 <PopoverTrigger asChild>
                   <Button type="button" variant="outline" size="sm" className="gap-1.5">
                     <Link2 className="size-3.5" />
@@ -1653,8 +1662,17 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
                 <PopoverContent align="end" className="w-80 p-0">
                   <div className="border-b border-foreground/10 px-3 py-2">
                     <p className="text-xs font-medium text-foreground">Link a pull request</p>
-                    <p className="text-[11px] text-muted-foreground">Attach a PR whose branch didn&apos;t match this feature.</p>
+                    <p className="text-[11px] text-muted-foreground">Attach a PR whose branch didn&apos;t match this feature. Linking runs a fresh AI review against the latest PRD.</p>
                   </div>
+                  {alreadyLinked ? (
+                    <div className="border-b border-amber-500/20 bg-amber-500/10 px-3 py-2">
+                      <p className="text-[11px] leading-4 text-amber-700 dark:text-amber-300">
+                        <TriangleAlert className="mr-1 inline size-3" />
+                        This feature already has linked reviews. The new PR&apos;s review is added
+                        on top and the feature&apos;s status will follow the newest result.
+                      </p>
+                    </div>
+                  ) : null}
                   <div className="max-h-64 overflow-y-auto p-1">
                     {linkablePrs.isLoading ? (
                       <div className="flex items-center justify-center py-6">
@@ -1686,14 +1704,23 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
                     )}
                   </div>
                 </PopoverContent>
-              </Popover>
-            )}
+            </Popover>
           </div>
 
           {hasRunningReview && (
-            <div className="mb-4 flex items-center gap-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
-              <Loader2 className="size-4 animate-spin text-primary" />
-              <p className="text-sm text-primary">AI is reviewing the latest pull request against the PRD…</p>
+            <div className="mb-4 overflow-hidden rounded-lg border border-primary/20 bg-primary/5">
+              <div className="flex items-center gap-3 px-4 py-3">
+                <Loader2 className="size-4 animate-spin text-primary" />
+                <p className="text-sm text-primary">AI is reviewing the latest pull request against the PRD…</p>
+              </div>
+              {/* Indeterminate progress sweep */}
+              <div className="relative h-0.5 w-full bg-primary/10">
+                <motion.div
+                  className="absolute inset-y-0 w-1/3 rounded-full bg-primary/70"
+                  animate={{ left: ["-33%", "100%"] }}
+                  transition={{ repeat: Infinity, duration: 1.6, ease: "easeInOut" }}
+                />
+              </div>
             </div>
           )}
           {feature.reviewCycles.length === 0 ? (
@@ -1729,6 +1756,11 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex flex-wrap items-center gap-2.5">
                       <span className="text-sm font-medium text-foreground">Review #{reviewNumber}</span>
+                      {index === 0 && feature.reviewCycles.length > 1 && (
+                        <span className="rounded-full border border-primary/25 bg-primary/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-primary">
+                          Latest
+                        </span>
+                      )}
                       {pr && (
                         <a
                           href={pr.githubPrUrl}

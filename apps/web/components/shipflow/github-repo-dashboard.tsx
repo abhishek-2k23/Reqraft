@@ -154,9 +154,27 @@ function PrRow({
   }, [features, selectedFeatureId]);
 
   const linkToFeature = trpc.github.linkPullRequestToFeature.useMutation({
-    onSuccess: () => {
-      toast.success("Pull request linked to feature.");
+    onSuccess: async () => {
       setLinking(false);
+      onChanged();
+      if (pr.state !== "open") {
+        toast.success("Pull request linked to feature.");
+        return;
+      }
+      // Freshly linked → review against the feature's latest PRD right away.
+      toast.success("Pull request linked — reviewing against the latest PRD…");
+      setReviewing(true);
+      const res = await triggerPrReview(pr.id, { force: true });
+      setReviewing(false);
+      if (res.ok) {
+        toast.success(
+          res.status === "passed"
+            ? "Review complete — approved"
+            : "Review complete — changes requested",
+        );
+      } else {
+        toast.error(res.error ?? "Review failed");
+      }
       onChanged();
     },
     onError: (error) => toast.error(error.message),
@@ -199,7 +217,17 @@ function PrRow({
               #{pr.number} {pr.title}
             </a>
             <PrStateBadge state={pr.state} />
-            {!pr.featureId && (
+            {pr.featureId ? (
+              <span
+                className="inline-flex max-w-[220px] items-center gap-1 truncate rounded-full border border-primary/25 bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary"
+                title="Linked feature"
+              >
+                <Link2 className="size-3 shrink-0" />
+                <span className="truncate">
+                  {features.find((f) => f.id === pr.featureId)?.title ?? "Linked feature"}
+                </span>
+              </span>
+            ) : (
               <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300">
                 Not linked
               </span>
@@ -214,7 +242,13 @@ function PrRow({
             <span>· {timeAgo(pr.updatedAt)}</span>
           </p>
         </div>
-        <ReviewBadge review={pr.review} />
+        <ReviewBadge
+          review={
+            reviewing
+              ? { status: "running", overallVerdict: null, prdComplianceScore: null }
+              : pr.review
+          }
+        />
         {pr.featureId && (
           <Link
             href={`/features/${pr.featureId}?tab=review-history`}
@@ -278,6 +312,13 @@ function PrRow({
           <p className="mb-2 text-xs text-muted-foreground">
             Link this PR to a feature. Its review history attaches to the feature and future commits stay linked — no branch rename needed.
           </p>
+          {pr.featureId ? (
+            <p className="mb-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-xs text-amber-700 dark:text-amber-300">
+              This PR is already linked to a feature. Relinking moves its review history to the
+              new feature (the old feature loses these reviews) and re-runs the review against
+              the new feature&apos;s latest PRD.
+            </p>
+          ) : null}
           {features.length === 0 ? (
             <p className="text-xs text-amber-700 dark:text-amber-300">No features available in this organization yet.</p>
           ) : (

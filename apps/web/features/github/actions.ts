@@ -4,7 +4,7 @@ import { headers } from "next/headers";
 import { Octokit } from "octokit";
 
 import { and, db, eq } from "@repo/database";
-import { accountsTable, pullRequestsTable } from "@repo/database/schema";
+import { accountsTable, pullRequestsTable, repositories } from "@repo/database/schema";
 import { resolveFeatureIdForBranch, resolveOrgIdForRepo } from "@repo/database/branch";
 
 import { auth } from "@/lib/auth";
@@ -253,16 +253,25 @@ export async function syncRepoPullRequests(
 
     const organizationId = await resolveOrgIdForRepo(db, fullName, installationId);
 
+    // The connected repo row — billing org resolution + project scoping.
+    const repoRows = await db
+      .select({ id: repositories.id, installationId: repositories.installationId })
+      .from(repositories)
+      .where(eq(repositories.fullName, fullName));
+    const repositoryId =
+      repoRows.find((r) => r.installationId === installationId)?.id ?? repoRows[0]?.id ?? null;
+
     for (const pr of data) {
       const branch = pr.head.ref;
       const featureId = await resolveFeatureIdForBranch(db, branch, organizationId);
 
       const prId = `pr_${pr.id}`;
-      await db
+      const saved = await db
         .insert(pullRequestsTable)
         .values({
           id: prId,
           featureId,
+          repositoryId,
           installationId,
           githubPrId: pr.id,
           githubPrUrl: pr.html_url,
@@ -279,20 +288,26 @@ export async function syncRepoPullRequests(
         .onConflictDoUpdate({
           target: pullRequestsTable.id,
           set: {
-            featureId,
+            // Only overwrite the feature link when the branch actually resolved —
+            // a null here would wipe a manual link on every dashboard sync.
+            ...(featureId ? { featureId } : {}),
+            repositoryId,
             headSha: pr.head.sha,
             state: pr.merged_at ? "merged" : pr.state,
             title: pr.title,
             body: pr.body ?? null,
             updatedAt: new Date(),
           },
-        });
+        })
+        .returning({ featureId: pullRequestsTable.featureId });
 
       // Auto-trigger a review for open, feature-linked PRs that haven't been
       // reviewed yet. This makes reviews appear even when the GitHub webhook
       // never arrives (misconfigured URL, Inngest dev server offline, etc.).
+      // Uses the row's effective link so manually-linked PRs auto-review too.
+      const linkedFeatureId = saved[0]?.featureId ?? featureId;
       const isOpen = !pr.merged_at && pr.state === "open";
-      if (featureId && isOpen && !(await shouldSkipAutoReview(prId, pr.head.sha))) {
+      if (linkedFeatureId && isOpen && !(await shouldSkipAutoReview(prId, pr.head.sha))) {
         await inngest
           .send({
             name: "github/pull_request.review_requested",
@@ -317,11 +332,16 @@ export async function syncRepoPullRequests(
  */
 export async function triggerPrReview(
   pullRequestId: string,
+  opts?: { force?: boolean },
 ): Promise<{ ok: boolean; status?: string; reused?: boolean; error?: string }> {
   try {
-    const existing = await reviewForCurrentCommit(pullRequestId);
-    if (existing) {
-      return { ok: true, status: existing.status, reused: true };
+    // `force` skips commit-reuse — used right after linking a PR to a feature,
+    // where the old review predates the PRD context and must be redone.
+    if (!opts?.force) {
+      const existing = await reviewForCurrentCommit(pullRequestId);
+      if (existing) {
+        return { ok: true, status: existing.status, reused: true };
+      }
     }
     const review = await runReviewForPullRequest(pullRequestId);
     return { ok: true, status: review.status };
