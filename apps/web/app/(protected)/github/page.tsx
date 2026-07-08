@@ -31,6 +31,7 @@ import {
   type AppInstallation,
   type GithubRepo,
 } from "@/features/github/actions";
+import { refreshRepoContextAction } from "@/features/copilot/server/actions";
 
 const FADE_UP: Variants = {
   hidden: { opacity: 0, y: 15 },
@@ -221,10 +222,15 @@ function RepoRow({
         installationId,
       },
       {
-        onSuccess: () => {
+        onSuccess: (connected) => {
           toast.success(`${repo.name} connected to ${pname}`);
           setPickerOpen(false);
+          // Kick off the AI repo analysis in the background so the dashboard's
+          // summary (and the Agent's repo context) is ready without a manual
+          // "Generate" click. Best-effort — the dashboard can retry.
+          if (connected?.id) void refreshRepoContextAction(connected.id);
           onConnected({
+            id: connected?.id ?? null,
             fullName: repo.fullName,
             name: repo.name,
             installationId,
@@ -773,6 +779,7 @@ export default function GithubPage() {
                       isDeletedOnGithub={reposLoaded && !githubFullNames.has(r.fullName)}
                       onSelect={() =>
                         setSelectedRepo({
+                          id: r.id,
                           fullName: r.fullName,
                           name: r.name,
                           installationId: r.installationId,

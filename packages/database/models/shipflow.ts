@@ -465,6 +465,43 @@ export const repoContexts = pgTable("repo_context", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// Agent (BYOK) providers users can bring their own API key for.
+export const AGENT_PROVIDERS = ["openai", "anthropic", "google"] as const;
+export type AgentProvider = (typeof AGENT_PROVIDERS)[number];
+
+// Bring-your-own-key credentials for the coding Agent. The key is encrypted
+// with AES-256-GCM before it ever touches the database — only the ciphertext
+// is stored, so neither other tenants nor Reqraft operators can read it. Only
+// `keyHint` (last 4 chars) is ever sent back to the client.
+export const agentProviderKeys = pgTable(
+  "agent_provider_key",
+  {
+    id: text("id").primaryKey().$defaultFn(randomUUID),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    createdBy: text("created_by").references(() => usersTable.id, {
+      onDelete: "set null",
+    }),
+    // AgentProvider: "openai" | "anthropic" | "google"
+    provider: text("provider").notNull(),
+    // base64(iv | authTag | ciphertext) — AES-256-GCM, never stored in plaintext.
+    encryptedKey: text("encrypted_key").notNull(),
+    // Last 4 characters of the key, for "sk-…abcd" display only.
+    keyHint: text("key_hint"),
+    // Preferred model for this provider, preselected in the Agent UI.
+    defaultModel: text("default_model"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    orgProviderUnique: uniqueIndex("agent_provider_key_org_provider_unique").on(
+      table.organizationId,
+      table.provider,
+    ),
+  }),
+);
+
 export const organizationsTable = organizations;
 export const organizationMembersTable = members;
 export const invitationsTable = invitations;

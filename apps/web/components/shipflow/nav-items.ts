@@ -1,5 +1,6 @@
 import {
   BadgeIndianRupee,
+  Bot,
   Boxes,
   FolderKanban,
   GitBranch,
@@ -30,6 +31,7 @@ export const navItems: NavItem[] = [
   { href: "/tasks", label: "Tasks", icon: ListChecks, group: "Delivery", shortcut: "alt+t" },
   { href: "/reviews", label: "Reviews", icon: ShieldCheck, group: "Delivery", shortcut: "alt+r" },
   { href: "/github", label: "GitHub", icon: GitBranch, group: "Delivery", shortcut: "alt+g" },
+  { href: "/agent", label: "Agent", icon: Bot, group: "Delivery", shortcut: "alt+a" },
   { href: "/projects", label: "Projects", icon: FolderKanban, group: "Workspace", shortcut: "alt+o" },
   { href: "/billing", label: "Billing", icon: BadgeIndianRupee, group: "Workspace", shortcut: "alt+b" },
   { href: "/settings/team", label: "Team", icon: Users, group: "Workspace", shortcut: "alt+m" },

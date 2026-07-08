@@ -12,6 +12,8 @@
     "test": "tsx --test \"{features,lib}/**/*.test.ts\""
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.95",
+    "@ai-sdk/google": "^3.0.90",
     "@ai-sdk/openai": "^3.0.74",
     "@hookform/resolvers": "^5.2.2",
     "@octokit/webhooks": "^14.2.0",

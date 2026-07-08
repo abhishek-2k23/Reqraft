@@ -4,6 +4,7 @@
   "globalEnv": [
     "OPENAI_API_KEY",
     "OPENAI_MODEL",
+    "AGENT_KEY_ENCRYPTION_SECRET",
     "BETTER_AUTH_SECRET",
     "BETTER_AUTH_URL",
     "DATABASE_URL",

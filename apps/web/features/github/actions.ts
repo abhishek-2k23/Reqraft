@@ -32,7 +32,10 @@ export type RepoOverview = {
   defaultBranch: string;
   stars: number;
   forks: number;
+  /** True issue count (GitHub's open_issues_count minus open PRs). */
   openIssues: number;
+  /** Open PR count fetched live from GitHub, independent of our PR sync. */
+  openPrs: number;
   watchers: number;
   language: string | null;
   pushedAt: string | null;
@@ -165,7 +168,14 @@ export async function getRepoOverview(
     const app = getGithubApp();
     const octokit = await app.getInstallationOctokit(installationId);
     const [owner, repo] = splitFullName(fullName);
-    const { data } = await octokit.rest.repos.get({ owner, repo });
+    // GitHub's open_issues_count lumps PRs in with issues, so fetch the real
+    // open-PR count too. Counting from the GitHub API (not our synced DB rows)
+    // keeps the stats right even before/without a successful PR sync.
+    const [{ data }, { data: openPrList }] = await Promise.all([
+      octokit.rest.repos.get({ owner, repo }),
+      octokit.rest.pulls.list({ owner, repo, state: "open", per_page: 100 }),
+    ]);
+    const openPrs = openPrList.length;
     return {
       fullName: data.full_name,
       description: data.description,
@@ -173,7 +183,8 @@ export async function getRepoOverview(
       defaultBranch: data.default_branch,
       stars: data.stargazers_count,
       forks: data.forks_count,
-      openIssues: data.open_issues_count,
+      openIssues: Math.max(0, data.open_issues_count - openPrs),
+      openPrs,
       watchers: data.subscribers_count ?? data.watchers_count,
       language: data.language,
       pushedAt: data.pushed_at,

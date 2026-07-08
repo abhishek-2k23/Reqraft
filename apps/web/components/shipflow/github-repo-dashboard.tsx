@@ -37,8 +37,14 @@ import {
   type RepoContributor,
   type RepoOverview,
 } from "@/features/github/actions";
+import {
+  getRepoAiSummaryAction,
+  refreshRepoContextAction,
+} from "@/features/copilot/server/actions";
 
 export type ConnectedRepo = {
+  /** Our repository row id — needed for the AI repo summary (repo_context). */
+  id?: string | null;
   fullName: string;
   name: string;
   installationId: number | null;
@@ -142,6 +148,126 @@ function Shimmer() {
       {Array.from({ length: 4 }).map((_, i) => (
         <div key={i} className="h-16 animate-pulse rounded-xl border border-foreground/10 bg-foreground/[0.03]" />
       ))}
+    </div>
+  );
+}
+
+type AiSummary =
+  | { indexed: false }
+  | {
+      indexed: true;
+      overview: string;
+      stack: string;
+      fileCount: number;
+      keyFiles: Array<{ path: string; summary: string }>;
+      updatedAt: string;
+    };
+
+/**
+ * AI-generated summary of the repository (from the stored repo_context
+ * snapshot). Built automatically on connect; refreshable on demand.
+ */
+function AiSummaryCard({ repositoryId }: { repositoryId: string }) {
+  const [summary, setSummary] = useState<AiSummary | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [building, setBuilding] = useState(false);
+  const [showFiles, setShowFiles] = useState(false);
+
+  async function load() {
+    const res = await getRepoAiSummaryAction(repositoryId);
+    setSummary(res);
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    setLoading(true);
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [repositoryId]);
+
+  async function handleBuild() {
+    setBuilding(true);
+    const res = await refreshRepoContextAction(repositoryId);
+    setBuilding(false);
+    if (res.ok) {
+      toast.success(`Repository analyzed — ${res.fileCount} source files indexed`);
+      await load();
+    } else {
+      toast.error(res.error);
+    }
+  }
+
+  const indexed = summary?.indexed === true ? summary : null;
+
+  return (
+    <div className="relative overflow-hidden rounded-xl border border-primary/15 bg-gradient-to-br from-primary/[0.06] via-transparent to-transparent p-5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="inline-flex items-center gap-2 text-sm font-semibold text-foreground">
+          <Sparkles className="size-4 text-primary" />
+          AI repository summary
+        </h3>
+        <div className="flex items-center gap-2">
+          {indexed && (
+            <span className="text-[11px] text-muted-foreground">
+              {indexed.fileCount} files · updated {timeAgo(indexed.updatedAt)}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={handleBuild}
+            disabled={building}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-primary/20 bg-primary/10 px-2.5 py-1.5 text-xs font-medium text-primary transition hover:bg-primary/20 disabled:opacity-50"
+          >
+            {building ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
+            {indexed ? "Refresh" : "Generate summary"}
+          </button>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="mt-3 space-y-2">
+          <div className="h-3.5 w-4/5 animate-pulse rounded bg-foreground/10" />
+          <div className="h-3.5 w-3/5 animate-pulse rounded bg-foreground/10" />
+        </div>
+      ) : building ? (
+        <p className="mt-3 text-sm text-muted-foreground">
+          Reading the repository and generating a summary — this can take a minute…
+        </p>
+      ) : !indexed ? (
+        <p className="mt-3 text-sm text-muted-foreground">
+          No summary yet. Generate one to get an AI overview of what this codebase is, its stack,
+          and what its key files do — it also powers the coding Agent&apos;s repo context.
+        </p>
+      ) : (
+        <div className="mt-3 space-y-3">
+          <p className="text-sm leading-6 text-foreground/85">{indexed.overview}</p>
+          {indexed.stack && (
+            <p className="text-xs text-muted-foreground">
+              <span className="font-medium text-foreground/70">Stack:</span> {indexed.stack}
+            </p>
+          )}
+          {indexed.keyFiles.length > 0 && (
+            <div>
+              <button
+                type="button"
+                onClick={() => setShowFiles((v) => !v)}
+                className="inline-flex items-center gap-1 text-xs font-medium text-primary transition hover:underline"
+              >
+                {showFiles ? "Hide key files" : `Key files (${indexed.keyFiles.length})`}
+              </button>
+              {showFiles && (
+                <ul className="mt-2 space-y-1.5">
+                  {indexed.keyFiles.map((f) => (
+                    <li key={f.path} className="text-xs text-muted-foreground">
+                      <span className="font-mono text-foreground/75">{f.path}</span> — {f.summary}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -397,9 +523,11 @@ export function GithubRepoDashboard({ repo, onBack }: { repo: ConnectedRepo; onB
 
   const prsQuery = trpc.github.pullRequestsByRepo.useQuery({ repoFullName: repo.fullName });
   const prs = prsQuery.data ?? [];
-  const openPrCount = prs.filter((p) => p.state === "open").length;
-  // GitHub reports issues + PRs together in open_issues_count; strip the PRs.
-  const openIssuesOnly = Math.max(0, (overview?.openIssues ?? 0) - openPrCount);
+  // Counts come straight from GitHub (getRepoOverview already separates PRs
+  // from open_issues_count), so they're right even if our PR sync lags — the
+  // old DB-derived subtraction showed PRs as "issues" whenever sync missed.
+  const openIssuesOnly = overview?.openIssues ?? 0;
+  const openPrCount = overview?.openPrs ?? prs.filter((p) => p.state === "open").length;
 
   // Features for the branch-rename picker (scoped to the repo's project when known).
   const featuresQuery = trpc.feature.list.useQuery(
@@ -501,12 +629,11 @@ export function GithubRepoDashboard({ repo, onBack }: { repo: ConnectedRepo; onB
             </p>
           ) : (
             <div className="space-y-5">
+              {repo.id && <AiSummaryCard repositoryId={repo.id} />}
               {overview.description && <p className="text-sm leading-6 text-foreground/80">{overview.description}</p>}
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
                 <StatPill icon={<Star className="size-5" />} label="Stars" value={overview.stars} href={`${overview.htmlUrl}/stargazers`} />
                 <StatPill icon={<GitFork className="size-5" />} label="Forks" value={overview.forks} href={`${overview.htmlUrl}/forks`} />
-                {/* GitHub's open_issues_count lumps PRs in with issues — subtract
-                    the open PRs so this card shows real issues only. */}
                 <StatPill icon={<CircleDot className="size-5" />} label="Open issues" value={openIssuesOnly} href={`${overview.htmlUrl}/issues`} />
                 <StatPill icon={<GitPullRequest className="size-5" />} label="Open PRs" value={openPrCount} href={`${overview.htmlUrl}/pulls`} />
                 <StatPill icon={<Eye className="size-5" />} label="Watchers" value={overview.watchers} href={`${overview.htmlUrl}/watchers`} />
