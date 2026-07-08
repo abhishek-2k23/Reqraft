@@ -31,41 +31,11 @@ export const githubRouter = router({
     return { installed: Boolean(installation), installation: installation ?? null };
   }),
 
-  // Saves the installation after GitHub redirects back with installation_id in the URL.
-  // Uses upsert so re-installs don't create duplicates.
-  saveInstallation: protectedProcedure
-    .input(
-      z.object({
-        installationId: z.number(),
-        accountLogin: z.string().optional(),
-        accountType: z.string().optional(),
-        organizationId: z.string().optional(),
-      }),
-    )
-    .mutation(async ({ ctx, input }) => {
-      const [installation] = await ctx.db
-        .insert(githubInstallations)
-        .values({
-          id: crypto.randomUUID(),
-          userId: ctx.session.user.id,
-          installationId: input.installationId,
-          accountLogin: input.accountLogin,
-          accountType: input.accountType,
-          organizationId: input.organizationId ?? null,
-        })
-        .onConflictDoUpdate({
-          target: githubInstallations.userId,
-          set: {
-            installationId: input.installationId,
-            accountLogin: input.accountLogin,
-            accountType: input.accountType,
-            updatedAt: new Date(),
-          },
-        })
-        .returning();
-
-      return installation;
-    }),
+  // NOTE: installations are saved via the `saveInstallationAction` server
+  // action (apps/web/features/github/actions.ts), which verifies ownership of
+  // the installation id against GitHub before writing. A trpc mutation can't
+  // do that check (this package must stay free of Octokit), so no unverified
+  // save endpoint is exposed here.
 
   repositories: orgProcedure
     .input(z.object({ projectId: z.string().optional() }).optional())
@@ -321,6 +291,20 @@ export const githubRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      // The installation id must be the one this user saved (which went
+      // through server-side ownership verification) — a raw client-supplied
+      // id could otherwise bind another tenant's installation to this org.
+      const [saved] = await ctx.db
+        .select({ installationId: githubInstallations.installationId })
+        .from(githubInstallations)
+        .where(eq(githubInstallations.userId, ctx.session.user.id));
+      if (!saved || saved.installationId !== input.installationId) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Connect your GitHub installation first.",
+        });
+      }
+
       // One repo → one project: reject if it's already connected anywhere in
       // this org (the user must disconnect it first to move it).
       const [existing] = await ctx.db

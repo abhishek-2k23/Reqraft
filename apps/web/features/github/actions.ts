@@ -4,7 +4,12 @@ import { headers } from "next/headers";
 import { Octokit } from "octokit";
 
 import { and, db, eq } from "@repo/database";
-import { accountsTable, pullRequestsTable, repositories } from "@repo/database/schema";
+import {
+  accountsTable,
+  githubInstallations,
+  pullRequestsTable,
+  repositories,
+} from "@repo/database/schema";
 import { resolveAutoLinkFeatureId, resolveOrgIdForRepo } from "@repo/database/branch";
 
 import { auth } from "@/lib/auth";
@@ -15,6 +20,7 @@ import {
   runReviewForPullRequest,
   shouldSkipAutoReview,
 } from "@/features/github/review";
+import { verifyInstallationOwnership } from "@/features/github/server/verify-installation";
 
 export type GithubRepo = {
   id: string;
@@ -62,6 +68,42 @@ export type RepoContributor = {
 function splitFullName(fullName: string): [string, string] {
   const [owner = "", repo = ""] = fullName.split("/");
   return [owner, repo];
+}
+
+// Caller identity + active org, for authorizing server actions. Every action
+// that receives an installationId / repo name / PR id from the client must go
+// through one of the guards below — those values are attacker-controlled.
+async function getSessionContext() {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session?.user) return null;
+  return {
+    userId: session.user.id,
+    organizationId: session.session.activeOrganizationId ?? null,
+  };
+}
+
+/**
+ * A repo-scoped action may only touch repositories connected to the caller's
+ * active org, under the installation that connected them. Blocks reading
+ * another tenant's repo data by guessing installation ids / repo names.
+ */
+async function authorizeConnectedRepo(
+  installationId: number,
+  fullName: string,
+): Promise<boolean> {
+  const ctx = await getSessionContext();
+  if (!ctx?.organizationId) return false;
+  const rows = await db
+    .select({ installationId: repositories.installationId })
+    .from(repositories)
+    .where(
+      and(
+        eq(repositories.fullName, fullName),
+        eq(repositories.organizationId, ctx.organizationId),
+      ),
+    );
+  // Older rows may predate installation tracking (null) — org scoping still holds.
+  return rows.some((r) => r.installationId === installationId || r.installationId === null);
 }
 
 export type AppInstallation = {
@@ -142,8 +184,58 @@ export async function listAppInstallations(): Promise<AppInstallation[]> {
   }
 }
 
+/**
+ * Save a GitHub App installation for the calling user — but only after
+ * server-side ownership verification. Replaces the old trpc mutation, which
+ * trusted any client-supplied id (a cross-tenant hole: ids are guessable
+ * integers). Account login/type are taken from GitHub, never from the client.
+ */
+export async function saveInstallationAction(input: {
+  installationId: number;
+}): Promise<
+  { ok: true; accountLogin: string | null } | { ok: false; error: string }
+> {
+  const ctx = await getSessionContext();
+  if (!ctx) return { ok: false, error: "Sign in first." };
+
+  const verdict = await verifyInstallationOwnership(ctx.userId, input.installationId);
+  if (!verdict.ok) return verdict;
+
+  await db
+    .insert(githubInstallations)
+    .values({
+      id: crypto.randomUUID(),
+      userId: ctx.userId,
+      installationId: input.installationId,
+      accountLogin: verdict.accountLogin,
+      accountType: verdict.accountType,
+    })
+    .onConflictDoUpdate({
+      target: githubInstallations.userId,
+      set: {
+        installationId: input.installationId,
+        accountLogin: verdict.accountLogin,
+        accountType: verdict.accountType,
+        updatedAt: new Date(),
+      },
+    });
+
+  return { ok: true, accountLogin: verdict.accountLogin };
+}
+
 export async function listInstallationRepos(installationId: number): Promise<GithubRepo[]> {
   try {
+    // Only the installation the caller has saved (and therefore verified) may
+    // be enumerated — otherwise any user could list private repos of any
+    // tenant by iterating installation ids.
+    const ctx = await getSessionContext();
+    if (!ctx) return [];
+    const [saved] = await db
+      .select({ installationId: githubInstallations.installationId })
+      .from(githubInstallations)
+      .where(eq(githubInstallations.userId, ctx.userId));
+    if (!saved || saved.installationId !== installationId) return [];
+
     const app = getGithubApp();
     const octokit = await app.getInstallationOctokit(installationId);
     const { data } = await octokit.rest.apps.listReposAccessibleToInstallation({ per_page: 100 });
@@ -165,6 +257,7 @@ export async function getRepoOverview(
   fullName: string,
 ): Promise<RepoOverview | null> {
   try {
+    if (!(await authorizeConnectedRepo(installationId, fullName))) return null;
     const app = getGithubApp();
     const octokit = await app.getInstallationOctokit(installationId);
     const [owner, repo] = splitFullName(fullName);
@@ -200,6 +293,7 @@ export async function listRepoCommits(
   fullName: string,
 ): Promise<RepoCommit[]> {
   try {
+    if (!(await authorizeConnectedRepo(installationId, fullName))) return [];
     const app = getGithubApp();
     const octokit = await app.getInstallationOctokit(installationId);
     const [owner, repo] = splitFullName(fullName);
@@ -223,6 +317,7 @@ export async function listRepoContributors(
   fullName: string,
 ): Promise<RepoContributor[]> {
   try {
+    if (!(await authorizeConnectedRepo(installationId, fullName))) return [];
     const app = getGithubApp();
     const octokit = await app.getInstallationOctokit(installationId);
     const [owner, repo] = splitFullName(fullName);
@@ -250,6 +345,7 @@ export async function syncRepoPullRequests(
   fullName: string,
 ): Promise<{ synced: number }> {
   try {
+    if (!(await authorizeConnectedRepo(installationId, fullName))) return { synced: 0 };
     const app = getGithubApp();
     const octokit = await app.getInstallationOctokit(installationId);
     const [owner, repo] = splitFullName(fullName);
@@ -358,6 +454,29 @@ export async function triggerPrReview(
   opts?: { force?: boolean },
 ): Promise<{ ok: boolean; status?: string; reused?: boolean; error?: string }> {
   try {
+    // PR ids are derived from GitHub's numeric ids (enumerable) — reviews
+    // spend the owning org's AI credits, so only members of the org the PR's
+    // repo is connected to may trigger one.
+    const ctx = await getSessionContext();
+    if (!ctx?.organizationId) {
+      return { ok: false, error: "Sign in and select an organization first." };
+    }
+    const [pr] = await db
+      .select({ repoFullName: pullRequestsTable.repoFullName })
+      .from(pullRequestsTable)
+      .where(eq(pullRequestsTable.id, pullRequestId));
+    if (!pr) return { ok: false, error: "Pull request not found." };
+    const [orgRepo] = await db
+      .select({ id: repositories.id })
+      .from(repositories)
+      .where(
+        and(
+          eq(repositories.fullName, pr.repoFullName),
+          eq(repositories.organizationId, ctx.organizationId),
+        ),
+      );
+    if (!orgRepo) return { ok: false, error: "Pull request not found in this organization." };
+
     // `force` skips commit-reuse — used right after linking a PR to a feature,
     // where the old review predates the PRD context and must be redone.
     if (!opts?.force) {

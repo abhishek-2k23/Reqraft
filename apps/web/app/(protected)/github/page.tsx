@@ -28,6 +28,7 @@ import { trpc } from "~/trpc/client";
 import {
   listAppInstallations,
   listInstallationRepos,
+  saveInstallationAction,
   type AppInstallation,
   type GithubRepo,
 } from "@/features/github/actions";
@@ -406,19 +407,28 @@ export default function GithubPage() {
     installationIdRef.current = installStatus.installation?.installationId ?? null;
   }, [installStatus.installation?.installationId]);
 
-  const saveInstallation = trpc.github.saveInstallation.useMutation({
-    onSuccess: () => {
+  // Saving goes through a server action that verifies the installation id
+  // actually belongs to this user before writing (ids are guessable, so the
+  // client-supplied value is never trusted).
+  const [savingInstallation, setSavingInstallation] = useState(false);
+  async function saveInstallation(installationId: number) {
+    if (!Number.isFinite(installationId)) return;
+    setSavingInstallation(true);
+    const res = await saveInstallationAction({ installationId });
+    setSavingInstallation(false);
+    if (res.ok) {
       toast.success("GitHub installation connected");
       refetch();
       utils.github.repositories.invalidate();
-    },
-    onError: (err) => toast.error(err.message),
-  });
+    } else {
+      toast.error(res.error);
+    }
+  }
 
   // When GitHub redirects back with ?installationId=..., save it immediately
   useEffect(() => {
     if (urlInstallationId && !installStatus.installed) {
-      saveInstallation.mutate({ installationId: Number(urlInstallationId) });
+      void saveInstallation(Number(urlInstallationId));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urlInstallationId]);
@@ -429,14 +439,10 @@ export default function GithubPage() {
     const installs = await listAppInstallations();
     setDetectedInstalls(installs);
     setDetecting(false);
-    // If exactly one installation exists, connect it automatically.
+    // If exactly one installation exists, connect it automatically. Account
+    // details are resolved server-side during verification, not passed in.
     if (auto && installs.length === 1) {
-      const only = installs[0]!;
-      saveInstallation.mutate({
-        installationId: only.installationId,
-        accountLogin: only.accountLogin ?? undefined,
-        accountType: only.accountType ?? undefined,
-      });
+      void saveInstallation(installs[0]!.installationId);
     }
   }
 
@@ -473,7 +479,7 @@ export default function GithubPage() {
       // If a state was round-tripped, it must match; missing state is tolerated.
       if (data.state && expected && data.state !== expected) return;
       sessionStorage.removeItem("gh_oauth_state");
-      saveInstallation.mutate({ installationId: Number(data.installationId) });
+      void saveInstallation(Number(data.installationId));
     }
 
     function onMessage(event: MessageEvent) {
@@ -598,7 +604,7 @@ export default function GithubPage() {
             </div>
           </div>
 
-          {saveInstallation.isPending ? (
+          {savingInstallation ? (
             <div className="flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/10 p-4">
               <Loader2 className="size-5 animate-spin text-primary" />
               <p className="text-sm font-medium text-primary">Saving installation…</p>
@@ -673,17 +679,11 @@ export default function GithubPage() {
                         </span>
                         <Button
                           size="sm"
-                          disabled={saveInstallation.isPending}
-                          onClick={() =>
-                            saveInstallation.mutate({
-                              installationId: inst.installationId,
-                              accountLogin: inst.accountLogin ?? undefined,
-                              accountType: inst.accountType ?? undefined,
-                            })
-                          }
+                          disabled={savingInstallation}
+                          onClick={() => void saveInstallation(inst.installationId)}
                           className="bg-primary text-primary-foreground hover:bg-primary"
                         >
-                          {saveInstallation.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Link2 className="size-3.5" />}
+                          {savingInstallation ? <Loader2 className="size-3.5 animate-spin" /> : <Link2 className="size-3.5" />}
                           Connect
                         </Button>
                       </div>
