@@ -272,7 +272,7 @@ function PlanMessage({
   authorName?: string;
   /** The feature's linked OPEN PR — when set, the CTA commits onto it instead
    * of raising a new pull request, and is labeled accordingly. */
-  linkedPr?: { number: number; url: string } | null;
+  linkedPr?: { number: number; url: string; title: string } | null;
   onRaisePr?: () => void;
 }) {
   const steps = (plan.plan ?? []).filter((s): s is string => Boolean(s));
@@ -411,10 +411,16 @@ function PlanMessage({
           <button
             type="button"
             onClick={onRaisePr}
-            className="inline-flex items-center gap-2 rounded-xl bg-success px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:opacity-95 active:scale-[0.98]"
+            className="inline-flex max-w-full items-center gap-2 rounded-xl bg-success px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:opacity-95 active:scale-[0.98]"
           >
-            <GitPullRequest className="size-4" />
-            {linkedPr ? `Commit to PR #${linkedPr.number}` : "Raise pull request"}
+            <GitPullRequest className="size-4 shrink-0" />
+            {linkedPr ? (
+              <span className="min-w-0 truncate">
+                Commit these changes to PR #{linkedPr.number} · {linkedPr.title}
+              </span>
+            ) : (
+              "Raise pull request"
+            )}
           </button>
           <span className="text-xs text-muted-foreground">
             {files.length} file{files.length === 1 ? "" : "s"} →{" "}
