@@ -5,6 +5,7 @@ import { ensureFeatureBranchName } from "@repo/database/branch";
 import { agentProviderKeys, featureRequests, repositories } from "@repo/database/schema";
 
 import { commitFilesAndOpenPr } from "@/features/github/server/create-pr";
+import { getLinkedOpenPr, recordRaisedPr } from "@/features/github/server/linked-pr";
 
 import { encryptSecret } from "./crypto";
 import type { AgentPlan } from "../plan-schema";
@@ -148,6 +149,7 @@ export async function raiseAgentPrAction(input: {
   // Use the feature's canonical branch (feature/<slug> — the same one shown on
   // the feature's preview tab) so the PR auto-links to the feature.
   let featureBranch: string | undefined;
+  let linkFeatureId: string | undefined;
   if (input.featureId) {
     const [feature] = await db
       .select({
@@ -164,7 +166,12 @@ export async function raiseAgentPrAction(input: {
         ),
       );
     if (feature) {
-      featureBranch = `feature/${await ensureFeatureBranchName(db, feature)}`;
+      // A feature with a LINKED open PR gets the commit on THAT PR's branch —
+      // even a non-canonical one (manually linked PR, back-compat id branch) —
+      // so the existing PR accumulates the change instead of a new PR opening.
+      const linked = await getLinkedOpenPr(feature.id, repo.fullName);
+      featureBranch = linked?.headBranch ?? `feature/${await ensureFeatureBranchName(db, feature)}`;
+      linkFeatureId = feature.id;
     }
   }
 
@@ -181,7 +188,39 @@ export async function raiseAgentPrAction(input: {
       files: input.files,
       draft: input.draft ?? false,
     });
-    return { ok: true as const, prUrl: pr.prUrl, prNumber: pr.prNumber, branch: pr.branchName };
+
+    // Cache + link the PR row immediately so linked-PR detection (the
+    // "Building on PR #N" chip, commit-instead-of-raise) works without waiting
+    // for webhook delivery. Best-effort: a failed cache write never fails the
+    // raise — the webhook remains the fallback source.
+    if (linkFeatureId) {
+      try {
+        await recordRaisedPr({
+          featureId: linkFeatureId,
+          repositoryId: repo.id,
+          installationId: repo.installationId,
+          repoFullName: repo.fullName,
+          githubPrId: pr.githubPrId,
+          prNumber: pr.prNumber,
+          prUrl: pr.prUrl,
+          title: pr.prTitle,
+          body: pr.prBody,
+          headBranch: pr.branchName,
+          baseBranch: pr.baseBranch,
+          headSha: pr.headSha,
+        });
+      } catch (cacheError) {
+        console.error("Failed to cache raised PR:", cacheError);
+      }
+    }
+
+    return {
+      ok: true as const,
+      prUrl: pr.prUrl,
+      prNumber: pr.prNumber,
+      branch: pr.branchName,
+      updatedExisting: pr.updatedExisting,
+    };
   } catch (error) {
     return {
       ok: false as const,

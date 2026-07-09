@@ -159,6 +159,34 @@ export const githubRouter = router({
         .orderBy(desc(pullRequests.number));
     }),
 
+  // The open PR currently linked to a feature (if any) — surfaced in the Agent
+  // so the user sees which PR the agent is building on: it reads that PR's code
+  // and commits the requested change on top of the same PR.
+  prForFeature: orgProcedure
+    .input(z.object({ featureId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const [pr] = await ctx.db
+        .select({
+          number: pullRequests.number,
+          url: pullRequests.githubPrUrl,
+          title: pullRequests.title,
+          headBranch: pullRequests.headBranch,
+          baseBranch: pullRequests.baseBranch,
+        })
+        .from(pullRequests)
+        .innerJoin(featureRequests, eq(featureRequests.id, pullRequests.featureId))
+        .where(
+          and(
+            eq(pullRequests.featureId, input.featureId),
+            eq(featureRequests.organizationId, ctx.org.id),
+            eq(pullRequests.state, "open"),
+          ),
+        )
+        .orderBy(desc(pullRequests.number))
+        .limit(1);
+      return pr ?? null;
+    }),
+
   // Link a cached PR to a feature directly (no branch rename), enforcing one
   // active PR per feature: any previously linked PR — and its review history —
   // is detached so the feature's Review tab starts fresh with this PR.

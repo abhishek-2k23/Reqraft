@@ -172,9 +172,11 @@ function loadActive(): ActiveRun | null {
 // cancel, and to keep the generated content visible when a run errors out.
 function normalizePlan(p: PartialAgentPlan): AgentPlan {
   return {
+    intent: p.intent ?? "implement",
     title: p.title ?? "Untitled change",
     summary: p.summary ?? "",
     questions: (p.questions ?? []).filter((q): q is string => Boolean(q)),
+    alreadyImplemented: (p.alreadyImplemented ?? []).filter((a): a is string => Boolean(a)),
     plan: (p.plan ?? []).filter((s): s is string => Boolean(s)),
     files: (p.files ?? []).flatMap((f) =>
       f?.path

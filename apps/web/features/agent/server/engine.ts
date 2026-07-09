@@ -57,21 +57,45 @@ export type AgentRunInput = {
   prd?: { problem: string; acceptanceCriteria: string[] } | null;
   /** The tasks the user selected to implement (task-wise coding). */
   tasks?: AgentTaskContext[] | null;
+  /**
+   * Files already changed on this feature's open PR branch vs the default
+   * branch — the work prior agent runs committed to the SAME pull request. The
+   * agent builds ON TOP of these (incrementally) instead of regenerating them.
+   */
+  priorChanges?: Array<{ path: string; content: string }> | null;
+  /**
+   * The feature's linked OPEN pull request, when one exists. Its title/body —
+   * together with `priorChanges` (the files on its branch) — tell the agent
+   * what the PR already delivers, so a follow-up implements only the missing
+   * pieces. The resulting commit lands on this PR's branch, never a new PR.
+   */
+  linkedPr?: { number: number; title: string; body: string | null; url: string } | null;
   /** Earlier turns of this Agent conversation, oldest first. */
   history?: Array<{ role: "user" | "assistant"; content: string }>;
 };
 
-const SYSTEM_PROMPT = `You are a senior engineer implementing a change in an EXISTING repository, working from a PRD and its task breakdown.
+const SYSTEM_PROMPT = `You are a senior engineer working in an EXISTING repository, with a PRD and its task breakdown as your primary mission — but you are a full conversational agent, not a code vending machine.
 
-Scope — follow strictly:
-- You only help with THIS repository: its code, the linked PRD, its feature/tasks, and directly related engineering questions (architecture, testing, debugging of this code).
-- Act on the LATEST user message only. Earlier turns are context for follow-ups — never regenerate or extend a previous change set unless the latest message explicitly asks you to.
-- If the latest message is a question or discussion (not a request to implement something), answer it in "summary" and return empty "questions", "plan" and "files" arrays and an empty "prDescription".
-- If decisions from the user are needed before you can implement safely (naming, missing backend, stack constraints, scope conflicts), put ONE decision per entry in "questions" with its options spelled out inline, keep "summary" to a single line saying what you're blocked on, and return empty "plan"/"files"/"prDescription". Never bury questions inside summary or notes.
-- If the latest message is unrelated to this repository, its PRD, or software engineering on it, do NOT comply: briefly say in "summary" that you only help with this repo's PRD-driven code generation and related coding questions, and return empty "plan"/"files".
+First, classify the LATEST user message and set "intent". Only intent="implement" may return files:
+- "implement": a request to change this repo's code (explicitly or clearly implied) → return files/plan/prDescription.
+- "answer": ANYTHING else that deserves a reply — questions about this repo/PRD/engineering, general programming or technology questions, greetings, brainstorming, opinions, explanations, or any other benign topic → answer helpfully and conversationally in "summary"; return EMPTY questions/plan/files and empty prDescription. Give real, complete answers — do not deflect with "I only write code".
+- "blocked": you genuinely need the user to decide something before you can implement safely (naming, missing backend, stack constraints, scope conflicts) → put ONE decision per entry in "questions" with options spelled out inline; keep "summary" to a single line; return EMPTY plan/files/prDescription. Never bury questions in summary or notes.
+- "reject": ONLY for harmful requests — violence, illegal activity, malware or attacks, or other clearly unsafe content → refuse briefly and politely in "summary"; return EMPTY plan/files/prDescription. NEVER use "reject" merely because a message is off-topic, vague, or non-technical.
+Never emit files for "answer", "blocked", or "reject". Do not invent code changes for a message that doesn't ask for one.
+
+Conversation rules:
+- Your mission is implementing this feature's approved PRD, and your code always follows this repo's conventions — but you answer whatever the user asks. Coding is what you CAN do, not the only thing you do.
+- Act on the LATEST user message only. Earlier turns are context for follow-ups — never regenerate a previous change set unless the latest message explicitly asks you to.
+
+Build ONLY the missing delta (do not re-implement what already exists):
+- Before writing any code, compare the request and the PRD acceptance criteria against the repo context AND the "Changes already on this feature's branch" block below.
+- Any criterion the repo (or the branch) ALREADY satisfies must NOT be rebuilt — list it in "alreadyImplemented" and skip it.
+- When changes already exist on the feature branch, treat them as the current state and build ON TOP of them: modify those files incrementally rather than regenerating them from scratch, and only add the files still needed.
+- If the entire request is already implemented, set intent="answer", explain that in "summary", populate "alreadyImplemented", and return empty files.
 
 When implementing:
-Match the repo's stack, file layout, naming, and import conventions exactly — reuse existing utilities and paths rather than inventing new ones.
+If the repository is EMPTY (no files / file count 0), scaffold the project from scratch: create the folder structure, config, and all files the requested stack needs, then implement the change.
+Otherwise match the repo's stack, file layout, naming, and import conventions exactly — reuse existing utilities and paths rather than inventing new ones.
 For every file you touch, output its complete resulting contents (not a diff) so it can be committed directly. Keep the change set as small as possible.
 Write the prDescription as the actual PR body a reviewer would read: summary of changes, how they satisfy the PRD acceptance criteria / tasks, and how to test.
 If something can't be done safely without more info, say so in notes rather than guessing.`;
@@ -93,6 +117,24 @@ function buildRequest(input: AgentRunInput): {
         .join("\n")}\n`
     : "";
 
+  // The feature's linked open PR, when there is one. The agent reads it FIRST
+  // (title + description here, its changed files in the block below) and codes
+  // only the delta the request still needs — the commit stacks onto this PR.
+  const linkedPrBlock = input.linkedPr
+    ? `\nThis feature already has an OPEN pull request — PR #${input.linkedPr.number}: ${input.linkedPr.title} (${input.linkedPr.url})${
+        input.linkedPr.body ? `\nPR description:\n${input.linkedPr.body}` : ""
+      }\nRead this PR (and its branch changes below) BEFORE coding. Implement ONLY what the request needs beyond it; your output is committed onto this PR's branch as a follow-up commit — never a new PR. If the request conflicts with what the PR already does, ask via "questions" instead of guessing.\n`
+    : "";
+
+  // Files already committed to this feature's open PR branch. The agent builds
+  // on top of these so follow-up requests accumulate in the SAME pull request
+  // instead of starting from the default branch each time.
+  const priorChangesBlock = input.priorChanges?.length
+    ? `\nChanges already on this feature's branch (build ON TOP of these — do NOT rewrite from scratch; only add or modify what's still missing):\n${input.priorChanges
+        .map((f) => `--- ${f.path} ---\n${f.content}`)
+        .join("\n\n")}\n`
+    : "";
+
   return {
     system: SYSTEM_PROMPT,
     messages: [
@@ -100,7 +142,7 @@ function buildRequest(input: AgentRunInput): {
       {
         role: "user" as const,
         content: `${formatContextForPrompt(input.context)}
-${prdBlock}${tasksBlock}
+${prdBlock}${tasksBlock}${linkedPrBlock}${priorChangesBlock}
 Request: ${input.prompt}`,
       },
     ],
