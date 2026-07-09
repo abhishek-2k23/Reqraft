@@ -8,7 +8,7 @@ export const agentPlanSchema = z.object({
   intent: z
     .enum(["implement", "answer", "blocked", "reject"])
     .describe(
-      "Classify the latest user message. 'implement' = a concrete change to build (the ONLY value that may return files). 'answer' = a question/discussion to reply to in text. 'blocked' = you need decisions first (put them in questions). 'reject' = the request is off-topic / unrelated to this repo's PRD-driven coding. For anything other than 'implement', files/plan/prDescription MUST be empty.",
+      "Classify the latest user message. 'implement' = a concrete change to build (the ONLY value that may return files). 'answer' = anything else deserving a helpful reply — repo/engineering questions, general questions, greetings, discussion (answer it fully in summary; never deflect as off-topic). 'blocked' = you need decisions first (put them in questions). 'reject' = ONLY harmful requests: violence, illegal activity, malware/attacks. For anything other than 'implement', files/plan/prDescription MUST be empty.",
     ),
   title: z.string().describe("Short, PR-ready title for this change (imperative mood)."),
   summary: z
