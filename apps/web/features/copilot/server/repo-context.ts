@@ -9,6 +9,7 @@ import { repoContexts, repositories } from "@repo/database/schema";
 import { filePriority, isIndexableSourcePath } from "@repo/services/shipflow/repo-index";
 
 import { getGithubApp } from "@/lib/github/app";
+import { repoIsEmpty } from "@/features/github/server/repo-empty";
 
 const MAX_TREE_PATHS = 1500;
 const MAX_FILES_TO_SUMMARIZE = 24;
@@ -58,12 +59,23 @@ export async function buildRepoContext(repositoryId: string): Promise<RepoContex
   const octokit = await app.getInstallationOctokit(repo.installationId);
   const [owner, name] = repo.fullName.split("/") as [string, string];
 
-  // Resolve the head commit + its tree for the default branch.
-  const { data: branch } = await octokit.rest.repos.getBranch({
-    owner,
-    repo: name,
-    branch: repo.defaultBranch,
-  });
+  // Resolve the head commit + its tree for the default branch. An empty repo has
+  // no default-branch ref, so this 404s — persist an "empty" context so the
+  // agent scaffolds the project from scratch instead of the run failing.
+  let branch;
+  try {
+    const res = await octokit.rest.repos.getBranch({
+      owner,
+      repo: name,
+      branch: repo.defaultBranch,
+    });
+    branch = res.data;
+  } catch (error) {
+    if (await repoIsEmpty(repo.installationId, repo.fullName)) {
+      return persistEmptyRepoContext(repositoryId, repo.organizationId);
+    }
+    throw error;
+  }
   const headSha = branch.commit.sha;
   const treeSha = branch.commit.commit.tree.sha;
 
@@ -154,6 +166,44 @@ ${filesBlock}`,
     summaries,
     fileCount: allPaths.length,
     lastSha: headSha,
+    updatedAt: now,
+  };
+}
+
+/**
+ * Snapshot for an empty repo (no commits): the agent gets a clear "scaffold from
+ * scratch" overview and an empty tree, so it creates the project's files itself.
+ */
+async function persistEmptyRepoContext(
+  repositoryId: string,
+  organizationId: string,
+): Promise<RepoContext> {
+  const now = new Date();
+  const overview =
+    "This repository is EMPTY — it has no code yet. Scaffold the requested change from scratch: create the project structure, config, and all files needed, following standard conventions for the requested stack.";
+  const values = {
+    organizationId,
+    overview,
+    stack: "",
+    tree: JSON.stringify([]),
+    summaries: JSON.stringify({}),
+    fileCount: 0,
+    lastSha: null,
+    status: "ready",
+    updatedAt: now,
+  };
+  await db
+    .insert(repoContexts)
+    .values({ id: crypto.randomUUID(), repositoryId, ...values })
+    .onConflictDoUpdate({ target: repoContexts.repositoryId, set: values });
+
+  return {
+    overview,
+    stack: "",
+    tree: [],
+    summaries: {},
+    fileCount: 0,
+    lastSha: null,
     updatedAt: now,
   };
 }
