@@ -3,13 +3,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import {
+  ArrowLeft,
   Bot,
   Check,
   ChevronDown,
+  CircleHelp,
   ExternalLink,
-  FileCode2,
-  FilePlus2,
+  FileDiff,
+  GitBranch,
   GitPullRequest,
+  History,
   KeyRound,
   Loader2,
   Lock,
@@ -17,6 +20,8 @@ import {
   Settings2,
   ShieldCheck,
   Sparkles,
+  Square,
+  SquarePen,
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -41,15 +46,16 @@ import {
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 import { Input } from "~/components/ui/input";
+import { agentChatStore, useAgentChat } from "@/features/agent/client/chat-store";
+import { BranchChip, GithubPrView } from "@/features/agent/components/github-pr-view";
+import type { AgentPlan, PartialAgentPlan } from "@/features/agent/plan-schema";
 import { AGENT_PROVIDER_INFO, type ProviderInfo } from "@/features/agent/providers";
 import {
   deleteAgentKeyAction,
   listAgentKeysAction,
   raiseAgentPrAction,
-  runAgentAction,
   saveAgentKeyAction,
 } from "@/features/agent/server/actions";
-import type { AgentPlan } from "@/features/agent/server/engine";
 import type { AgentProvider } from "@repo/database/schema";
 
 type SavedKey = {
@@ -59,11 +65,17 @@ type SavedKey = {
   updatedAt: string;
 };
 
-type ChatMessage =
-  | { id: string; role: "user"; content: string }
-  | { id: string; role: "assistant"; plan: AgentPlan; prUrl?: string; prNumber?: number };
-
-const uid = () => Math.random().toString(36).slice(2);
+// Mirrors the server's branch naming (create-pr.ts) so the preview header can
+// show the branch the PR will actually be opened on.
+function previewBranch(title: string | undefined) {
+  const slug =
+    (title ?? "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 40) || "change";
+  return `reqraft-agent/${slug}`;
+}
 
 /* ------------------------------------------------------------------ */
 /* API key management                                                   */
@@ -224,63 +236,89 @@ function KeysDialog({
 /* Plan rendering                                                       */
 /* ------------------------------------------------------------------ */
 
-function FileCard({ file }: { file: AgentPlan["files"][number] }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="overflow-hidden rounded-xl border border-foreground/10 bg-background">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left transition hover:bg-foreground/[0.03]"
-      >
-        {file.action === "create" ? (
-          <FilePlus2 className="size-4 shrink-0 text-success" />
-        ) : (
-          <FileCode2 className="size-4 shrink-0 text-primary" />
-        )}
-        <span className="min-w-0 flex-1">
-          <span className="block truncate font-mono text-xs font-medium text-foreground">{file.path}</span>
-          <span className="block truncate text-[11px] text-muted-foreground">{file.rationale}</span>
-        </span>
-        <span
-          className={cn(
-            "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
-            file.action === "create" ? "bg-success/10 text-success" : "bg-primary/10 text-primary",
-          )}
-        >
-          {file.action}
-        </span>
-        <ChevronDown className={cn("size-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} />
-      </button>
-      {open && (
-        <pre className="max-h-80 overflow-auto border-t border-foreground/10 bg-foreground/[0.03] p-3.5 text-[11px] leading-5 text-foreground/85" data-lenis-prevent>
-          <code>{file.content}</code>
-        </pre>
-      )}
-    </div>
-  );
-}
-
+// Tolerates a still-streaming PartialAgentPlan: every section renders as soon
+// as its data starts arriving, so the user watches the plan/files being written.
 function PlanMessage({
   plan,
+  streaming,
+  cancelled,
   prUrl,
   prNumber,
+  prBranch,
+  prDraft,
+  repoFullName,
+  baseBranch,
+  featureBranch,
+  authorName,
   onRaisePr,
 }: {
-  plan: AgentPlan;
+  plan: PartialAgentPlan;
+  streaming?: boolean;
+  cancelled?: boolean;
   prUrl?: string;
   prNumber?: number;
-  onRaisePr: () => void;
+  prBranch?: string;
+  prDraft?: boolean;
+  repoFullName?: string;
+  baseBranch: string;
+  /** The feature's canonical feature/<slug> branch — the PR's real head. */
+  featureBranch?: string;
+  authorName?: string;
+  onRaisePr?: () => void;
 }) {
+  const steps = (plan.plan ?? []).filter((s): s is string => Boolean(s));
+  const files = (plan.files ?? []).filter(Boolean);
+  const questions = (plan.questions ?? []).filter((q): q is string => Boolean(q));
+  const headBranch = prBranch ?? featureBranch ?? previewBranch(plan.title);
+  const canRaise = !streaming && !prUrl && files.length > 0 && Boolean(onRaisePr);
+
   return (
     <div className="space-y-4">
-      <p className="text-sm leading-6 text-foreground/90">{plan.summary}</p>
+      {cancelled && (
+        <p className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/25 bg-amber-500/10 px-3 py-1 text-[11px] text-amber-700 dark:text-amber-300">
+          <Square className="size-3" /> Generation stopped — partial result
+        </p>
+      )}
 
-      {plan.plan.length > 0 && (
+      {plan.summary && <p className="text-sm leading-6 text-foreground/90">{plan.summary}</p>}
+
+      {/* Decisions the agent needs before it can implement safely. */}
+      {questions.length > 0 && (
+        <div className="rounded-xl border border-primary/25 bg-primary/[0.04] p-4">
+          <p className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-primary">
+            <CircleHelp className="size-3.5" />
+            Needs your decision{questions.length === 1 ? "" : "s"}
+            <span className="rounded-full bg-primary/15 px-1.5 py-0.5 font-mono text-[10px]">
+              {questions.length}
+            </span>
+          </p>
+          <ol className="mt-3 space-y-3">
+            {questions.map((q, i) => (
+              <li key={i} className="flex gap-2.5 text-sm leading-6 text-foreground/90">
+                <span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-primary/15 font-mono text-[10px] font-bold text-primary">
+                  {i + 1}
+                </span>
+                <span className="min-w-0 whitespace-pre-wrap">{q}</span>
+              </li>
+            ))}
+          </ol>
+          {!streaming && (
+            <p className="mt-3 border-t border-primary/10 pt-2.5 text-xs text-muted-foreground">
+              Reply below with your choices — e.g.{" "}
+              <span className="rounded bg-foreground/5 px-1 py-0.5 font-mono text-[10px]">
+                1: keep names · 2: localStorage · 3: in-browser tests
+              </span>{" "}
+              — and I&apos;ll implement accordingly.
+            </p>
+          )}
+        </div>
+      )}
+
+      {steps.length > 0 && (
         <div className="rounded-xl border border-foreground/10 bg-foreground/[0.02] p-4">
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Plan</p>
           <ol className="space-y-1.5">
-            {plan.plan.map((step, i) => (
+            {steps.map((step, i) => (
               <li key={i} className="flex gap-2.5 text-sm text-foreground/85">
                 <span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-primary/10 font-mono text-[10px] font-bold text-primary">
                   {i + 1}
@@ -292,15 +330,34 @@ function PlanMessage({
         </div>
       )}
 
-      {plan.files.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Files ({plan.files.length})
-          </p>
-          {plan.files.map((f) => (
-            <FileCard key={f.path} file={f} />
-          ))}
-        </div>
+      {/* Question/off-topic replies come back with no files and no PR body —
+          then the summary alone is the whole answer, so skip the PR card. */}
+      {(files.length > 0 || Boolean(plan.prDescription?.trim())) && (
+        <GithubPrView
+          title={plan.title}
+          body={plan.prDescription}
+          files={files}
+          repoFullName={repoFullName}
+          baseBranch={baseBranch}
+          headBranch={headBranch}
+          authorName={authorName}
+          prNumber={prNumber}
+          prUrl={prUrl}
+          draft={prDraft}
+          streaming={streaming}
+          actions={
+            canRaise ? (
+              <button
+                type="button"
+                onClick={onRaisePr}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-success px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:opacity-95 active:scale-[0.98]"
+              >
+                <GitPullRequest className="size-3.5" />
+                Raise pull request
+              </button>
+            ) : null
+          }
+        />
       )}
 
       {plan.notes && (
@@ -309,29 +366,42 @@ function PlanMessage({
         </p>
       )}
 
-      {prUrl ? (
-        <a
-          href={prUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-2 rounded-xl border border-success/25 bg-success/10 px-4 py-2.5 text-sm font-medium text-success transition hover:bg-success/20"
-        >
-          <GitPullRequest className="size-4" />
-          Pull request #{prNumber} opened
-          <ExternalLink className="size-3.5" />
-        </a>
-      ) : plan.files.length > 0 ? (
-        <button
-          type="button"
-          onClick={onRaisePr}
-          className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition hover:opacity-95 active:scale-[0.98]"
-        >
-          <GitPullRequest className="size-4" />
-          Raise pull request
-        </button>
-      ) : null}
+      {/* Prominent CTA below the change set — the header action is easy to
+          miss once the diff gets long. */}
+      {canRaise && (
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={onRaisePr}
+            className="inline-flex items-center gap-2 rounded-xl bg-success px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:opacity-95 active:scale-[0.98]"
+          >
+            <GitPullRequest className="size-4" />
+            Generate pull request
+          </button>
+          <span className="text-xs text-muted-foreground">
+            {files.length} file{files.length === 1 ? "" : "s"} →{" "}
+            <span className="font-mono">{headBranch}</span>
+          </span>
+        </div>
+      )}
     </div>
   );
+}
+
+// What the agent is doing right now, derived from how much of the structured
+// plan has streamed in so far.
+function streamingStatus(plan: PartialAgentPlan | null, model: string): string {
+  if (!plan || Object.keys(plan).length === 0) return `Sending to ${model}… (repo context, PRD and tasks are preloaded)`;
+  const files = (plan.files ?? []).filter(Boolean);
+  if (plan.notes) return "Wrapping up…";
+  if (plan.prDescription) return "Writing the PR description…";
+  if (files.length > 0) {
+    const current = files[files.length - 1];
+    return current?.path ? `Writing ${current.path}…` : "Writing files…";
+  }
+  if ((plan.plan ?? []).length > 0) return "Planning the implementation…";
+  if ((plan.questions ?? []).length > 0) return "Writing questions for you…";
+  return "Thinking through the change…";
 }
 
 /* ------------------------------------------------------------------ */
@@ -390,28 +460,60 @@ export default function AgentPage() {
   const [taskIds, setTaskIds] = useState<string[]>([]);
   useEffect(() => setTaskIds([]), [featureId]);
 
-  // Conversation.
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  // The canonical branch shown on the feature's preview tab — the PR is opened
+  // on exactly this branch (the server resolves/persists the slug on raise).
+  const featureBranchOf = (fid?: string | null) => {
+    const f = features.find((x) => x.id === fid);
+    return f ? `feature/${f.branchName ?? f.id}` : undefined;
+  };
+
+  // Conversation — lives in the module-level store so it survives navigation
+  // and the run keeps streaming while the user is on other pages.
+  const { sessions, activeId, run } = useAgentChat();
+  const activeSession = sessions.find((s) => s.id === activeId) ?? null;
+  const messages = activeSession?.messages ?? [];
+  const activeRunning = run !== null && run.sessionId === activeId;
+  const runningElsewhere = run !== null && run.sessionId !== activeId;
+  const livePlan = activeRunning ? run.livePlan : null;
+  const liveFileCount = livePlan?.files?.length ?? 0;
+
   const [prompt, setPrompt] = useState("");
-  const [running, setRunning] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length, running]);
+  }, [messages.length, activeRunning, liveFileCount]);
 
   // Raise-PR dialog state.
-  const [prFor, setPrFor] = useState<{ messageId: string; plan: AgentPlan } | null>(null);
+  const [prFor, setPrFor] = useState<{
+    sessionId: string;
+    messageId: string;
+    plan: AgentPlan;
+    featureId?: string | null;
+  } | null>(null);
   const [prTitle, setPrTitle] = useState("");
   const [prBody, setPrBody] = useState("");
   const [prDraft, setPrDraft] = useState(false);
   const [raising, setRaising] = useState(false);
 
-  function openPrDialog(messageId: string, plan: AgentPlan) {
-    setPrFor({ messageId, plan });
+  function openPrDialog(
+    sessionId: string,
+    messageId: string,
+    plan: AgentPlan,
+    msgFeatureId?: string | null,
+  ) {
+    setPrFor({ sessionId, messageId, plan, featureId: msgFeatureId });
     setPrTitle(plan.title);
     setPrBody(plan.prDescription);
     setPrDraft(false);
   }
+
+  const prFileStats = useMemo(() => {
+    const files = prFor?.plan.files ?? [];
+    return {
+      count: files.length,
+      added: files.reduce((n, f) => n + (f.content ? f.content.split("\n").length : 0), 0),
+    };
+  }, [prFor]);
 
   async function handleRaisePr() {
     if (!prFor || !repoId) return;
@@ -422,26 +524,26 @@ export default function AgentPage() {
       body: prBody,
       files: prFor.plan.files.map((f) => ({ path: f.path, content: f.content })),
       draft: prDraft,
+      featureId: prFor.featureId ?? null,
     });
     setRaising(false);
     if (res.ok) {
       toast.success(`Pull request #${res.prNumber} opened`);
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === prFor.messageId && m.role === "assistant"
-            ? { ...m, prUrl: res.prUrl, prNumber: res.prNumber }
-            : m,
-        ),
-      );
+      agentChatStore.markMessagePr(prFor.sessionId, prFor.messageId, {
+        prUrl: res.prUrl,
+        prNumber: res.prNumber,
+        prBranch: res.branch,
+        prDraft,
+      });
       setPrFor(null);
     } else {
       toast.error(res.error);
     }
   }
 
-  async function handleSend() {
+  function handleSend() {
     const text = prompt.trim();
-    if (!text || running) return;
+    if (!text) return;
     if (!repoId) {
       toast.error("Connect and select a repository first.");
       return;
@@ -451,23 +553,33 @@ export default function AgentPage() {
       toast.info("Add your API key for this provider first — it's stored fully encrypted.");
       return;
     }
+    if (!featureId) {
+      toast.info(
+        "The agent codes from an approved PRD — pick a feature first. No PRD yet? Open the feature and let the AI write one from its Clarify tab.",
+      );
+      return;
+    }
 
     // Compact history so multi-turn refinement works without resending files.
+    // Answer/question-only turns (no change set) send their text + questions,
+    // so the model can match the user's numbered choices to what it asked.
     const history = messages.map((m) =>
       m.role === "user"
         ? { role: "user" as const, content: m.content }
         : {
             role: "assistant" as const,
-            content: `Proposed: ${m.plan.title}\n${m.plan.summary}\nSteps:\n${m.plan.plan
-              .map((s, i) => `${i + 1}. ${s}`)
-              .join("\n")}\nFiles: ${m.plan.files.map((f) => f.path).join(", ")}`,
+            content:
+              m.plan.files.length === 0
+                ? [m.plan.summary, ...(m.plan.questions ?? []).map((q, i) => `${i + 1}. ${q}`)]
+                    .filter(Boolean)
+                    .join("\n")
+                : `Proposed: ${m.plan.title}\n${m.plan.summary}\nSteps:\n${m.plan.plan
+                    .map((s, i) => `${i + 1}. ${s}`)
+                    .join("\n")}\nFiles: ${m.plan.files.map((f) => f.path).join(", ")}`,
           },
     );
 
-    setMessages((prev) => [...prev, { id: uid(), role: "user", content: text }]);
-    setPrompt("");
-    setRunning(true);
-    const res = await runAgentAction({
+    const started = agentChatStore.startRun(activeId, {
       repositoryId: repoId,
       provider,
       model,
@@ -476,20 +588,16 @@ export default function AgentPage() {
       taskIds: taskIds.length > 0 ? taskIds : null,
       history,
     });
-    setRunning(false);
-    if (res.ok) {
-      setMessages((prev) => [...prev, { id: uid(), role: "assistant", plan: res.plan }]);
-    } else {
-      toast.error(res.error);
-    }
+    if (started) setPrompt("");
   }
 
   const currentProviderInfo = AGENT_PROVIDER_INFO.find((p) => p.id === provider)!;
   const empty = messages.length === 0;
 
+  // The page fills <main> exactly: 100dvh minus the h-14 top nav and main's py-6.
   return (
-    <div className="mx-auto flex h-[calc(100dvh-8.5rem)] max-w-3xl flex-col">
-      {/* Top bar: model picker (left) + key settings (right) — Gemini-style */}
+    <div className="mx-auto flex h-[calc(100dvh-6.5rem)] max-w-3xl flex-col">
+      {/* Top bar: model picker (left) + chats & key settings (right) */}
       <div className="flex items-center justify-between gap-2 pb-2">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -544,19 +652,91 @@ export default function AgentPage() {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <button
-          type="button"
-          onClick={() => setKeysOpen(true)}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-foreground/10 bg-foreground/5 px-3 py-1.5 text-xs text-foreground/80 transition hover:bg-foreground/10"
-        >
-          <Settings2 className="size-3.5" />
-          API keys
-        </button>
+        <div className="flex items-center gap-1.5">
+          {runningElsewhere && (
+            <button
+              type="button"
+              onClick={() => agentChatStore.selectChat(run.sessionId)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-primary/25 bg-primary/10 px-2.5 py-1.5 text-xs text-primary transition hover:bg-primary/15"
+            >
+              <Loader2 className="size-3 animate-spin" />
+              Generating in another chat
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={() => agentChatStore.newChat()}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-foreground/10 bg-foreground/5 px-3 py-1.5 text-xs text-foreground/80 transition hover:bg-foreground/10"
+          >
+            <SquarePen className="size-3.5" />
+            New chat
+          </button>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-foreground/10 bg-foreground/5 px-3 py-1.5 text-xs text-foreground/80 transition hover:bg-foreground/10"
+              >
+                <History className="size-3.5" />
+                History
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="no-scrollbar max-h-96 w-80 overflow-y-auto">
+              <DropdownMenuLabel className="text-xs">Chat history</DropdownMenuLabel>
+              {sessions.length === 0 ? (
+                <p className="px-2 py-4 text-center text-xs text-muted-foreground">
+                  No chats yet — start one below.
+                </p>
+              ) : (
+                sessions.map((s) => (
+                  <DropdownMenuItem
+                    key={s.id}
+                    onClick={() => agentChatStore.selectChat(s.id)}
+                    className={cn("group flex items-center gap-2", s.id === activeId && "bg-foreground/5")}
+                  >
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-xs font-medium text-foreground">
+                        {s.title || "Untitled chat"}
+                      </span>
+                      <span className="block text-[10px] text-muted-foreground">
+                        {new Date(s.updatedAt).toLocaleString()} · {s.messages.length} message
+                        {s.messages.length === 1 ? "" : "s"}
+                      </span>
+                    </span>
+                    {run?.sessionId === s.id && <Loader2 className="size-3 shrink-0 animate-spin text-primary" />}
+                    <button
+                      type="button"
+                      aria-label="Delete chat"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        agentChatStore.deleteChat(s.id);
+                      }}
+                      className="shrink-0 rounded p-1 text-muted-foreground opacity-0 transition hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
+                    >
+                      <Trash2 className="size-3" />
+                    </button>
+                  </DropdownMenuItem>
+                ))
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <button
+            type="button"
+            onClick={() => setKeysOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-foreground/10 bg-foreground/5 px-3 py-1.5 text-xs text-foreground/80 transition hover:bg-foreground/10"
+          >
+            <Settings2 className="size-3.5" />
+            API keys
+          </button>
+        </div>
       </div>
 
       {/* Conversation / greeting */}
-      <div className="flex-1 overflow-y-auto pb-4" data-lenis-prevent>
-        {empty ? (
+      <div className="no-scrollbar flex-1 overflow-y-auto pb-4" data-lenis-prevent>
+        {empty && !activeRunning ? (
           <div className="flex h-full flex-col items-center justify-center text-center">
             <motion.h1
               initial={{ opacity: 0, y: 12 }}
@@ -602,23 +782,46 @@ export default function AgentPage() {
                   <div className="min-w-0 flex-1">
                     <PlanMessage
                       plan={m.plan}
+                      cancelled={m.cancelled}
                       prUrl={m.prUrl}
                       prNumber={m.prNumber}
-                      onRaisePr={() => openPrDialog(m.id, m.plan)}
+                      prBranch={m.prBranch}
+                      prDraft={m.prDraft}
+                      repoFullName={selectedRepo?.fullName}
+                      baseBranch={selectedRepo?.defaultBranch ?? "main"}
+                      featureBranch={featureBranchOf(m.featureId)}
+                      authorName={firstName}
+                      onRaisePr={
+                        activeId
+                          ? () => openPrDialog(activeId, m.id, m.plan, m.featureId)
+                          : undefined
+                      }
                     />
                   </div>
                 </div>
               ),
             )}
-            {running && (
-              <div className="flex items-center gap-3">
+            {activeRunning && (
+              <div className="flex gap-3">
                 <div className="grid size-8 shrink-0 place-items-center rounded-full bg-gradient-to-br from-primary/20 to-purple-500/20">
                   <Sparkles className="size-4 animate-pulse text-primary" />
                 </div>
-                <p className="text-sm text-muted-foreground">
-                  Coding with <span className="font-mono text-xs">{model}</span> — reading the repo
-                  context, PRD and tasks…
-                </p>
+                <div className="min-w-0 flex-1 space-y-3">
+                  <p className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="size-3.5 animate-spin" />
+                    {streamingStatus(livePlan, model)}
+                  </p>
+                  {livePlan && Object.keys(livePlan).length > 0 && (
+                    <PlanMessage
+                      plan={livePlan}
+                      streaming
+                      repoFullName={selectedRepo?.fullName}
+                      baseBranch={selectedRepo?.defaultBranch ?? "main"}
+                      featureBranch={featureBranchOf(featureId)}
+                      authorName={firstName}
+                    />
+                  )}
+                </div>
               </div>
             )}
             <div ref={bottomRef} />
@@ -650,7 +853,7 @@ export default function AgentPage() {
             className="max-w-[220px] cursor-pointer rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs text-foreground outline-none focus:border-primary/40"
             aria-label="Feature (PRD)"
           >
-            <option value="">No feature — freeform</option>
+            <option value="">Select a feature (approved PRD required)</option>
             {features.map((f) => (
               <option key={f.id} value={f.id}>
                 {f.title}
@@ -697,7 +900,7 @@ export default function AgentPage() {
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
-                void handleSend();
+                handleSend();
               }
             }}
             rows={Math.min(5, Math.max(1, prompt.split("\n").length))}
@@ -708,62 +911,111 @@ export default function AgentPage() {
             }
             className="max-h-40 flex-1 resize-none bg-transparent px-2 py-1.5 text-sm text-foreground outline-none placeholder:text-muted-foreground"
           />
-          <button
-            type="button"
-            onClick={() => void handleSend()}
-            disabled={running || !prompt.trim()}
-            aria-label="Send"
-            className="grid size-9 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground transition hover:opacity-95 active:scale-95 disabled:opacity-40"
-          >
-            {running ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
-          </button>
+          {activeRunning ? (
+            <button
+              type="button"
+              onClick={() => agentChatStore.cancelRun()}
+              aria-label="Stop generating"
+              title="Stop generating — keeps what's written so far"
+              className="grid size-9 shrink-0 place-items-center rounded-full bg-destructive text-white transition hover:opacity-90 active:scale-95"
+            >
+              <Square className="size-3.5 fill-current" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleSend}
+              disabled={run !== null || !prompt.trim()}
+              aria-label="Send"
+              className="grid size-9 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground transition hover:opacity-95 active:scale-95 disabled:opacity-40"
+            >
+              <Send className="size-4" />
+            </button>
+          )}
         </div>
         <p className="mt-1.5 text-center text-[10px] text-muted-foreground">
           Runs on your own {currentProviderInfo.shortLabel} API key · code is generated from the
-          repo&apos;s AI context{featureId ? " + PRD + tasks" : ""}
+          repo&apos;s AI context + the feature&apos;s approved PRD + tasks · keeps running if you
+          switch tabs
         </p>
       </div>
 
       <KeysDialog open={keysOpen} onOpenChange={setKeysOpen} keys={keys} onChanged={loadKeys} />
 
-      {/* Raise PR dialog */}
+      {/* Open-a-pull-request dialog — GitHub's compare page, in our theme */}
       <Dialog open={Boolean(prFor)} onOpenChange={(v) => !v && setPrFor(null)}>
-        <DialogContent className="border-border bg-popover sm:max-w-lg">
+        <DialogContent className="border-border bg-popover sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle className="inline-flex items-center gap-2">
-              <GitPullRequest className="size-4 text-primary" /> Raise pull request
+              <GitPullRequest className="size-4 text-success" /> Open a pull request
             </DialogTitle>
             <DialogDescription>
-              Review the AI-suggested title and description, then open the PR on{" "}
+              The change set will be committed to a new branch on{" "}
               <span className="font-mono text-xs">{selectedRepo?.fullName}</span>.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3">
-            <div className="grid gap-1.5">
-              <label className="text-xs font-medium text-foreground/80">Title</label>
-              <Input value={prTitle} onChange={(e) => setPrTitle(e.target.value)} />
+            {/* Compare bar — base ← compare */}
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-foreground/[0.03] px-3 py-2 text-xs text-muted-foreground">
+              <GitBranch className="size-3.5 shrink-0" />
+              <span>base:</span>
+              <BranchChip name={selectedRepo?.defaultBranch ?? "main"} />
+              <ArrowLeft className="size-3.5 shrink-0" />
+              <span>compare:</span>
+              <BranchChip name={featureBranchOf(prFor?.featureId) ?? previewBranch(prTitle)} />
+              <span className="ml-auto inline-flex items-center gap-1 text-success">
+                <Check className="size-3.5" /> Able to merge
+              </span>
             </div>
-            <div className="grid gap-1.5">
-              <label className="text-xs font-medium text-foreground/80">Description</label>
+
+            <Input
+              value={prTitle}
+              onChange={(e) => setPrTitle(e.target.value)}
+              placeholder="Title"
+              aria-label="Pull request title"
+              className="font-medium"
+            />
+
+            {/* Description — GitHub's comment box, Write tab */}
+            <div className="overflow-hidden rounded-lg border border-border">
+              <div className="flex items-center gap-1 border-b border-border bg-foreground/[0.03] px-2 pt-1.5">
+                <span className="rounded-t-md border border-b-0 border-border bg-popover px-3 py-1.5 text-xs font-medium text-foreground">
+                  Write
+                </span>
+                <span className="px-2 py-1.5 text-[11px] text-muted-foreground">
+                  Markdown is supported
+                </span>
+              </div>
               <textarea
                 value={prBody}
                 onChange={(e) => setPrBody(e.target.value)}
-                rows={8}
+                rows={9}
                 data-lenis-prevent
-                className="w-full resize-y rounded-lg border border-border bg-background px-3 py-2 font-mono text-xs leading-5 text-foreground outline-none focus:border-primary/40"
+                aria-label="Pull request description"
+                placeholder="Leave a comment"
+                className="no-scrollbar w-full resize-y bg-background px-3 py-2 text-sm leading-6 text-foreground outline-none placeholder:text-muted-foreground"
               />
             </div>
-            <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-foreground/80">
-              <input
-                type="checkbox"
-                checked={prDraft}
-                onChange={(e) => setPrDraft(e.target.checked)}
-                className="size-3.5 accent-[var(--primary)]"
-              />
-              Open as draft
-            </label>
-            <div className="flex items-center justify-end gap-2 pt-1">
+
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                <FileDiff className="size-3.5" />
+                {prFileStats.count} file{prFileStats.count === 1 ? "" : "s"} changed
+                <span className="font-mono font-semibold text-success">+{prFileStats.added}</span>
+              </p>
+              <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-foreground/80">
+                <input
+                  type="checkbox"
+                  checked={prDraft}
+                  onChange={(e) => setPrDraft(e.target.checked)}
+                  className="size-3.5 accent-[var(--primary)]"
+                />
+                Create as draft
+              </label>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 border-t border-border pt-3">
               <button
                 type="button"
                 onClick={() => setPrFor(null)}
@@ -771,10 +1023,15 @@ export default function AgentPage() {
               >
                 Cancel
               </button>
-              <Button onClick={handleRaisePr} disabled={raising || !prTitle.trim()}>
+              <button
+                type="button"
+                onClick={handleRaisePr}
+                disabled={raising || !prTitle.trim()}
+                className="inline-flex items-center gap-2 rounded-lg bg-success px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:opacity-95 active:scale-[0.98] disabled:opacity-50"
+              >
                 {raising ? <Loader2 className="size-4 animate-spin" /> : <GitPullRequest className="size-4" />}
-                {raising ? "Opening PR…" : `Open PR (${prFor?.plan.files.length ?? 0} files)`}
-              </Button>
+                {raising ? "Creating…" : prDraft ? "Create draft pull request" : "Create pull request"}
+              </button>
             </div>
           </div>
         </DialogContent>

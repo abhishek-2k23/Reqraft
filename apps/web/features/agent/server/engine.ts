@@ -3,12 +3,13 @@ import "server-only";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
-import { generateObject, type LanguageModel } from "ai";
-import { z } from "zod";
+import { generateObject, streamObject, type LanguageModel } from "ai";
 
 import type { AgentProvider } from "@repo/database/schema";
 
-import { formatContextForPrompt, getRepoContext } from "@/features/copilot/server/repo-context";
+import { formatContextForPrompt, type RepoContext } from "@/features/copilot/server/repo-context";
+
+import { agentPlanSchema, type AgentPlan } from "../plan-schema";
 
 /**
  * Resolve a LanguageModel for the user's own (decrypted) API key. The key is
@@ -29,36 +30,6 @@ export function resolveByokModel(
   }
 }
 
-const agentPlanSchema = z.object({
-  title: z.string().describe("Short, PR-ready title for this change (imperative mood)."),
-  summary: z
-    .string()
-    .describe("2-3 sentence reply to the user: what you're building and how it maps to the PRD/tasks."),
-  plan: z.array(z.string()).describe("Ordered, concrete implementation steps."),
-  files: z
-    .array(
-      z.object({
-        path: z.string().describe("Repo-relative path of the file to create or modify."),
-        action: z.enum(["create", "modify"]),
-        content: z
-          .string()
-          .describe("The FULL intended contents of the file after the change (not a diff)."),
-        rationale: z.string().describe("Why this file changes."),
-      }),
-    )
-    .describe("Every file that must change, with full resulting content."),
-  prDescription: z
-    .string()
-    .describe(
-      "A complete, well-structured PR description in markdown: what changed, why, how it satisfies the PRD/tasks, and testing notes.",
-    ),
-  notes: z
-    .string()
-    .describe("Caveats, assumptions, manual follow-ups (migrations, env vars, tests)."),
-});
-
-export type AgentPlan = z.infer<typeof agentPlanSchema>;
-
 export type AgentTaskContext = {
   title: string;
   description: string;
@@ -67,11 +38,16 @@ export type AgentTaskContext = {
 };
 
 export type AgentRunInput = {
-  repositoryId: string;
   provider: AgentProvider;
   modelId: string;
   apiKey: string;
   prompt: string;
+  /**
+   * The repo's AI context, already loaded from the `repo_context` DB snapshot
+   * by the caller. Passed in (not re-read here) so a run is a single DB read +
+   * one model call — nothing is re-fetched from GitHub at generation time.
+   */
+  context: RepoContext;
   /** PRD problem + acceptance criteria, when a feature is selected. */
   prd?: { problem: string; acceptanceCriteria: string[] } | null;
   /** The tasks the user selected to implement (task-wise coding). */
@@ -80,20 +56,27 @@ export type AgentRunInput = {
   history?: Array<{ role: "user" | "assistant"; content: string }>;
 };
 
-/**
- * The BYOK coding agent: reasons over the stored repo context plus the
- * feature's PRD and selected tasks, and produces an implementation plan with
- * full file contents and a ready-to-use PR title/description. Runs entirely on
- * the user's own model + API key.
- */
-export async function generateAgentPlan(input: AgentRunInput): Promise<AgentPlan> {
-  const context = await getRepoContext(input.repositoryId);
-  if (!context) {
-    throw new Error(
-      "This repository hasn't been analyzed yet. Open its dashboard and generate the AI summary first.",
-    );
-  }
+const SYSTEM_PROMPT = `You are a senior engineer implementing a change in an EXISTING repository, working from a PRD and its task breakdown.
 
+Scope — follow strictly:
+- You only help with THIS repository: its code, the linked PRD, its feature/tasks, and directly related engineering questions (architecture, testing, debugging of this code).
+- Act on the LATEST user message only. Earlier turns are context for follow-ups — never regenerate or extend a previous change set unless the latest message explicitly asks you to.
+- If the latest message is a question or discussion (not a request to implement something), answer it in "summary" and return empty "questions", "plan" and "files" arrays and an empty "prDescription".
+- If decisions from the user are needed before you can implement safely (naming, missing backend, stack constraints, scope conflicts), put ONE decision per entry in "questions" with its options spelled out inline, keep "summary" to a single line saying what you're blocked on, and return empty "plan"/"files"/"prDescription". Never bury questions inside summary or notes.
+- If the latest message is unrelated to this repository, its PRD, or software engineering on it, do NOT comply: briefly say in "summary" that you only help with this repo's PRD-driven code generation and related coding questions, and return empty "plan"/"files".
+
+When implementing:
+Match the repo's stack, file layout, naming, and import conventions exactly — reuse existing utilities and paths rather than inventing new ones.
+For every file you touch, output its complete resulting contents (not a diff) so it can be committed directly. Keep the change set as small as possible.
+Write the prDescription as the actual PR body a reviewer would read: summary of changes, how they satisfy the PRD acceptance criteria / tasks, and how to test.
+If something can't be done safely without more info, say so in notes rather than guessing.`;
+
+// Build the system + messages for a run. Pure — no I/O — so both the batch and
+// streaming entry points share exactly the same prompt.
+function buildRequest(input: AgentRunInput): {
+  system: string;
+  messages: Array<{ role: "user" | "assistant"; content: string }>;
+} {
   const prdBlock = input.prd
     ? `\nLinked PRD:\nProblem: ${input.prd.problem}\nAcceptance criteria:\n${input.prd.acceptanceCriteria
         .map((c) => `- ${c}`)
@@ -105,24 +88,45 @@ export async function generateAgentPlan(input: AgentRunInput): Promise<AgentPlan
         .join("\n")}\n`
     : "";
 
-  const { object } = await generateObject({
-    model: resolveByokModel(input.provider, input.modelId, input.apiKey),
-    schema: agentPlanSchema,
-    system: `You are a senior engineer implementing a change in an EXISTING repository, working from a PRD and its task breakdown.
-Match the repo's stack, file layout, naming, and import conventions exactly — reuse existing utilities and paths rather than inventing new ones.
-For every file you touch, output its complete resulting contents (not a diff) so it can be committed directly. Keep the change set as small as possible.
-Write the prDescription as the actual PR body a reviewer would read: summary of changes, how they satisfy the PRD acceptance criteria / tasks, and how to test.
-If something can't be done safely without more info, say so in notes rather than guessing.`,
+  return {
+    system: SYSTEM_PROMPT,
     messages: [
       ...(input.history ?? []),
       {
         role: "user" as const,
-        content: `${formatContextForPrompt(context)}
+        content: `${formatContextForPrompt(input.context)}
 ${prdBlock}${tasksBlock}
 Request: ${input.prompt}`,
       },
     ],
-  });
+  };
+}
 
+/**
+ * The BYOK coding agent (batch). Reasons over the preloaded repo context plus
+ * the feature's PRD and selected tasks, and returns a full implementation plan
+ * with file contents and a ready-to-use PR title/description.
+ */
+export async function generateAgentPlan(input: AgentRunInput): Promise<AgentPlan> {
+  const { object } = await generateObject({
+    model: resolveByokModel(input.provider, input.modelId, input.apiKey),
+    schema: agentPlanSchema,
+    ...buildRequest(input),
+  });
   return object;
+}
+
+/**
+ * Streaming variant — returns the `streamObject` result so the caller can relay
+ * the stream to the client (files/plan appear as they're written) and
+ * `await result.object` for the validated final plan. `abortSignal` lets the
+ * caller cancel the provider call (e.g. when the client disconnects).
+ */
+export function streamAgentPlan(input: AgentRunInput, abortSignal?: AbortSignal) {
+  return streamObject({
+    model: resolveByokModel(input.provider, input.modelId, input.apiKey),
+    schema: agentPlanSchema,
+    abortSignal,
+    ...buildRequest(input),
+  });
 }

@@ -1,36 +1,26 @@
 "use server";
 
 import { and, db, eq } from "@repo/database";
-import {
-  AGENT_PROVIDERS,
-  agentProviderKeys,
-  featureRequests,
-  prds,
-  repositories,
-  tasks,
-  type AgentProvider,
-} from "@repo/database/schema";
+import { ensureFeatureBranchName } from "@repo/database/branch";
+import { agentProviderKeys, featureRequests, repositories } from "@repo/database/schema";
 
-import { requireAuth } from "@/features/auth/session";
-import { buildRepoContext, getRepoContext } from "@/features/copilot/server/repo-context";
 import { commitFilesAndOpenPr } from "@/features/github/server/create-pr";
 
-import { decryptSecret, encryptSecret } from "./crypto";
-import { generateAgentPlan, type AgentPlan, type AgentTaskContext } from "./engine";
+import { encryptSecret } from "./crypto";
+import type { AgentPlan } from "../plan-schema";
+import { generateAgentPlan } from "./engine";
+import {
+  isProvider,
+  prepareAgentRun,
+  rememberModel,
+  requireOrg,
+  type ActionError,
+  type AgentRunRequest,
+} from "./run";
 
-type ActionError = { ok: false; error: string };
-
-// Resolve the caller's active org. Every Agent action is org-scoped.
-async function requireOrg(): Promise<{ ok: true; organizationId: string; userId: string } | ActionError> {
-  const session = await requireAuth();
-  const organizationId = session.session.activeOrganizationId;
-  if (!organizationId) return { ok: false, error: "Select an organization first." };
-  return { ok: true, organizationId, userId: session.user.id };
-}
-
-function isProvider(value: string): value is AgentProvider {
-  return (AGENT_PROVIDERS as readonly string[]).includes(value);
-}
+// Streaming runs live in app/api/agent/stream — a plain HTTP stream survives
+// arbitrarily long generations, unlike RSC streamable values whose chained
+// updates overflow the call stack.
 
 /**
  * The org's saved provider keys — hint only. The plaintext key is never
@@ -103,121 +93,18 @@ export async function deleteAgentKeyAction(input: { provider: string }) {
 }
 
 /**
- * Run the BYOK coding agent: load the encrypted key, decrypt it for this one
- * request, gather repo context + PRD + selected tasks, and generate an
- * implementation plan (with full file contents and a PR title/description).
+ * Run the BYOK coding agent (batch) — returns the full plan at once. Kept for
+ * non-streaming callers; the Agent page streams via /api/agent/stream.
  */
-export async function runAgentAction(input: {
-  repositoryId: string;
-  provider: string;
-  model: string;
-  prompt: string;
-  featureId?: string | null;
-  taskIds?: string[] | null;
-  history?: Array<{ role: "user" | "assistant"; content: string }>;
-}): Promise<{ ok: true; plan: AgentPlan } | ActionError> {
-  const auth = await requireOrg();
-  if (!auth.ok) return { ok: false, error: auth.error };
-  if (!isProvider(input.provider)) return { ok: false, error: "Unknown provider." };
-  if (!input.prompt.trim()) return { ok: false, error: "Describe what you want the agent to build." };
-
-  // The repo must belong to the caller's org.
-  const [repo] = await db
-    .select()
-    .from(repositories)
-    .where(
-      and(
-        eq(repositories.id, input.repositoryId),
-        eq(repositories.organizationId, auth.organizationId),
-      ),
-    );
-  if (!repo) return { ok: false, error: "Repository not found in this organization." };
-
-  const [keyRow] = await db
-    .select()
-    .from(agentProviderKeys)
-    .where(
-      and(
-        eq(agentProviderKeys.organizationId, auth.organizationId),
-        eq(agentProviderKeys.provider, input.provider),
-      ),
-    );
-  if (!keyRow) {
-    return { ok: false, error: "No API key saved for this provider yet. Add one in Agent settings." };
-  }
-
-  // Ensure the repo context exists — build it on first use so the agent always
-  // has the codebase map to reason over.
-  if (!(await getRepoContext(input.repositoryId))) {
-    try {
-      await buildRepoContext(input.repositoryId);
-    } catch {
-      return {
-        ok: false,
-        error: "Couldn't analyze the repository. Open its GitHub dashboard and generate the AI summary, then retry.",
-      };
-    }
-  }
-
-  // PRD + tasks give the agent the "code from the PRD, task-wise" grounding.
-  let prd: { problem: string; acceptanceCriteria: string[] } | null = null;
-  let taskContext: AgentTaskContext[] | null = null;
-
-  if (input.featureId) {
-    const [feature] = await db
-      .select({ id: featureRequests.id })
-      .from(featureRequests)
-      .where(
-        and(
-          eq(featureRequests.id, input.featureId),
-          eq(featureRequests.organizationId, auth.organizationId),
-        ),
-      );
-    if (feature) {
-      const [prdRow] = await db.select().from(prds).where(eq(prds.featureId, input.featureId));
-      if (prdRow) {
-        try {
-          prd = {
-            problem: prdRow.problem,
-            acceptanceCriteria: JSON.parse(prdRow.acceptanceCriteria) as string[],
-          };
-        } catch {
-          prd = { problem: prdRow.problem, acceptanceCriteria: [] };
-        }
-      }
-
-      const allTasks = await db.select().from(tasks).where(eq(tasks.featureId, input.featureId));
-      const selected = input.taskIds?.length
-        ? allTasks.filter((t) => input.taskIds!.includes(t.id))
-        : allTasks;
-      taskContext = selected.map((t) => ({
-        title: t.title,
-        description: t.description,
-        type: t.type,
-        status: t.status,
-      }));
-    }
-  }
+export async function runAgentAction(
+  input: AgentRunRequest,
+): Promise<{ ok: true; plan: AgentPlan } | ActionError> {
+  const prep = await prepareAgentRun(input);
+  if (!prep.ok) return prep;
 
   try {
-    const plan = await generateAgentPlan({
-      repositoryId: input.repositoryId,
-      provider: input.provider,
-      modelId: input.model,
-      apiKey: decryptSecret(keyRow.encryptedKey),
-      prompt: input.prompt,
-      prd,
-      tasks: taskContext,
-      history: input.history,
-    });
-
-    // Remember the last-used model so the picker defaults to it next time.
-    void db
-      .update(agentProviderKeys)
-      .set({ defaultModel: input.model, updatedAt: new Date() })
-      .where(eq(agentProviderKeys.id, keyRow.id))
-      .catch(() => {});
-
+    const plan = await generateAgentPlan(prep.deps.engineInput);
+    rememberModel(prep.deps.keyId, input.model);
     return { ok: true, plan };
   } catch (error) {
     // Provider errors (bad key, model access, quota) surface as-is so the user
@@ -236,6 +123,8 @@ export async function raiseAgentPrAction(input: {
   body: string;
   files: Array<{ path: string; content: string }>;
   draft?: boolean;
+  /** The feature this change implements — its canonical branch is used. */
+  featureId?: string | null;
 }) {
   const auth = await requireOrg();
   if (!auth.ok) return { ok: false as const, error: auth.error };
@@ -256,12 +145,36 @@ export async function raiseAgentPrAction(input: {
   if (!input.title.trim()) return { ok: false as const, error: "Give the PR a title." };
   if (input.files.length === 0) return { ok: false as const, error: "No files to commit." };
 
+  // Use the feature's canonical branch (feature/<slug> — the same one shown on
+  // the feature's preview tab) so the PR auto-links to the feature.
+  let featureBranch: string | undefined;
+  if (input.featureId) {
+    const [feature] = await db
+      .select({
+        id: featureRequests.id,
+        organizationId: featureRequests.organizationId,
+        title: featureRequests.title,
+        branchName: featureRequests.branchName,
+      })
+      .from(featureRequests)
+      .where(
+        and(
+          eq(featureRequests.id, input.featureId),
+          eq(featureRequests.organizationId, auth.organizationId),
+        ),
+      );
+    if (feature) {
+      featureBranch = `feature/${await ensureFeatureBranchName(db, feature)}`;
+    }
+  }
+
   try {
     const pr = await commitFilesAndOpenPr({
       installationId: repo.installationId,
       fullName: repo.fullName,
       defaultBranch: repo.defaultBranch,
       branchPrefix: "reqraft-agent",
+      branchName: featureBranch,
       title: input.title.trim(),
       body: `${input.body}\n\n— Generated by Reqraft Agent 🤖`,
       commitMessage: `${input.title.trim()}\n\nGenerated by Reqraft Agent.`,

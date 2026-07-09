@@ -365,6 +365,34 @@ html.lenis body {
   }
 }
 
+/* Scrollable but chrome-free — used by the Agent conversation + file/diff
+   viewers where a visible scrollbar would clutter the reading surface. */
+.no-scrollbar {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* legacy Edge */
+}
+.no-scrollbar::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none; /* Chromium/WebKit */
+}
+
+/* The app shell's content pane (<main data-app-main>) and everything inside it
+   scroll without visible scrollbars — the wheel scrolls whatever scrollable
+   region is under the pointer. Catch-all so nested viewers (code, diffs,
+   textareas) never need to opt in individually. */
+[data-app-main],
+[data-app-main] * {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* legacy Edge */
+}
+[data-app-main]::-webkit-scrollbar,
+[data-app-main] *::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none; /* Chromium/WebKit */
+}
+
 /* Dotted route-map background for the how-it-works panel */
 .dot-map {
   background-image:

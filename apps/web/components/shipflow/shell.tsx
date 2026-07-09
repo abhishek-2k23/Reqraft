@@ -78,7 +78,7 @@ function SidebarBody({
         </div>
       </Link>
 
-      <nav className="mt-5 flex-1 space-y-5 overflow-y-auto">
+      <nav className="no-scrollbar mt-5 flex-1 space-y-5 overflow-y-auto">
         {navGroups.map((group) => (
           <div key={group}>
             <p className="px-3 pb-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
@@ -171,16 +171,22 @@ export function ShipFlowShell({ children }: { children: React.ReactNode }) {
   return (
     <CommandPalette>
       <KeyboardShortcutsProvider>
-      <div className="grid min-h-screen bg-background text-foreground lg:grid-cols-[260px_1fr]">
-        <aside className="hidden border-r border-border bg-sidebar lg:block">
-          <div className="sticky top-0 h-screen">
-            <SidebarBody active={active} />
-          </div>
+      {/* The shell is locked to the viewport; <main> is the app's only scroll
+          container (scrollbar hidden, content still scrolls). data-lenis-prevent
+          keeps Lenis off it, so the wheel natively scrolls whatever scrollable
+          area is under the pointer, chaining up to <main> at its edges. */}
+      <div className="grid h-dvh overflow-hidden bg-background text-foreground lg:grid-cols-[260px_1fr]">
+        <aside className="hidden overflow-hidden border-r border-border bg-sidebar lg:block">
+          <SidebarBody active={active} />
         </aside>
 
-        <div className="flex min-w-0 flex-col">
+        <div className="flex min-w-0 flex-col overflow-hidden">
           <TopNav onOpenMobileNav={() => setMobileOpen(true)} />
-          <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8">
+          <main
+            data-app-main
+            data-lenis-prevent
+            className="no-scrollbar flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8"
+          >
             <div className="mx-auto w-full max-w-6xl">{children}</div>
           </main>
         </div>

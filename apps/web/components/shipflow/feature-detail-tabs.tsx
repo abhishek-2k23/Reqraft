@@ -1176,9 +1176,10 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="gap-5">
-        {/* Pipeline stepper stays pinned under the top nav while scrolling the
-            active stage's content, so switching stages is always in reach. */}
-        <div className="sticky top-14 z-20 -mx-1 bg-background/80 px-1 py-3 backdrop-blur-md">
+        {/* Pipeline stepper stays pinned at the top of <main>'s scrollport
+            (just below the top nav) while scrolling the active stage's
+            content, so switching stages is always in reach. */}
+        <div className="sticky top-0 z-20 -mx-1 bg-background/80 px-1 py-3 backdrop-blur-md">
           <PipelineStepper
             status={status}
             value={activeTab}
@@ -1193,9 +1194,21 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
       {/* ── Clarify ──────────────────────────────────────── */}
       <TabsContent value="clarify">
         <div className="rounded-lg border border-foreground/10 bg-foreground/[0.045] p-5">
-          <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-            <MessageSquareText className="size-4 text-primary" />
-            Clarification conversation
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+              <MessageSquareText className="size-4 text-primary" />
+              Clarification conversation
+            </div>
+            {/* The clarification agent asks at most 4 focused questions (one
+                per exchange) — surface that so users know how long this is. */}
+            <span className="rounded-full border border-foreground/10 bg-foreground/5 px-2.5 py-1 text-[11px] text-muted-foreground">
+              {(() => {
+                const asked = messages.filter((m) => m.role === "assistant").length;
+                return asked === 0
+                  ? "Up to 4 quick questions"
+                  : `Question ${Math.min(asked, 4)} of ~4`;
+              })()}
+            </span>
           </div>
           <div className="mt-5 max-h-[440px] space-y-3 overflow-y-auto pr-1">
             {messages.length === 0 ? (
@@ -1217,6 +1230,13 @@ export function FeatureDetailTabs({ feature: initialFeature }: { feature: Featur
                 {isGeneratingPrd ? <><Loader2 className="size-4 animate-spin" />Generating PRD…</> : prdButtonLabel}
               </Button>
             </div>
+            {!prd && !isGeneratingPrd ? (
+              <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Sparkles className="size-3 text-primary/70" />
+                Answering is optional — you can hit &ldquo;Generate PRD&rdquo; right away and it
+                will be written from the description and whatever answers exist so far.
+              </p>
+            ) : null}
             {prd && !prd.approvedAt && !clarificationChangedSincePrd && !isGeneratingPrd ? (
               <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <Sparkles className="size-3 text-primary/70" />

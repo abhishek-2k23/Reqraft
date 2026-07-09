@@ -47,9 +47,10 @@ export function ListToolbar<F extends string, S extends string>({
     sortOptions?.find((option) => option.value === activeSort)?.label ?? "Sort";
 
   return (
-    // Sticks just below the 56px top nav, with a blurred background band so
-    // scrolling content never peeks through above the bar.
-    <div className="sticky top-14 z-20 -mx-1 bg-background/80 px-1 py-3 backdrop-blur-md">
+    // Sticks to the top of the app's <main> scrollport (which sits below the
+    // top nav), with a blurred background band so scrolling content never
+    // peeks through above the bar.
+    <div className="sticky top-0 z-20 -mx-1 bg-background/80 px-1 py-3 backdrop-blur-md">
       <div className="flex flex-wrap items-center gap-2.5 rounded-xl border border-border bg-card/90 p-1.5 shadow-sm ring-1 ring-black/[0.02]">
         {/* LEFT — filters + sort (grows to fill the row) */}
         <div className="flex min-w-0 flex-1 items-center gap-2">
