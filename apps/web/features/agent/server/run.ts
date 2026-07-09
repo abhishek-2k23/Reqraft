@@ -17,6 +17,8 @@ import {
   getRepoContext,
   type RepoContext,
 } from "@/features/copilot/server/repo-context";
+import { getFeatureBranchFiles } from "@/features/github/server/branch-files";
+import { getLinkedOpenPr, type LinkedOpenPr } from "@/features/github/server/linked-pr";
 
 import { decryptSecret } from "./crypto";
 import type { AgentRunInput, AgentTaskContext } from "./engine";
@@ -132,7 +134,7 @@ export async function prepareAgentRun(
   // PRD + tasks give the agent the "code from the PRD, task-wise" grounding.
   // The PRD must exist AND be approved — the agent never codes from guesswork.
   const [feature] = await db
-    .select({ id: featureRequests.id })
+    .select({ id: featureRequests.id, branchName: featureRequests.branchName })
     .from(featureRequests)
     .where(
       and(
@@ -179,6 +181,28 @@ export async function prepareAgentRun(
     status: t.status,
   }));
 
+  // If this feature already has a LINKED open PR (auto-linked by branch or
+  // linked manually — possibly on a non-canonical branch), read THAT PR's
+  // branch: the agent must see the work already on the PR and build on top of
+  // it, and the later commit lands on the same PR. Only when no PR is linked
+  // do we fall back to the feature's canonical feature/<slug> branch.
+  // Best-effort: no branch yet (first run) or a read failure → no prior context.
+  let priorChanges: Array<{ path: string; content: string }> | null = null;
+  let linkedPr: LinkedOpenPr | null = null;
+  if (repo.installationId) {
+    linkedPr = await getLinkedOpenPr(feature.id, repo.fullName);
+    const branchName =
+      linkedPr?.headBranch ?? (feature.branchName ? `feature/${feature.branchName}` : null);
+    if (branchName) {
+      priorChanges = await getFeatureBranchFiles({
+        installationId: repo.installationId,
+        fullName: repo.fullName,
+        defaultBranch: linkedPr?.baseBranch ?? repo.defaultBranch,
+        branchName,
+      });
+    }
+  }
+
   return {
     ok: true,
     deps: {
@@ -191,6 +215,15 @@ export async function prepareAgentRun(
         context,
         prd,
         tasks: taskContext,
+        priorChanges,
+        linkedPr: linkedPr
+          ? {
+              number: linkedPr.number,
+              title: linkedPr.title,
+              body: linkedPr.body,
+              url: linkedPr.url,
+            }
+          : null,
         history: input.history,
       },
     },

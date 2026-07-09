@@ -1,6 +1,7 @@
 import "server-only";
 
 import { getGithubApp } from "@/lib/github/app";
+import { repoIsEmpty } from "./repo-empty";
 
 export type PrFile = { path: string; content: string };
 
@@ -30,10 +31,11 @@ function friendlyGithubError(error: unknown): Error {
  * "Raise PR" flow.
  *
  * When `branchName` is given (e.g. a feature's canonical `feature/<slug>`
- * branch), it is used verbatim and the flow is idempotent: an existing branch
- * is reset onto the current default-branch head with the regenerated files,
- * and if an open PR from that branch already exists it is returned instead of
- * failing with "a pull request already exists".
+ * branch) and that branch already has an OPEN PR, the flow is incremental: the
+ * new commit stacks on the branch's current head so prior agent work is
+ * preserved and the SAME pull request accumulates the change (returned instead
+ * of opening a new one). When the branch is new — or its PR was merged/closed —
+ * it is (re)based on the current default-branch head and a fresh PR is opened.
  */
 export async function commitFilesAndOpenPr(input: {
   installationId: number;
@@ -48,7 +50,7 @@ export async function commitFilesAndOpenPr(input: {
   commitMessage: string;
   files: PrFile[];
   draft: boolean;
-}): Promise<{ prUrl: string; prNumber: number; branchName: string }> {
+}): Promise<CommitAndOpenResult> {
   try {
     return await commitAndOpen(input);
   } catch (error) {
@@ -56,21 +58,59 @@ export async function commitFilesAndOpenPr(input: {
   }
 }
 
+type CommitAndOpenResult = {
+  prUrl: string;
+  prNumber: number;
+  branchName: string;
+  /** True when the commit landed on a branch whose OPEN PR already existed —
+   * the returned PR was updated in place rather than newly created. */
+  updatedExisting: boolean;
+};
+
 async function commitAndOpen(
   input: Parameters<typeof commitFilesAndOpenPr>[0],
-): Promise<{ prUrl: string; prNumber: number; branchName: string }> {
+): Promise<CommitAndOpenResult> {
   const app = getGithubApp();
   const octokit = await app.getInstallationOctokit(input.installationId);
   const [owner, name] = input.fullName.split("/") as [string, string];
 
-  // Base the branch on the current default-branch head.
-  const { data: branch } = await octokit.rest.repos.getBranch({
-    owner,
-    repo: name,
-    branch: input.defaultBranch,
-  });
-  const baseSha = branch.commit.sha;
-  const baseTreeSha = branch.commit.commit.tree.sha;
+  // Current default-branch head — the base for a new (or reset) branch. An empty
+  // repo (no commits) has no default-branch ref to base a PR on, so seed one
+  // initial commit and PR the generated files against it.
+  let baseSha: string;
+  let baseTreeSha: string;
+  try {
+    const { data: branch } = await octokit.rest.repos.getBranch({
+      owner,
+      repo: name,
+      branch: input.defaultBranch,
+    });
+    baseSha = branch.commit.sha;
+    baseTreeSha = branch.commit.commit.tree.sha;
+  } catch (error) {
+    if (!(await repoIsEmpty(input.installationId, input.fullName))) throw error;
+    // Seed the empty repo's default branch with one README commit so the agent's
+    // feature branch has a base to PR against. The Git Data API (blob→tree→
+    // commit→ref) can't bootstrap the FIRST commit on a repo with no objects
+    // ("empty blob"/404 errors), so use the Contents API, which creates the
+    // default branch and initial commit in a single call. Then read its head.
+    await octokit.rest.repos.createOrUpdateFileContents({
+      owner,
+      repo: name,
+      path: "README.md",
+      message: "chore: initialize repository",
+      content: Buffer.from("# Repository\n\nInitialized by Reqraft Agent.\n", "utf8").toString(
+        "base64",
+      ),
+    });
+    const { data: seeded } = await octokit.rest.repos.getBranch({
+      owner,
+      repo: name,
+      branch: input.defaultBranch,
+    });
+    baseSha = seeded.commit.sha;
+    baseTreeSha = seeded.commit.commit.tree.sha;
+  }
 
   const slug =
     input.title
@@ -80,29 +120,64 @@ async function commitAndOpen(
       .slice(0, 40) || "change";
   const branchName = input.branchName ?? `${input.branchPrefix}/${slug}-${baseSha.slice(0, 6)}`;
 
-  try {
-    await octokit.rest.git.createRef({
-      owner,
-      repo: name,
-      ref: `refs/heads/${branchName}`,
-      sha: baseSha,
-    });
-  } catch (error) {
-    // Explicit branches (feature/<slug>) are agent-managed: a regeneration
-    // resets the branch onto the current base head. Generated names include a
-    // sha suffix and shouldn't collide — rethrow anything else.
-    const message = error instanceof Error ? error.message : String(error);
-    if (!input.branchName || !/already exists/i.test(message)) throw error;
-    await octokit.rest.git.updateRef({
-      owner,
-      repo: name,
-      ref: `heads/${branchName}`,
-      sha: baseSha,
-      force: true,
-    });
+  // Decide what this commit stacks on. For an explicit (feature) branch that
+  // already exists AND still has an open PR, we build INCREMENTALLY: the commit
+  // parents off the branch's current head so prior agent work is preserved and
+  // the same PR accumulates the new change. Otherwise we commit off the default
+  // branch head (fresh branch, or a branch whose PR was merged/closed — reset).
+  let parentSha = baseSha;
+  let parentTreeSha = baseTreeSha;
+  let existingOpenPr: { html_url: string; number: number } | null = null;
+  let branchExists = false;
+
+  if (input.branchName) {
+    try {
+      const { data: head } = await octokit.rest.repos.getBranch({
+        owner,
+        repo: name,
+        branch: branchName,
+      });
+      branchExists = true;
+
+      // No base filter: a linked PR may target a non-default base branch, and
+      // missing it here would force-reset the branch and destroy its commits.
+      const { data: openPrs } = await octokit.rest.pulls.list({
+        owner,
+        repo: name,
+        head: `${owner}:${branchName}`,
+        state: "open",
+        per_page: 1,
+      });
+      if (openPrs[0]) {
+        existingOpenPr = { html_url: openPrs[0].html_url, number: openPrs[0].number };
+        parentSha = head.commit.sha;
+        parentTreeSha = head.commit.commit.tree.sha;
+      }
+      // Branch exists but no open PR (merged/closed): parent stays the default
+      // head — the ref is force-reset onto it by the updateRef below.
+    } catch {
+      branchExists = false; // 404 — branch doesn't exist yet.
+    }
   }
 
-  // One commit containing all generated files (blob -> tree -> commit -> ref).
+  if (!branchExists) {
+    try {
+      await octokit.rest.git.createRef({
+        owner,
+        repo: name,
+        ref: `refs/heads/${branchName}`,
+        sha: baseSha,
+      });
+    } catch (error) {
+      // Generated names carry a sha suffix and shouldn't collide; only tolerate
+      // a racy "already exists" for explicit branches.
+      const message = error instanceof Error ? error.message : String(error);
+      if (!input.branchName || !/already exists/i.test(message)) throw error;
+    }
+  }
+
+  // One commit containing all generated files (blob -> tree -> commit -> ref),
+  // layered onto the chosen parent tree so unchanged files are preserved.
   const tree = await Promise.all(
     input.files.map(async (file) => {
       const { data: blob } = await octokit.rest.git.createBlob({
@@ -123,7 +198,7 @@ async function commitAndOpen(
   const { data: newTree } = await octokit.rest.git.createTree({
     owner,
     repo: name,
-    base_tree: baseTreeSha,
+    base_tree: parentTreeSha,
     tree,
   });
 
@@ -132,15 +207,29 @@ async function commitAndOpen(
     repo: name,
     message: input.commitMessage,
     tree: newTree.sha,
-    parents: [baseSha],
+    parents: [parentSha],
   });
 
+  // Point the branch at the new commit. force covers the reset case (branch
+  // existed without an open PR); an incremental commit is a fast-forward.
   await octokit.rest.git.updateRef({
     owner,
     repo: name,
     ref: `heads/${branchName}`,
     sha: commit.sha,
+    force: true,
   });
+
+  // The branch already had an open PR — it now points at the new commit, so
+  // return that same PR (updated in place) rather than opening another.
+  if (existingOpenPr) {
+    return {
+      prUrl: existingOpenPr.html_url,
+      prNumber: existingOpenPr.number,
+      branchName,
+      updatedExisting: true,
+    };
+  }
 
   try {
     const { data: pr } = await octokit.rest.pulls.create({
@@ -152,22 +241,20 @@ async function commitAndOpen(
       body: input.body,
       draft: input.draft,
     });
-    return { prUrl: pr.html_url, prNumber: pr.number, branchName };
+    return { prUrl: pr.html_url, prNumber: pr.number, branchName, updatedExisting: false };
   } catch (error) {
-    // Re-raising onto an existing feature branch: the open PR already tracks
-    // it — the branch was just updated with the new commit, so return that PR.
+    // Raced with another open PR on this branch — return the existing one.
     const message = error instanceof Error ? error.message : String(error);
     if (!input.branchName || !/pull request already exists/i.test(message)) throw error;
     const { data: existing } = await octokit.rest.pulls.list({
       owner,
       repo: name,
       head: `${owner}:${branchName}`,
-      base: input.defaultBranch,
       state: "open",
       per_page: 1,
     });
     const pr = existing[0];
     if (!pr) throw error;
-    return { prUrl: pr.html_url, prNumber: pr.number, branchName };
+    return { prUrl: pr.html_url, prNumber: pr.number, branchName, updatedExisting: true };
   }
 }

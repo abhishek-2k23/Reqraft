@@ -1,22 +1,26 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowLeft,
+  ArrowUp,
   Bot,
   Check,
   ChevronDown,
   CircleHelp,
+  Copy,
   ExternalLink,
   FileDiff,
+  FileText,
+  FolderGit2,
   GitBranch,
   GitPullRequest,
   History,
   KeyRound,
   Loader2,
   Lock,
-  Send,
+  Pencil,
   Settings2,
   ShieldCheck,
   Sparkles,
@@ -28,6 +32,7 @@ import { toast } from "sonner";
 
 import { authClient } from "~/lib/auth-client";
 import { cn } from "~/lib/utils";
+import { useActiveProject } from "~/components/shipflow/project-context";
 import { trpc } from "~/trpc/client";
 import { Button } from "~/components/ui/button";
 import {
@@ -269,8 +274,18 @@ function PlanMessage({
   const steps = (plan.plan ?? []).filter((s): s is string => Boolean(s));
   const files = (plan.files ?? []).filter(Boolean);
   const questions = (plan.questions ?? []).filter((q): q is string => Boolean(q));
+  const alreadyImplemented = (plan.alreadyImplemented ?? []).filter(
+    (a): a is string => Boolean(a),
+  );
   const headBranch = prBranch ?? featureBranch ?? previewBranch(plan.title);
-  const canRaise = !streaming && !prUrl && files.length > 0 && Boolean(onRaisePr);
+  // Only an "implement" turn may raise a PR. Questions / off-topic / blocked
+  // replies come back with intent set and empty files, so they never produce a
+  // PR. Fall back to the file-based check for legacy messages saved before the
+  // intent field existed (and for the earliest partial frames while streaming).
+  const isImplement = plan.intent
+    ? plan.intent === "implement"
+    : files.length > 0 || Boolean(plan.prDescription?.trim());
+  const canRaise = !streaming && !prUrl && files.length > 0 && isImplement && Boolean(onRaisePr);
 
   return (
     <div className="space-y-4">
@@ -281,6 +296,25 @@ function PlanMessage({
       )}
 
       {plan.summary && <p className="text-sm leading-6 text-foreground/90">{plan.summary}</p>}
+
+      {/* Parts of the request the repo already satisfies — the agent scoped the
+          change to the missing delta and skipped these. */}
+      {alreadyImplemented.length > 0 && (
+        <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/[0.05] p-4">
+          <p className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
+            <Check className="size-3.5" />
+            Already in the repo — skipped
+          </p>
+          <ul className="mt-2 space-y-1">
+            {alreadyImplemented.map((item, i) => (
+              <li key={i} className="flex gap-2 text-sm leading-6 text-foreground/85">
+                <span className="mt-1 size-1.5 shrink-0 rounded-full bg-emerald-500/70" />
+                <span className="min-w-0">{item}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Decisions the agent needs before it can implement safely. */}
       {questions.length > 0 && (
@@ -376,7 +410,7 @@ function PlanMessage({
             className="inline-flex items-center gap-2 rounded-xl bg-success px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:opacity-95 active:scale-[0.98]"
           >
             <GitPullRequest className="size-4" />
-            Generate pull request
+            Raise pull request
           </button>
           <span className="text-xs text-muted-foreground">
             {files.length} file{files.length === 1 ? "" : "s"} →{" "}
@@ -404,6 +438,122 @@ function streamingStatus(plan: PartialAgentPlan | null, model: string): string {
   return "Thinking through the change…";
 }
 
+// A sent prompt, with hover actions to copy it or load it back into the
+// composer to edit and resend.
+function UserMessage({ content, onEdit }: { content: string; onEdit: () => void }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="group flex flex-col items-end gap-1">
+      <p className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-primary px-4 py-2.5 text-sm leading-6 text-primary-foreground">
+        {content}
+      </p>
+      <div className="flex items-center gap-0.5 pr-1 opacity-0 transition group-hover:opacity-100 focus-within:opacity-100">
+        <button
+          type="button"
+          onClick={async () => {
+            await navigator.clipboard.writeText(content);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1200);
+          }}
+          className="grid size-6 place-items-center rounded-md text-muted-foreground transition hover:bg-foreground/5 hover:text-foreground"
+          aria-label="Copy prompt"
+          title="Copy prompt"
+        >
+          {copied ? <Check className="size-3.5 text-success" /> : <Copy className="size-3.5" />}
+        </button>
+        <button
+          type="button"
+          onClick={onEdit}
+          className="grid size-6 place-items-center rounded-md text-muted-foreground transition hover:bg-foreground/5 hover:text-foreground"
+          aria-label="Edit and resend"
+          title="Edit & resend"
+        >
+          <Pencil className="size-3.5" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Claude-style model picker — a compact pill that lives in the composer's
+// bottom-right. Lists every provider's models with a "key saved" hint.
+function ModelMenu({
+  keys,
+  provider,
+  model,
+  currentProviderInfo,
+  onPick,
+  onAddKey,
+}: {
+  keys: SavedKey[];
+  provider: AgentProvider;
+  model: string;
+  currentProviderInfo: ProviderInfo;
+  onPick: (provider: AgentProvider, model: string) => void;
+  onAddKey: () => void;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex items-center gap-1.5 rounded-full border border-foreground/10 bg-foreground/[0.04] px-2.5 py-1.5 text-xs text-foreground/80 transition hover:border-primary/30 hover:bg-foreground/[0.07]"
+        >
+          <Bot className="size-3.5 shrink-0 text-primary" />
+          <span className="hidden max-w-[140px] truncate font-mono text-[11px] text-foreground/90 sm:inline">
+            {model}
+          </span>
+          <span className="font-medium sm:hidden">{currentProviderInfo.shortLabel}</span>
+          <ChevronDown className="size-3 shrink-0 text-muted-foreground" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-72">
+        {AGENT_PROVIDER_INFO.map((p, idx) => {
+          const saved = keys.find((k) => k.provider === p.id);
+          return (
+            <div key={p.id}>
+              {idx > 0 && <DropdownMenuSeparator />}
+              <DropdownMenuLabel className="flex items-center justify-between text-xs">
+                {p.label}
+                {saved ? (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-normal text-success">
+                    <ShieldCheck className="size-3" /> key saved
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={onAddKey}
+                    className="text-[10px] font-normal text-primary hover:underline"
+                  >
+                    add key
+                  </button>
+                )}
+              </DropdownMenuLabel>
+              {p.models.map((m) => (
+                <DropdownMenuItem
+                  key={m}
+                  onClick={() => onPick(p.id, m)}
+                  className="flex items-center justify-between font-mono text-xs"
+                >
+                  {m}
+                  {provider === p.id && model === m && <Check className="size-3.5 text-primary" />}
+                </DropdownMenuItem>
+              ))}
+            </div>
+          );
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+// The user's last model choice, remembered across reloads until they pick
+// another one.
+const MODEL_STORAGE_KEY = "reqraft.agent.model.v1";
+// The selected repo + feature, remembered so tab switches (unmount/remount)
+// don't reset them — they change only on project switch or an explicit pick.
+const CONTEXT_STORAGE_KEY = "reqraft.agent.context.v1";
+
 /* ------------------------------------------------------------------ */
 /* Page                                                                 */
 /* ------------------------------------------------------------------ */
@@ -425,8 +575,41 @@ export default function AgentPage() {
   }, []);
   const hasKey = keys.some((k) => k.provider === provider);
 
-  // Default to the last-used model of the first provider that has a key.
   const defaultedRef = useRef(false);
+
+  // Restore the last model the user explicitly chose (persisted in localStorage)
+  // — takes precedence over the key-based default below, and sticks until they
+  // pick a different model.
+  useEffect(() => {
+    if (defaultedRef.current) return;
+    try {
+      const raw = window.localStorage.getItem(MODEL_STORAGE_KEY);
+      if (!raw) return;
+      const saved = JSON.parse(raw) as { provider?: string; model?: string };
+      const info = AGENT_PROVIDER_INFO.find((p) => p.id === saved.provider);
+      if (info && saved.model && info.models.includes(saved.model)) {
+        setProvider(info.id);
+        setModel(saved.model);
+        defaultedRef.current = true; // don't let the key-default override the explicit choice
+      }
+    } catch {
+      // storage unavailable / malformed — fall back to the key default.
+    }
+  }, []);
+
+  // Persist an explicit model choice and select it.
+  function pickModel(p: AgentProvider, m: string) {
+    setProvider(p);
+    setModel(m);
+    try {
+      window.localStorage.setItem(MODEL_STORAGE_KEY, JSON.stringify({ provider: p, model: m }));
+    } catch {
+      // best-effort — a failed write just means it won't be remembered.
+    }
+  }
+
+  // Default to the last-used model of the first provider that has a key — only
+  // when the user hasn't already made (and we haven't restored) an explicit pick.
   useEffect(() => {
     if (defaultedRef.current || keys.length === 0) return;
     defaultedRef.current = true;
@@ -437,28 +620,74 @@ export default function AgentPage() {
     setModel(saved?.defaultModel && withKey.models.includes(saved.defaultModel) ? saved.defaultModel : withKey.models[0]!);
   }, [keys]);
 
-  // Context: repo (required), feature + tasks (optional, drive the PRD grounding).
+  // Active project — drives repo/feature alignment and a fresh chat on switch.
+  const { activeProjectId } = useActiveProject();
+
+  // Context: repo (required) + feature (optional PRD grounding). Both persist
+  // across tab switches via localStorage, so leaving the page and coming back
+  // doesn't reset your selection — it changes only on project switch or when you
+  // pick a different one.
   const { data: repos = [] } = trpc.github.repositories.useQuery();
   const [repoId, setRepoId] = useState<string>("");
+  const [featureId, setFeatureId] = useState<string>("");
   const selectedRepo = repos.find((r) => r.id === repoId);
-  useEffect(() => {
-    if (!repoId && repos.length > 0) setRepoId(repos[0]!.id);
-  }, [repos, repoId]);
 
   const { data: features = [] } = trpc.feature.list.useQuery(
     selectedRepo?.projectId ? { projectId: selectedRepo.projectId } : {},
   );
-  const [featureId, setFeatureId] = useState<string>("");
-  const tasksQuery = trpc.task.byFeature.useQuery(
-    { featureId },
-    { enabled: Boolean(featureId) },
-  );
-  const featureTasks = useMemo(() => {
-    const g = tasksQuery.data;
-    return g ? [...g.todo, ...g.in_progress, ...g.blocked, ...g.done] : [];
-  }, [tasksQuery.data]);
-  const [taskIds, setTaskIds] = useState<string[]>([]);
-  useEffect(() => setTaskIds([]), [featureId]);
+  const selectedFeature = features.find((f) => f.id === featureId);
+
+  // Restore the persisted repo/feature once on mount. `hydrated` flips only
+  // after the restored values are applied, so the persist/validate effects below
+  // never run against the pre-restore ("") state and clobber the saved pick.
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(CONTEXT_STORAGE_KEY);
+      if (raw) {
+        const saved = JSON.parse(raw) as { repoId?: string; featureId?: string };
+        if (saved.repoId) setRepoId(saved.repoId);
+        if (saved.featureId) setFeatureId(saved.featureId);
+      }
+    } catch {
+      // malformed / unavailable storage — fall back to defaults
+    }
+    setHydrated(true);
+  }, []);
+
+  // Persist repo/feature whenever they change (after the initial restore).
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      window.localStorage.setItem(CONTEXT_STORAGE_KEY, JSON.stringify({ repoId, featureId }));
+    } catch {
+      // best-effort
+    }
+  }, [hydrated, repoId, featureId]);
+
+  // Keep repoId valid: default to the first repo when unset, and recover if a
+  // persisted repo was since disconnected.
+  useEffect(() => {
+    if (!hydrated || repos.length === 0) return;
+    if (!repoId || !repos.some((r) => r.id === repoId)) setRepoId(repos[0]!.id);
+  }, [hydrated, repos, repoId]);
+
+  // Switching the active project realigns the context to that project (a repo in
+  // it, feature cleared) and starts a fresh chat. Skipped on first render and on
+  // remount, so a tab switch never resets the selection.
+  const prevProjectRef = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (prevProjectRef.current === undefined) {
+      prevProjectRef.current = activeProjectId;
+      return;
+    }
+    if (prevProjectRef.current === activeProjectId) return;
+    prevProjectRef.current = activeProjectId;
+    agentChatStore.newChat();
+    setFeatureId("");
+    const projectRepo = repos.find((r) => r.projectId === activeProjectId);
+    if (projectRepo) setRepoId(projectRepo.id);
+  }, [activeProjectId, repos]);
 
   // The canonical branch shown on the feature's preview tab — the PR is opened
   // on exactly this branch (the server resolves/persists the slug on raise).
@@ -479,9 +708,34 @@ export default function AgentPage() {
 
   const [prompt, setPrompt] = useState("");
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const composerRef = useRef<HTMLTextAreaElement | null>(null);
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length, activeRunning, liveFileCount]);
+
+  // Load a previously sent prompt back into the composer to tweak and resend.
+  function editPrompt(text: string) {
+    setPrompt(text);
+    requestAnimationFrame(() => {
+      const el = composerRef.current;
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(el.value.length, el.value.length);
+    });
+  }
+
+  // The open PR the agent will build on for the selected feature (if any).
+  const { data: featurePr } = trpc.github.prForFeature.useQuery(
+    { featureId },
+    { enabled: Boolean(featureId) },
+  );
+
+  // The branch an agent change for this feature will actually land on: the
+  // linked open PR's head branch when one exists (which may be non-canonical —
+  // manually linked PRs keep their own branch), otherwise the feature's
+  // canonical feature/<slug> branch.
+  const landingBranchOf = (fid?: string | null) =>
+    fid && fid === featureId && featurePr ? featurePr.headBranch : featureBranchOf(fid);
 
   // Raise-PR dialog state.
   const [prFor, setPrFor] = useState<{
@@ -507,6 +761,12 @@ export default function AgentPage() {
     setPrDraft(false);
   }
 
+  // When the dialog's feature already has a linked open PR, the change set is
+  // pushed as a commit ONTO that PR — the dialog must say so instead of
+  // promising a new pull request.
+  const linkedPrForDialog =
+    prFor?.featureId && prFor.featureId === featureId ? (featurePr ?? null) : null;
+
   const prFileStats = useMemo(() => {
     const files = prFor?.plan.files ?? [];
     return {
@@ -528,7 +788,11 @@ export default function AgentPage() {
     });
     setRaising(false);
     if (res.ok) {
-      toast.success(`Pull request #${res.prNumber} opened`);
+      toast.success(
+        res.updatedExisting
+          ? `Commit pushed to PR #${res.prNumber}`
+          : `Pull request #${res.prNumber} opened`,
+      );
       agentChatStore.markMessagePr(prFor.sessionId, prFor.messageId, {
         prUrl: res.prUrl,
         prNumber: res.prNumber,
@@ -585,7 +849,9 @@ export default function AgentPage() {
       model,
       prompt: text,
       featureId: featureId || null,
-      taskIds: taskIds.length > 0 ? taskIds : null,
+      // Tasks aren't surfaced in the UI anymore — the agent always works from
+      // the feature's full task set (server-side), so pass null (= all tasks).
+      taskIds: null,
       history,
     });
     if (started) setPrompt("");
@@ -597,60 +863,14 @@ export default function AgentPage() {
   // The page fills <main> exactly: 100dvh minus the h-14 top nav and main's py-6.
   return (
     <div className="mx-auto flex h-[calc(100dvh-6.5rem)] max-w-3xl flex-col">
-      {/* Top bar: model picker (left) + chats & key settings (right) */}
+      {/* Top bar: agent title (left) + chats & key settings (right) */}
       <div className="flex items-center justify-between gap-2 pb-2">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-foreground/90 transition hover:bg-foreground/5"
-            >
-              <Bot className="size-4 text-primary" />
-              <span>{currentProviderInfo.shortLabel}</span>
-              <span className="hidden font-mono text-xs text-muted-foreground sm:inline">{model}</span>
-              <ChevronDown className="size-3.5 text-muted-foreground" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-72">
-            {AGENT_PROVIDER_INFO.map((p, idx) => {
-              const saved = keys.find((k) => k.provider === p.id);
-              return (
-                <div key={p.id}>
-                  {idx > 0 && <DropdownMenuSeparator />}
-                  <DropdownMenuLabel className="flex items-center justify-between text-xs">
-                    {p.label}
-                    {saved ? (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-normal text-success">
-                        <ShieldCheck className="size-3" /> key saved
-                      </span>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => setKeysOpen(true)}
-                        className="text-[10px] font-normal text-primary hover:underline"
-                      >
-                        add key
-                      </button>
-                    )}
-                  </DropdownMenuLabel>
-                  {p.models.map((m) => (
-                    <DropdownMenuItem
-                      key={m}
-                      onClick={() => {
-                        setProvider(p.id);
-                        setModel(m);
-                      }}
-                      className="flex items-center justify-between font-mono text-xs"
-                    >
-                      {m}
-                      {provider === p.id && model === m && <Check className="size-3.5 text-primary" />}
-                    </DropdownMenuItem>
-                  ))}
-                </div>
-              );
-            })}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div className="inline-flex items-center gap-2.5 px-1">
+          <span className="grid size-8 place-items-center rounded-xl bg-gradient-to-br from-primary/20 to-purple-500/20 ring-1 ring-inset ring-primary/20">
+            <Sparkles className="size-4 text-primary" />
+          </span>
+          <span className="text-sm font-semibold tracking-tight text-foreground">Coding agent</span>
+        </div>
 
         <div className="flex items-center gap-1.5">
           {runningElsewhere && (
@@ -769,11 +989,7 @@ export default function AgentPage() {
           <div className="space-y-6 py-2">
             {messages.map((m) =>
               m.role === "user" ? (
-                <div key={m.id} className="flex justify-end">
-                  <p className="max-w-[85%] rounded-2xl rounded-br-md bg-primary px-4 py-2.5 text-sm leading-6 text-primary-foreground">
-                    {m.content}
-                  </p>
-                </div>
+                <UserMessage key={m.id} content={m.content} onEdit={() => editPrompt(m.content)} />
               ) : (
                 <div key={m.id} className="flex gap-3">
                   <div className="grid size-8 shrink-0 place-items-center rounded-full bg-gradient-to-br from-primary/20 to-purple-500/20">
@@ -789,7 +1005,7 @@ export default function AgentPage() {
                       prDraft={m.prDraft}
                       repoFullName={selectedRepo?.fullName}
                       baseBranch={selectedRepo?.defaultBranch ?? "main"}
-                      featureBranch={featureBranchOf(m.featureId)}
+                      featureBranch={landingBranchOf(m.featureId)}
                       authorName={firstName}
                       onRaisePr={
                         activeId
@@ -817,7 +1033,7 @@ export default function AgentPage() {
                       streaming
                       repoFullName={selectedRepo?.fullName}
                       baseBranch={selectedRepo?.defaultBranch ?? "main"}
-                      featureBranch={featureBranchOf(featureId)}
+                      featureBranch={landingBranchOf(featureId)}
                       authorName={firstName}
                     />
                   )}
@@ -831,70 +1047,27 @@ export default function AgentPage() {
 
       {/* Composer */}
       <div className="pb-2">
-        {/* Context selectors */}
-        <div className="mb-2 flex flex-wrap items-center gap-2">
-          <select
-            value={repoId}
-            onChange={(e) => setRepoId(e.target.value)}
-            className="max-w-[220px] cursor-pointer rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs text-foreground outline-none focus:border-primary/40"
-            aria-label="Repository"
+        {/* Which PR the agent is building on — it reads this PR's code and
+            commits the requested change on top of the same PR. */}
+        {featureId && featurePr && (
+          <a
+            href={featurePr.url}
+            target="_blank"
+            rel="noreferrer"
+            title="The agent reads this PR's code and commits your change on top of it"
+            className="mb-2 inline-flex max-w-full items-center gap-1.5 rounded-full border border-primary/25 bg-primary/[0.06] px-3 py-1.5 text-xs text-primary transition hover:bg-primary/10"
           >
-            {repos.length === 0 && <option value="">No repositories connected</option>}
-            {repos.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.fullName}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={featureId}
-            onChange={(e) => setFeatureId(e.target.value)}
-            className="max-w-[220px] cursor-pointer rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs text-foreground outline-none focus:border-primary/40"
-            aria-label="Feature (PRD)"
-          >
-            <option value="">Select a feature (approved PRD required)</option>
-            {features.map((f) => (
-              <option key={f.id} value={f.id}>
-                {f.title}
-              </option>
-            ))}
-          </select>
-
-          {featureId && featureTasks.length > 0 && (
-            <div className="flex flex-wrap items-center gap-1.5">
-              {featureTasks.map((t) => {
-                const active = taskIds.includes(t.id);
-                return (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() =>
-                      setTaskIds((prev) =>
-                        active ? prev.filter((id) => id !== t.id) : [...prev, t.id],
-                      )
-                    }
-                    title={t.title}
-                    className={cn(
-                      "max-w-[180px] truncate rounded-full border px-2.5 py-1 text-[11px] transition",
-                      active
-                        ? "border-primary/40 bg-primary/15 font-medium text-primary"
-                        : "border-foreground/10 bg-foreground/[0.03] text-muted-foreground hover:border-primary/25",
-                    )}
-                  >
-                    {t.title}
-                  </button>
-                );
-              })}
-              <span className="text-[10px] text-muted-foreground">
-                {taskIds.length === 0 ? "all tasks" : `${taskIds.length} selected`}
-              </span>
-            </div>
-          )}
-        </div>
-
-        <div className="flex items-end gap-2 rounded-3xl border border-foreground/15 bg-card p-2.5 shadow-sm transition focus-within:border-primary/40">
+            <GitPullRequest className="size-3.5 shrink-0" />
+            <span className="truncate">
+              Building on PR #{featurePr.number}
+              {featurePr.title ? ` · ${featurePr.title}` : ""}
+            </span>
+            <ExternalLink className="size-3 shrink-0" />
+          </a>
+        )}
+        <div className="rounded-3xl border border-foreground/15 bg-card shadow-sm transition focus-within:border-primary/40">
           <textarea
+            ref={composerRef}
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             onKeyDown={(e) => {
@@ -903,40 +1076,145 @@ export default function AgentPage() {
                 handleSend();
               }
             }}
-            rows={Math.min(5, Math.max(1, prompt.split("\n").length))}
+            rows={Math.min(6, Math.max(1, prompt.split("\n").length))}
             placeholder={
               featureId
-                ? "Describe what to implement — the PRD and selected tasks are included automatically…"
+                ? "Describe what to implement — the PRD is included automatically…"
                 : "Ask the agent to build something in this repo…"
             }
-            className="max-h-40 flex-1 resize-none bg-transparent px-2 py-1.5 text-sm text-foreground outline-none placeholder:text-muted-foreground"
+            className="max-h-44 w-full resize-none bg-transparent px-4 pt-3.5 pb-1 text-sm leading-6 text-foreground outline-none placeholder:text-muted-foreground"
           />
-          {activeRunning ? (
-            <button
-              type="button"
-              onClick={() => agentChatStore.cancelRun()}
-              aria-label="Stop generating"
-              title="Stop generating — keeps what's written so far"
-              className="grid size-9 shrink-0 place-items-center rounded-full bg-destructive text-white transition hover:opacity-90 active:scale-95"
-            >
-              <Square className="size-3.5 fill-current" />
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={handleSend}
-              disabled={run !== null || !prompt.trim()}
-              aria-label="Send"
-              className="grid size-9 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground transition hover:opacity-95 active:scale-95 disabled:opacity-40"
-            >
-              <Send className="size-4" />
-            </button>
-          )}
+
+          {/* Bottom bar: premium repo + feature pickers (left) · model + send (right) */}
+          <div className="flex items-center justify-between gap-2 px-2.5 pb-2.5 pt-1">
+            <div className="flex min-w-0 items-center gap-1.5">
+              {/* Repository */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className="inline-flex max-w-[44vw] items-center gap-1.5 rounded-full border border-foreground/10 bg-foreground/[0.04] px-2.5 py-1.5 text-xs text-foreground/80 transition hover:border-primary/30 hover:bg-foreground/[0.07] sm:max-w-[200px]"
+                  >
+                    <FolderGit2 className="size-3.5 shrink-0 text-primary" />
+                    <span className="truncate">
+                      {selectedRepo ? selectedRepo.fullName.split("/").pop() : "Repository"}
+                    </span>
+                    <ChevronDown className="size-3 shrink-0 text-muted-foreground" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="max-h-80 w-64 overflow-y-auto">
+                  <DropdownMenuLabel className="text-xs">Repository</DropdownMenuLabel>
+                  {repos.length === 0 ? (
+                    <DropdownMenuItem disabled className="text-xs text-muted-foreground">
+                      No repositories connected
+                    </DropdownMenuItem>
+                  ) : (
+                    repos.map((r) => (
+                      <DropdownMenuItem
+                        key={r.id}
+                        onClick={() => setRepoId(r.id)}
+                        className="flex items-center justify-between gap-2 text-xs"
+                      >
+                        <span className="truncate">{r.fullName}</span>
+                        {repoId === r.id && <Check className="size-3.5 shrink-0 text-primary" />}
+                      </DropdownMenuItem>
+                    ))
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Feature (approved PRD) */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className={cn(
+                      "inline-flex max-w-[44vw] items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-xs transition sm:max-w-[220px]",
+                      featureId
+                        ? "border-primary/30 bg-primary/10 text-primary"
+                        : "border-foreground/10 bg-foreground/[0.04] text-foreground/80 hover:border-primary/30 hover:bg-foreground/[0.07]",
+                    )}
+                  >
+                    <FileText className="size-3.5 shrink-0" />
+                    <span className="truncate">
+                      {selectedFeature ? selectedFeature.title : "Select feature"}
+                    </span>
+                    <ChevronDown className="size-3 shrink-0 opacity-70" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="max-h-80 w-72 overflow-y-auto">
+                  <DropdownMenuLabel className="flex items-center justify-between text-xs">
+                    Feature
+                    <span className="font-normal text-muted-foreground">approved PRD required</span>
+                  </DropdownMenuLabel>
+                  {features.length === 0 ? (
+                    <DropdownMenuItem disabled className="text-xs text-muted-foreground">
+                      No features in this project
+                    </DropdownMenuItem>
+                  ) : (
+                    features.map((f) => (
+                      <DropdownMenuItem
+                        key={f.id}
+                        onClick={() => setFeatureId(f.id)}
+                        className="flex items-center justify-between gap-2 text-xs"
+                      >
+                        <span className="truncate">{f.title}</span>
+                        {featureId === f.id && <Check className="size-3.5 shrink-0 text-primary" />}
+                      </DropdownMenuItem>
+                    ))
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+
+            <div className="flex shrink-0 items-center gap-1.5">
+              <ModelMenu
+                keys={keys}
+                provider={provider}
+                model={model}
+                currentProviderInfo={currentProviderInfo}
+                onPick={pickModel}
+                onAddKey={() => setKeysOpen(true)}
+              />
+
+              {/* Send appears only once there's text; Stop while running. */}
+              <AnimatePresence mode="popLayout" initial={false}>
+                {activeRunning ? (
+                  <motion.button
+                    key="stop"
+                    type="button"
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.8 }}
+                    onClick={() => agentChatStore.cancelRun()}
+                    aria-label="Stop generating"
+                    title="Stop generating — keeps what's written so far"
+                    className="grid size-8 shrink-0 place-items-center rounded-full bg-destructive text-white transition hover:opacity-90 active:scale-95"
+                  >
+                    <Square className="size-3.5 fill-current" />
+                  </motion.button>
+                ) : prompt.trim() ? (
+                  <motion.button
+                    key="send"
+                    type="button"
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.8 }}
+                    onClick={handleSend}
+                    disabled={run !== null}
+                    aria-label="Send"
+                    className="grid size-8 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground transition hover:opacity-95 active:scale-95 disabled:opacity-40"
+                  >
+                    <ArrowUp className="size-4" />
+                  </motion.button>
+                ) : null}
+              </AnimatePresence>
+            </div>
+          </div>
         </div>
         <p className="mt-1.5 text-center text-[10px] text-muted-foreground">
           Runs on your own {currentProviderInfo.shortLabel} API key · code is generated from the
-          repo&apos;s AI context + the feature&apos;s approved PRD + tasks · keeps running if you
-          switch tabs
+          repo&apos;s AI context + the feature&apos;s approved PRD · keeps running if you switch tabs
         </p>
       </div>
 
@@ -947,11 +1225,32 @@ export default function AgentPage() {
         <DialogContent className="border-border bg-popover sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle className="inline-flex items-center gap-2">
-              <GitPullRequest className="size-4 text-success" /> Open a pull request
+              <GitPullRequest className="size-4 text-success" />{" "}
+              {linkedPrForDialog
+                ? `Commit to pull request #${linkedPrForDialog.number}`
+                : "Open a pull request"}
             </DialogTitle>
             <DialogDescription>
-              The change set will be committed to a new branch on{" "}
-              <span className="font-mono text-xs">{selectedRepo?.fullName}</span>.
+              {linkedPrForDialog ? (
+                <>
+                  This feature already has an open PR — the change set will be pushed as a new
+                  commit on{" "}
+                  <a
+                    href={linkedPrForDialog.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-mono text-xs text-primary underline-offset-2 hover:underline"
+                  >
+                    PR #{linkedPrForDialog.number}
+                  </a>{" "}
+                  instead of opening a new pull request.
+                </>
+              ) : (
+                <>
+                  The change set will be committed to a new branch on{" "}
+                  <span className="font-mono text-xs">{selectedRepo?.fullName}</span>.
+                </>
+              )}
             </DialogDescription>
           </DialogHeader>
 
@@ -960,10 +1259,12 @@ export default function AgentPage() {
             <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-foreground/[0.03] px-3 py-2 text-xs text-muted-foreground">
               <GitBranch className="size-3.5 shrink-0" />
               <span>base:</span>
-              <BranchChip name={selectedRepo?.defaultBranch ?? "main"} />
+              <BranchChip
+                name={linkedPrForDialog?.baseBranch ?? selectedRepo?.defaultBranch ?? "main"}
+              />
               <ArrowLeft className="size-3.5 shrink-0" />
               <span>compare:</span>
-              <BranchChip name={featureBranchOf(prFor?.featureId) ?? previewBranch(prTitle)} />
+              <BranchChip name={landingBranchOf(prFor?.featureId) ?? previewBranch(prTitle)} />
               <span className="ml-auto inline-flex items-center gap-1 text-success">
                 <Check className="size-3.5" /> Able to merge
               </span>
@@ -1004,15 +1305,19 @@ export default function AgentPage() {
                 {prFileStats.count} file{prFileStats.count === 1 ? "" : "s"} changed
                 <span className="font-mono font-semibold text-success">+{prFileStats.added}</span>
               </p>
-              <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-foreground/80">
-                <input
-                  type="checkbox"
-                  checked={prDraft}
-                  onChange={(e) => setPrDraft(e.target.checked)}
-                  className="size-3.5 accent-[var(--primary)]"
-                />
-                Create as draft
-              </label>
+              {/* Draft only applies when a NEW PR is opened — a commit onto an
+                  existing PR can't change its draft state. */}
+              {!linkedPrForDialog && (
+                <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-foreground/80">
+                  <input
+                    type="checkbox"
+                    checked={prDraft}
+                    onChange={(e) => setPrDraft(e.target.checked)}
+                    className="size-3.5 accent-[var(--primary)]"
+                  />
+                  Create as draft
+                </label>
+              )}
             </div>
 
             <div className="flex items-center justify-end gap-2 border-t border-border pt-3">
@@ -1030,7 +1335,15 @@ export default function AgentPage() {
                 className="inline-flex items-center gap-2 rounded-lg bg-success px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:opacity-95 active:scale-[0.98] disabled:opacity-50"
               >
                 {raising ? <Loader2 className="size-4 animate-spin" /> : <GitPullRequest className="size-4" />}
-                {raising ? "Creating…" : prDraft ? "Create draft pull request" : "Create pull request"}
+                {raising
+                  ? linkedPrForDialog
+                    ? "Committing…"
+                    : "Creating…"
+                  : linkedPrForDialog
+                    ? `Commit to PR #${linkedPrForDialog.number}`
+                    : prDraft
+                      ? "Create draft pull request"
+                      : "Create pull request"}
               </button>
             </div>
           </div>

@@ -5,6 +5,7 @@ import { ensureFeatureBranchName } from "@repo/database/branch";
 import { agentProviderKeys, featureRequests, repositories } from "@repo/database/schema";
 
 import { commitFilesAndOpenPr } from "@/features/github/server/create-pr";
+import { getLinkedOpenPr } from "@/features/github/server/linked-pr";
 
 import { encryptSecret } from "./crypto";
 import type { AgentPlan } from "../plan-schema";
@@ -164,7 +165,11 @@ export async function raiseAgentPrAction(input: {
         ),
       );
     if (feature) {
-      featureBranch = `feature/${await ensureFeatureBranchName(db, feature)}`;
+      // A feature with a LINKED open PR gets the commit on THAT PR's branch —
+      // even a non-canonical one (manually linked PR, back-compat id branch) —
+      // so the existing PR accumulates the change instead of a new PR opening.
+      const linked = await getLinkedOpenPr(feature.id, repo.fullName);
+      featureBranch = linked?.headBranch ?? `feature/${await ensureFeatureBranchName(db, feature)}`;
     }
   }
 
@@ -181,7 +186,13 @@ export async function raiseAgentPrAction(input: {
       files: input.files,
       draft: input.draft ?? false,
     });
-    return { ok: true as const, prUrl: pr.prUrl, prNumber: pr.prNumber, branch: pr.branchName };
+    return {
+      ok: true as const,
+      prUrl: pr.prUrl,
+      prNumber: pr.prNumber,
+      branch: pr.branchName,
+      updatedExisting: pr.updatedExisting,
+    };
   } catch (error) {
     return {
       ok: false as const,

@@ -5,6 +5,11 @@ import { z } from "zod";
 // zod value is tree-shaken out of the client bundle.
 
 export const agentPlanSchema = z.object({
+  intent: z
+    .enum(["implement", "answer", "blocked", "reject"])
+    .describe(
+      "Classify the latest user message. 'implement' = a concrete change to build (the ONLY value that may return files). 'answer' = a question/discussion to reply to in text. 'blocked' = you need decisions first (put them in questions). 'reject' = the request is off-topic / unrelated to this repo's PRD-driven coding. For anything other than 'implement', files/plan/prDescription MUST be empty.",
+    ),
   title: z.string().describe("Short, PR-ready title for this change (imperative mood)."),
   summary: z
     .string()
@@ -27,6 +32,11 @@ export const agentPlanSchema = z.object({
       }),
     )
     .describe("Every file that must change, with full resulting content."),
+  alreadyImplemented: z
+    .array(z.string())
+    .describe(
+      "PRD acceptance criteria / parts of the request that the repo (and any changes already on this feature's branch) ALREADY satisfies, which you deliberately did NOT rebuild. Empty when nothing pre-exists. Use this to prove you scoped the change to only the missing delta.",
+    ),
   prDescription: z
     .string()
     .describe(
