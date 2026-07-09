@@ -71,6 +71,13 @@ type GetByFeatureResult = {
   stale: boolean;
   availableStacks: string[];
   defaults: { projectTechStack: string | null; repoStack: string | null };
+  // The feature's required engineering disciplines (from the PRD), used to show
+  // only the tech-stack presets that match what the feature actually needs.
+  disciplines: string[];
+  // Whether the feature's project has any connected repository. When true the
+  // tech stack is locked to the repo's detected stack (no manual override); when
+  // false the UI nudges the user to connect a repo for sharper prompts.
+  repoConnected: boolean;
 };
 
 // Resolve default stack candidates + the cached-stack list + staleness for the
@@ -82,7 +89,7 @@ async function buildResult(
   selectedStack: string | undefined,
 ): Promise<GetByFeatureResult> {
   const [prd] = await ctx.db
-    .select({ version: prds.version })
+    .select({ version: prds.version, requiredDisciplines: prds.requiredDisciplines })
     .from(prds)
     .where(eq(prds.featureId, feature.id));
 
@@ -124,6 +131,14 @@ async function buildResult(
     .orderBy(desc(repoContexts.updatedAt))
     .limit(1);
 
+  // A connected repo may exist even before it's been indexed (no repoStack yet),
+  // so check the repositories table directly rather than inferring from context.
+  const [connectedRepo] = await ctx.db
+    .select({ id: repositories.id })
+    .from(repositories)
+    .where(eq(repositories.projectId, feature.projectId))
+    .limit(1);
+
   return {
     record: row ? parseRecord(row) : null,
     stale,
@@ -132,6 +147,8 @@ async function buildResult(
       projectTechStack: project?.techStack ?? null,
       repoStack: repoStackRow?.stack ? repoStackRow.stack : null,
     },
+    disciplines: safeParse<string[]>(prd?.requiredDisciplines, []),
+    repoConnected: Boolean(connectedRepo),
   };
 }
 

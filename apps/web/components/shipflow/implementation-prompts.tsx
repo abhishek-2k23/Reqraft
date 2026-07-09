@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { motion } from "framer-motion";
-import { Check, Copy, LayoutList, Loader2, Sparkles, Wand2 } from "lucide-react";
+import { ArrowRight, Check, Copy, Github, LayoutList, Loader2, Lock, Sparkles, Wand2 } from "lucide-react";
 import { toast } from "sonner";
+
+import { recommendedStacks } from "@repo/services/shipflow/tech-stacks";
 
 import { Button } from "~/components/ui/button";
 import { cn } from "~/lib/utils";
@@ -70,17 +73,6 @@ export function TasksViewToggle({
   );
 }
 
-// ── Preset stacks ────────────────────────────────────────────────────────
-const STACK_PRESETS = [
-  "Next.js + tRPC + Drizzle + PostgreSQL",
-  "Next.js + Prisma + PostgreSQL",
-  "React + Node/Express + PostgreSQL",
-  "Django + React",
-  "Ruby on Rails",
-  "Spring Boot + React",
-  "Laravel + Vue",
-] as const;
-
 const normalizeStack = (raw: string): string => raw.trim().replace(/\s+/g, " ").toLowerCase();
 
 function CopyButton({ text, label = "Copy" }: { text: string; label?: string }) {
@@ -120,16 +112,34 @@ export function ImplementationPromptsPanel({ featureId }: { featureId: string })
 
   const { data: quota } = trpc.prompts.quota.useQuery({ featureId }, { staleTime: 0 });
 
-  // Seed the selected stack once from the project/repo defaults (nicely cased).
+  // Tech-stack presets scoped to the feature's disciplines: a frontend-only
+  // feature shows only frontend frameworks, a backend-only feature only server
+  // frameworks, etc. Falls back to the full-stack presets for legacy PRDs.
+  const stackPresets = useMemo(() => recommendedStacks(data?.disciplines), [data?.disciplines]);
+
+  // When a repo is connected the stack is authoritative — the prompt is
+  // generated against the real codebase, so we lock it to the repo's detected
+  // stack (falling back to the project stack while indexing finishes) and hide
+  // the manual selector entirely.
+  const repoConnected = Boolean(data?.repoConnected);
+  const lockedStack = repoConnected
+    ? data?.defaults.repoStack ?? data?.defaults.projectTechStack ?? stackPresets[0] ?? ""
+    : null;
+
+  // Seed the selected stack once. With a connected repo, lock to the detected
+  // stack; otherwise use the project/repo defaults, else the first
+  // discipline-appropriate preset.
   useEffect(() => {
     if (initializedRef.current || !data) return;
     initializedRef.current = true;
     setSelectedStack(
-      data.defaults.projectTechStack ??
+      lockedStack ??
+        data.defaults.projectTechStack ??
         data.defaults.repoStack ??
-        STACK_PRESETS[0],
+        stackPresets[0] ??
+        "",
     );
-  }, [data]);
+  }, [data, stackPresets, lockedStack]);
 
   // A cached stack (already generated) is a free switch — flag it on chips.
   const cachedStacks = useMemo(
@@ -172,7 +182,7 @@ export function ImplementationPromptsPanel({ featureId }: { featureId: string })
     setCustomStack("");
   }
 
-  const selectedIsPreset = STACK_PRESETS.some(
+  const selectedIsPreset = stackPresets.some(
     (p) => normalizeStack(p) === normalizeStack(selectedStack),
   );
 
@@ -189,66 +199,110 @@ export function ImplementationPromptsPanel({ featureId }: { featureId: string })
           ) : null}
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          {STACK_PRESETS.map((preset) => {
-            const active = normalizeStack(preset) === normalizeStack(selectedStack);
-            return (
-              <button
-                key={preset}
+        {isLoading && !data ? (
+          <div className="h-9 animate-pulse rounded-md border border-border bg-foreground/[0.03]" />
+        ) : repoConnected ? (
+          // Repo connected → stack is locked to the detected stack; no override.
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2.5">
+              <Lock className="size-3.5 shrink-0 text-muted-foreground" />
+              <span className="min-w-0 flex-1 truncate text-sm text-foreground">
+                {selectedStack || "Detecting your repository's stack…"}
+              </span>
+              <span className="shrink-0 font-mono text-[10px] uppercase tracking-wider text-success">
+                From repo
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {data?.defaults.repoStack
+                ? "Locked to your connected repository's detected stack — prompts are generated against your real codebase."
+                : "Analyzing your connected repository to detect its stack…"}
+            </p>
+          </div>
+        ) : (
+          <>
+            {/* No repo connected → nudge the user to connect for sharper output. */}
+            <Link
+              href="/github"
+              className="group flex items-start gap-3 rounded-md border border-dashed border-primary/30 bg-primary/[0.04] p-3 transition-colors hover:border-primary/50 hover:bg-primary/[0.07]"
+            >
+              <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-md border border-primary/30 bg-background text-primary">
+                <Github className="size-4" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+                  Connect a repository for sharper prompts
+                  <ArrowRight className="size-3.5 text-primary transition-transform group-hover:translate-x-0.5" />
+                </span>
+                <span className="mt-0.5 block text-xs leading-5 text-muted-foreground">
+                  Unlocks accurate tech-stack detection, better prompt generation, and full
+                  codebase context.
+                </span>
+              </span>
+            </Link>
+
+            <div className="flex flex-wrap gap-2">
+              {stackPresets.map((preset) => {
+                const active = normalizeStack(preset) === normalizeStack(selectedStack);
+                return (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => setSelectedStack(preset)}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs transition-colors",
+                      active
+                        ? "border-primary/40 bg-primary/10 text-primary"
+                        : "border-border bg-background text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {preset}
+                    {isCached(preset) ? (
+                      <span
+                        title="Already generated — instant"
+                        className="size-1.5 rounded-full bg-success"
+                      />
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Custom stack */}
+            <div className="flex items-center gap-2">
+              <input
+                value={customStack}
+                onChange={(e) => setCustomStack(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    applyCustomStack();
+                  }
+                }}
+                placeholder="Custom stack, e.g. SvelteKit + Drizzle + Turso"
+                maxLength={120}
+                className="h-9 flex-1 border border-border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-foreground/30 focus:outline-none"
+              />
+              <Button
                 type="button"
-                onClick={() => setSelectedStack(preset)}
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs transition-colors",
-                  active
-                    ? "border-primary/40 bg-primary/10 text-primary"
-                    : "border-border bg-background text-muted-foreground hover:text-foreground",
-                )}
+                variant="outline"
+                size="sm"
+                onClick={applyCustomStack}
+                disabled={!customStack.trim()}
+                className="h-9 border-border bg-background px-3 text-foreground hover:bg-foreground/10"
               >
-                {preset}
-                {isCached(preset) ? (
-                  <span
-                    title="Already generated — instant"
-                    className="size-1.5 rounded-full bg-success"
-                  />
-                ) : null}
-              </button>
-            );
-          })}
-        </div>
+                Use
+              </Button>
+            </div>
 
-        {/* Custom stack */}
-        <div className="flex items-center gap-2">
-          <input
-            value={customStack}
-            onChange={(e) => setCustomStack(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                applyCustomStack();
-              }
-            }}
-            placeholder="Custom stack, e.g. SvelteKit + Drizzle + Turso"
-            maxLength={120}
-            className="h-9 flex-1 border border-border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-foreground/30 focus:outline-none"
-          />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={applyCustomStack}
-            disabled={!customStack.trim()}
-            className="h-9 border-border bg-background px-3 text-foreground hover:bg-foreground/10"
-          >
-            Use
-          </Button>
-        </div>
-
-        {!selectedIsPreset && selectedStack ? (
-          <p className="text-xs text-muted-foreground">
-            Selected stack:{" "}
-            <span className="font-medium text-foreground">{selectedStack}</span>
-          </p>
-        ) : null}
+            {!selectedIsPreset && selectedStack ? (
+              <p className="text-xs text-muted-foreground">
+                Selected stack:{" "}
+                <span className="font-medium text-foreground">{selectedStack}</span>
+              </p>
+            ) : null}
+          </>
+        )}
 
         <div className="flex items-center justify-between gap-3 pt-1">
           <div className="min-w-0 space-y-1">

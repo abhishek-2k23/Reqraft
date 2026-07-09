@@ -10,6 +10,7 @@
     "./shipflow/github": "./shipflow/github.ts",
     "./shipflow/prd-document": "./shipflow/prd-document.ts",
     "./shipflow/repo-index": "./shipflow/repo-index.ts",
+    "./shipflow/tech-stacks": "./shipflow/tech-stacks.ts",
     "./shipflow/workflow": "./shipflow/workflow.ts"
   },
   "scripts": {
