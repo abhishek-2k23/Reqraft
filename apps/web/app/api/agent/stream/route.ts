@@ -5,8 +5,9 @@ import {
   type AgentRunRequest,
 } from "@/features/agent/server/run";
 
-// Long generations (full file contents) can run for many minutes.
-export const maxDuration = 800;
+// Long generations (full file contents) can run for many minutes. The Vercel
+// Hobby plan caps serverless maxDuration at 300s (5 min).
+export const maxDuration = 300;
 
 // Separates streamed JSON text from a trailing error message. NUL can never
 // occur inside JSON text, so the client can split them unambiguously. Must
