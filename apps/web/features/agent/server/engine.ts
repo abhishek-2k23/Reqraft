@@ -3,7 +3,12 @@ import "server-only";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
-import { generateObject, streamObject, type LanguageModel } from "ai";
+import {
+  generateObject,
+  streamObject,
+  streamText,
+  type LanguageModel,
+} from "ai";
 
 import type { AgentProvider } from "@repo/database/schema";
 
@@ -128,5 +133,39 @@ export function streamAgentPlan(input: AgentRunInput, abortSignal?: AbortSignal)
     schema: agentPlanSchema,
     abortSignal,
     ...buildRequest(input),
+  });
+}
+
+/**
+ * Continuation variant — used when a previous invocation streamed part of the
+ * plan JSON but hit the serverless time budget (or the client disconnected)
+ * before finishing. We can't resume a `streamObject` call, so we replay the
+ * original request, prefill the assistant turn with the JSON produced so far,
+ * and ask the model to emit ONLY the remaining characters. The caller
+ * concatenates the two halves — the client parses the whole thing as partial
+ * JSON exactly as it does for a single-shot run.
+ *
+ * Returns a `streamText` result; read `result.textStream` for the remainder.
+ */
+export function continueAgentPlan(
+  input: AgentRunInput,
+  partialJson: string,
+  abortSignal?: AbortSignal,
+) {
+  const { system, messages } = buildRequest(input);
+  return streamText({
+    model: resolveByokModel(input.provider, input.modelId, input.apiKey),
+    system,
+    abortSignal,
+    messages: [
+      ...messages,
+      // The partial JSON already produced, replayed as the assistant's turn.
+      { role: "assistant" as const, content: partialJson },
+      {
+        role: "user" as const,
+        content:
+          "Your previous JSON response was cut off before it finished. Continue the SAME JSON object from EXACTLY where it stopped. Output ONLY the remaining characters needed to complete and close the single JSON object — do not repeat any earlier content, do not restart the object, and do not wrap the output in markdown code fences or add any explanation.",
+      },
+    ],
   });
 }

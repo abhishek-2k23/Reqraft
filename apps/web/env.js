@@ -6,7 +6,13 @@ export const env = createEnv({
    * Specify your server-side environment variables schema here. This way you can ensure the app
    * isn't built with invalid env vars.
    */
-  server: {},
+  server: {
+    // Upstash Redis backs resumable agent runs (see features/agent/server/
+    // run-store.ts). Optional so the app still builds/runs without it — the
+    // agent routes degrade with a clear error when unset.
+    UPSTASH_REDIS_REST_URL: z.string().optional(),
+    UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
+  },
 
   /**
    * Specify your client-side environment variables schema here. This way you can ensure the app
@@ -23,6 +29,8 @@ export const env = createEnv({
    */
   runtimeEnv: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
+    UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL,
+    UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN,
   },
   /**
    * Run `build` or `dev` with `SKIP_ENV_VALIDATION` to skip env validation. This is especially
