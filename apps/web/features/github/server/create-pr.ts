@@ -65,6 +65,14 @@ type CommitAndOpenResult = {
   /** True when the commit landed on a branch whose OPEN PR already existed —
    * the returned PR was updated in place rather than newly created. */
   updatedExisting: boolean;
+  /** GitHub's numeric PR id (not the number) — the caller caches the PR row
+   * keyed on this, so linked-PR detection works without webhook delivery. */
+  githubPrId: number;
+  /** The commit this call created — the branch's new head. */
+  headSha: string;
+  baseBranch: string;
+  prTitle: string;
+  prBody: string | null;
 };
 
 async function commitAndOpen(
@@ -127,7 +135,14 @@ async function commitAndOpen(
   // branch head (fresh branch, or a branch whose PR was merged/closed — reset).
   let parentSha = baseSha;
   let parentTreeSha = baseTreeSha;
-  let existingOpenPr: { html_url: string; number: number } | null = null;
+  let existingOpenPr: {
+    html_url: string;
+    number: number;
+    id: number;
+    base: string;
+    title: string;
+    body: string | null;
+  } | null = null;
   let branchExists = false;
 
   if (input.branchName) {
@@ -149,7 +164,14 @@ async function commitAndOpen(
         per_page: 1,
       });
       if (openPrs[0]) {
-        existingOpenPr = { html_url: openPrs[0].html_url, number: openPrs[0].number };
+        existingOpenPr = {
+          html_url: openPrs[0].html_url,
+          number: openPrs[0].number,
+          id: openPrs[0].id,
+          base: openPrs[0].base.ref,
+          title: openPrs[0].title,
+          body: openPrs[0].body,
+        };
         parentSha = head.commit.sha;
         parentTreeSha = head.commit.commit.tree.sha;
       }
@@ -228,6 +250,11 @@ async function commitAndOpen(
       prNumber: existingOpenPr.number,
       branchName,
       updatedExisting: true,
+      githubPrId: existingOpenPr.id,
+      headSha: commit.sha,
+      baseBranch: existingOpenPr.base,
+      prTitle: existingOpenPr.title,
+      prBody: existingOpenPr.body,
     };
   }
 
@@ -241,7 +268,17 @@ async function commitAndOpen(
       body: input.body,
       draft: input.draft,
     });
-    return { prUrl: pr.html_url, prNumber: pr.number, branchName, updatedExisting: false };
+    return {
+      prUrl: pr.html_url,
+      prNumber: pr.number,
+      branchName,
+      updatedExisting: false,
+      githubPrId: pr.id,
+      headSha: commit.sha,
+      baseBranch: pr.base.ref,
+      prTitle: pr.title,
+      prBody: pr.body,
+    };
   } catch (error) {
     // Raced with another open PR on this branch — return the existing one.
     const message = error instanceof Error ? error.message : String(error);
@@ -255,6 +292,16 @@ async function commitAndOpen(
     });
     const pr = existing[0];
     if (!pr) throw error;
-    return { prUrl: pr.html_url, prNumber: pr.number, branchName, updatedExisting: true };
+    return {
+      prUrl: pr.html_url,
+      prNumber: pr.number,
+      branchName,
+      updatedExisting: true,
+      githubPrId: pr.id,
+      headSha: commit.sha,
+      baseBranch: pr.base.ref,
+      prTitle: pr.title,
+      prBody: pr.body,
+    };
   }
 }

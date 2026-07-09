@@ -255,6 +255,7 @@ function PlanMessage({
   baseBranch,
   featureBranch,
   authorName,
+  linkedPr,
   onRaisePr,
 }: {
   plan: PartialAgentPlan;
@@ -269,6 +270,9 @@ function PlanMessage({
   /** The feature's canonical feature/<slug> branch — the PR's real head. */
   featureBranch?: string;
   authorName?: string;
+  /** The feature's linked OPEN PR — when set, the CTA commits onto it instead
+   * of raising a new pull request, and is labeled accordingly. */
+  linkedPr?: { number: number; url: string } | null;
   onRaisePr?: () => void;
 }) {
   const steps = (plan.plan ?? []).filter((s): s is string => Boolean(s));
@@ -387,7 +391,7 @@ function PlanMessage({
                 className="inline-flex items-center gap-1.5 rounded-lg bg-success px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:opacity-95 active:scale-[0.98]"
               >
                 <GitPullRequest className="size-3.5" />
-                Raise pull request
+                {linkedPr ? `Commit to PR #${linkedPr.number}` : "Raise pull request"}
               </button>
             ) : null
           }
@@ -410,11 +414,25 @@ function PlanMessage({
             className="inline-flex items-center gap-2 rounded-xl bg-success px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:opacity-95 active:scale-[0.98]"
           >
             <GitPullRequest className="size-4" />
-            Raise pull request
+            {linkedPr ? `Commit to PR #${linkedPr.number}` : "Raise pull request"}
           </button>
           <span className="text-xs text-muted-foreground">
             {files.length} file{files.length === 1 ? "" : "s"} →{" "}
             <span className="font-mono">{headBranch}</span>
+            {linkedPr && (
+              <>
+                {" "}
+                on{" "}
+                <a
+                  href={linkedPr.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-primary underline-offset-2 hover:underline"
+                >
+                  PR #{linkedPr.number}
+                </a>
+              </>
+            )}
           </span>
         </div>
       )}
@@ -725,6 +743,7 @@ export default function AgentPage() {
   }
 
   // The open PR the agent will build on for the selected feature (if any).
+  const trpcUtils = trpc.useUtils();
   const { data: featurePr } = trpc.github.prForFeature.useQuery(
     { featureId },
     { enabled: Boolean(featureId) },
@@ -799,6 +818,11 @@ export default function AgentPage() {
         prBranch: res.branch,
         prDraft,
       });
+      // The raise action links the PR to the feature server-side — refetch so
+      // the "Building on PR #N" chip and commit-mode CTAs pick it up at once.
+      if (prFor.featureId) {
+        void trpcUtils.github.prForFeature.invalidate({ featureId: prFor.featureId });
+      }
       setPrFor(null);
     } else {
       toast.error(res.error);
@@ -1007,6 +1031,9 @@ export default function AgentPage() {
                       baseBranch={selectedRepo?.defaultBranch ?? "main"}
                       featureBranch={landingBranchOf(m.featureId)}
                       authorName={firstName}
+                      linkedPr={
+                        m.featureId && m.featureId === featureId ? (featurePr ?? null) : null
+                      }
                       onRaisePr={
                         activeId
                           ? () => openPrDialog(activeId, m.id, m.plan, m.featureId)
@@ -1035,6 +1062,7 @@ export default function AgentPage() {
                       baseBranch={selectedRepo?.defaultBranch ?? "main"}
                       featureBranch={landingBranchOf(featureId)}
                       authorName={firstName}
+                      linkedPr={featurePr ?? null}
                     />
                   )}
                 </div>
