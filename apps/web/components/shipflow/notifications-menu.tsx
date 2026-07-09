@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Bell, CheckCircle2, FileText, OctagonAlert } from "lucide-react";
+import { ArrowRight, Bell, CheckCircle2, FileText, Github, OctagonAlert } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import {
@@ -55,6 +55,16 @@ export function NotificationsMenu() {
     { projectId: activeProjectId ?? undefined },
     { enabled: ready && !isLoading },
   );
+
+  // A persistent nudge: if the active project (or the whole org, in "All"
+  // scope) has no connected repository, surface a "connect a repo" card that
+  // explains the payoff. Not part of the dismissable activity feed — it stays
+  // until a repo is actually connected.
+  const { data: repos = [], isLoading: reposLoading } = trpc.github.repositories.useQuery(
+    { projectId: activeProjectId ?? undefined },
+    { enabled: ready && !isLoading },
+  );
+  const showConnectRepo = ready && !isLoading && !reposLoading && repos.length === 0;
 
   // Read state is persisted per-org so a seen notification stays hidden across
   // reloads and doesn't leak between organizations on a shared browser.
@@ -124,6 +134,8 @@ export function NotificationsMenu() {
           <span className="absolute -right-1 -top-1 grid min-w-4 place-items-center bg-primary px-1 font-mono text-[9px] font-medium text-primary-foreground">
             {events.length}
           </span>
+        ) : showConnectRepo ? (
+          <span className="absolute -right-1 -top-1 size-2 rounded-full bg-primary" />
         ) : null}
       </DropdownMenuTrigger>
 
@@ -133,8 +145,33 @@ export function NotificationsMenu() {
           <span className="text-[11px] text-muted-foreground">{events.length} new</span>
         </div>
 
+        {/* Repo-connect nudge — pinned above the activity feed, links to the
+            GitHub connect page. Persists until a repo is connected. */}
+        {showConnectRepo ? (
+          <Link
+            href="/github"
+            className="flex items-start gap-3 border-b border-border bg-primary/[0.04] px-3 py-3 transition-colors hover:bg-primary/[0.07]"
+          >
+            <span className="mt-0.5 grid size-7 shrink-0 place-items-center border border-primary/30 bg-background text-primary">
+              <Github className="size-3.5" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="flex items-center gap-1.5">
+                <span className="size-1.5 shrink-0 bg-primary" />
+                <span className="truncate text-sm font-medium text-foreground">Connect a repository</span>
+              </span>
+              <span className="mt-0.5 block text-xs leading-5 text-muted-foreground">
+                Get accurate tech-stack detection, better prompt generation, and full codebase context.
+              </span>
+            </span>
+            <ArrowRight className="mt-1 size-3.5 shrink-0 text-primary" />
+          </Link>
+        ) : null}
+
         {events.length === 0 ? (
-          <p className="px-3 py-8 text-center text-sm text-muted-foreground">You&apos;re all caught up.</p>
+          showConnectRepo ? null : (
+            <p className="px-3 py-8 text-center text-sm text-muted-foreground">You&apos;re all caught up.</p>
+          )
         ) : (
           <ul className="max-h-80 overflow-y-auto">
             {events.map((e) => {

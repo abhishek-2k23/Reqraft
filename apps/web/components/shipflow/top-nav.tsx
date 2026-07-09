@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LogOut, Menu, Plus, Search, Settings, User as UserIcon } from "lucide-react";
+import { Github, LogOut, Menu, Plus, Search, Settings, User as UserIcon } from "lucide-react";
 
 import {
   Breadcrumb,
@@ -22,11 +22,12 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { ThemeToggle } from "~/components/theme-toggle";
 import { NotificationsMenu } from "./notifications-menu";
-import { ProjectSwitcher } from "./project-context";
+import { ProjectSwitcher, useActiveProject } from "./project-context";
 import { useCommandPalette } from "./command-palette";
 import { LinkPending } from "./link-pending";
 import { routeLabel } from "./nav-items";
 import { cn } from "~/lib/utils";
+import { trpc } from "~/trpc/client";
 import { authClient } from "@/lib/auth-client";
 
 function initialsOf(name?: string | null) {
@@ -63,6 +64,15 @@ function UserMenu() {
   const { data: session } = authClient.useSession();
   const user = session?.user;
 
+  // Nudge to connect a repo (below the profile), shown until the active project
+  // — or the org, in "All" scope — has a connected repository.
+  const { activeProjectId, ready, isLoading } = useActiveProject();
+  const { data: repos = [] } = trpc.github.repositories.useQuery(
+    { projectId: activeProjectId ?? undefined },
+    { enabled: ready && !isLoading },
+  );
+  const needsRepo = ready && !isLoading && repos.length === 0;
+
   async function signOut() {
     try {
       await authClient.signOut();
@@ -98,6 +108,21 @@ function UserMenu() {
           <p className="truncate text-xs text-muted-foreground">{user?.email ?? ""}</p>
         </div>
         <DropdownMenuSeparator className="bg-border" />
+        {needsRepo ? (
+          <>
+            <DropdownMenuItem asChild className="cursor-pointer">
+              <Link href="/github" className="flex-col !items-start gap-1 py-2">
+                <span className="flex items-center gap-2 text-sm font-medium text-foreground">
+                  <Github className="size-4 text-primary" /> Connect a repository
+                </span>
+                <span className="pl-6 text-xs leading-5 text-muted-foreground">
+                  Better tech-stack detection, prompt generation &amp; codebase context.
+                </span>
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator className="bg-border" />
+          </>
+        ) : null}
         <DropdownMenuItem asChild className="cursor-pointer">
           <Link href="/profile">
             <UserIcon className="size-4" /> Profile

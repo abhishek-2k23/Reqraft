@@ -133,6 +133,27 @@ export default function ProjectsPage() {
               </motion.button>
             );
           })}
+
+          {/* Add-project card — sits after the real cards and opens the same
+              New project modal as the header CTA. Dashed to read as an action. */}
+          <CreateProjectDialog
+            trigger={
+              <motion.button
+                variants={FADE_UP}
+                className="group flex h-full min-h-[184px] flex-col items-center justify-center gap-3 border border-dashed border-border bg-card p-5 text-center transition-colors hover:border-primary/40 hover:bg-foreground/[0.03]"
+              >
+                <div className="grid size-10 place-items-center rounded-full border border-dashed border-border bg-foreground/[0.03] text-muted-foreground transition-colors group-hover:border-primary/40 group-hover:text-primary">
+                  <Plus className="size-5" />
+                </div>
+                <div>
+                  <p className="font-medium text-foreground">New project</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Group features, PRDs, tasks &amp; repos
+                  </p>
+                </div>
+              </motion.button>
+            }
+          />
         </div>
       )}
     </motion.div>
