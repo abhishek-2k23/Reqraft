@@ -4,8 +4,10 @@ import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useInView } from "framer-motion";
 import {
+  Bot,
   Check,
   FileText,
+  GitPullRequestArrow,
   ListChecks,
   MessagesSquare,
   Rocket,
@@ -19,6 +21,8 @@ import { cn } from "@/lib/utils";
  * "How Reqraft works" — the agentic core powers up each pipeline station in
  * sequence, connected by curvy flight-path arcs (countries on a route map).
  * Loop: arc draws to station → station runs → green tick → next arc fades in.
+ * Stations are evenly spaced across the viewBox (step 162) so cards never
+ * overlap down to the lg breakpoint.
  */
 
 const VB_W = 1200;
@@ -33,14 +37,15 @@ type Station = {
   at: [number, number];
 };
 
-const CORE: [number, number] = [110, 255];
+const CORE: [number, number] = [110, 300];
 
 const STATIONS: Station[] = [
-  { id: "clarify", n: "01", title: "Clarify", sub: "AI asks what's missing", icon: MessagesSquare, at: [330, 115] },
-  { id: "prd", n: "02", title: "PRD", sub: "Structured, approvable spec", icon: FileText, at: [565, 350] },
-  { id: "tasks", n: "03", title: "Tasks", sub: "Sized dev breakdown", icon: ListChecks, at: [775, 110] },
-  { id: "review", n: "04", title: "Review", sub: "Every PR vs the spec", icon: ShieldCheck, at: [975, 345] },
-  { id: "ship", n: "05", title: "Ship", sub: "Gated, reviewed release", icon: Rocket, at: [1105, 130] },
+  { id: "clarify", n: "01", title: "Clarify", sub: "AI asks what's missing", icon: MessagesSquare, at: [290, 110] },
+  { id: "prd", n: "02", title: "PRD", sub: "Structured, approvable spec", icon: FileText, at: [452, 350] },
+  { id: "tasks", n: "03", title: "Tasks", sub: "Sized dev breakdown", icon: ListChecks, at: [614, 105] },
+  { id: "agent", n: "04", title: "Agent", sub: "Codes tasks, raises the PR", icon: Bot, at: [776, 345] },
+  { id: "review", n: "05", title: "Review", sub: "Every PR vs the spec", icon: ShieldCheck, at: [938, 110] },
+  { id: "ship", n: "06", title: "Ship", sub: "Gated, reviewed release", icon: Rocket, at: [1100, 350] },
 ];
 
 const DRAW_MS = 950;
@@ -102,6 +107,33 @@ function StationViz({ id }: { id: string }) {
               className="size-2.5 border border-primary/50"
             />
           ))}
+        </div>
+      );
+    case "agent":
+      return (
+        <div className="flex w-full items-center gap-1.5">
+          {/* code lines write themselves… */}
+          <div className="flex-1 space-y-1">
+            {["100%", "72%"].map((w, i) => (
+              <motion.div
+                key={w}
+                initial={{ scaleX: 0 }}
+                animate={{ scaleX: 1 }}
+                transition={{ delay: 0.2 + i * 0.45, duration: 0.55 }}
+                style={{ width: w }}
+                className="h-1 origin-left bg-primary/50"
+              />
+            ))}
+          </div>
+          {/* …then the PR pops out */}
+          <motion.span
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 1.35, type: "spring", stiffness: 380, damping: 18 }}
+            className="text-primary"
+          >
+            <GitPullRequestArrow className="size-3.5" />
+          </motion.span>
         </div>
       );
     case "review":
@@ -305,7 +337,7 @@ export function HowItWorks() {
   const currentLabel =
     stage.mode === "hold"
       ? "pipeline complete — restarting"
-      : `step ${stage.step + 1}/5 — ${STATIONS[stage.step]!.title.toLowerCase()} ${
+      : `step ${stage.step + 1}/${STATIONS.length} — ${STATIONS[stage.step]!.title.toLowerCase()} ${
           stage.mode === "draw" ? "· powering up" : "· running"
         }`;
 

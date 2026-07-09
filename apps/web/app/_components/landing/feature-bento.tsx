@@ -3,6 +3,7 @@
 import { motion } from "framer-motion";
 import {
   Bot,
+  BotMessageSquare,
   Check,
   Copy,
   Download,
@@ -21,9 +22,10 @@ import { SiGithub } from "react-icons/si";
 import { cn } from "@/lib/utils";
 
 /**
- * Feature wall — Pinterest-style masonry (CSS columns) of technical cards,
- * one per product capability. Cards are neon-card framed with a "figure"
- * panel each; heights vary naturally so the wall reads like a board.
+ * Feature wall — Pinterest-style masonry of technical cards, one per product
+ * capability. Built from explicit flex columns (not CSS multicol, which
+ * reflows unpredictably and fights framer-motion transforms) so gaps stay
+ * even and each column is hand-balanced by card height.
  */
 
 function Fig({ tag, children }: { tag: string; children: React.ReactNode }) {
@@ -200,6 +202,65 @@ function VizModels() {
   );
 }
 
+function VizAgent() {
+  const files = [
+    ["app/api/todos/route.ts", "create"],
+    ["components/todo-list.tsx", "create"],
+    ["lib/db/schema.ts", "modify"],
+  ] as const;
+  return (
+    <div className="font-mono text-[9px] leading-relaxed">
+      {/* the ask */}
+      <p>
+        <span className="text-primary">you ▸</span>{" "}
+        <span className="text-foreground/85">implement the approved PRD, tasks 1–3</span>
+      </p>
+
+      {/* files stream in one by one, each flipping to written */}
+      <div className="mt-2 space-y-1">
+        {files.map(([path, action], i) => (
+          <motion.div
+            key={path}
+            initial={{ opacity: 0, x: -8 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true }}
+            transition={{ delay: 0.35 + i * 0.35 }}
+            className="flex items-center justify-between gap-2 border border-border/70 bg-card/50 px-2 py-1"
+          >
+            <span className="truncate text-foreground/80">{path}</span>
+            <span className="flex shrink-0 items-center gap-1.5">
+              <span className="border border-border px-1 py-px text-[7.5px] uppercase text-muted-foreground">
+                {action}
+              </span>
+              <motion.span
+                initial={{ opacity: 0, scale: 0.6 }}
+                whileInView={{ opacity: 1, scale: 1 }}
+                viewport={{ once: true }}
+                transition={{ delay: 0.65 + i * 0.35 }}
+                className="text-success"
+              >
+                ✔
+              </motion.span>
+            </span>
+          </motion.div>
+        ))}
+      </div>
+
+      {/* the payoff — a ready-to-review PR */}
+      <motion.p
+        initial={{ opacity: 0, y: 4 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true }}
+        transition={{ delay: 1.6 }}
+        className="mt-2 flex items-center gap-1.5 border-t border-border pt-2 text-success"
+      >
+        <GitPullRequestArrow className="size-3" />
+        PR #142 opened — reqraft-agent/todo-crud
+      </motion.p>
+    </div>
+  );
+}
+
 function VizCli() {
   return (
     <div className="font-mono text-[9.5px] leading-relaxed">
@@ -300,6 +361,13 @@ type CardDef = {
 
 const CARDS: CardDef[] = [
   {
+    icon: BotMessageSquare,
+    title: "BYOK coding agent",
+    body: "Bring your own OpenAI, Anthropic, or Gemini key and chat the approved PRD into code — files stream live and land as a ready-to-review PR.",
+    tag: "agent.byok",
+    viz: <VizAgent />,
+  },
+  {
     icon: FileText,
     title: "PRD generation",
     body: "One rough ask in — a structured, versioned spec out: goals, non-goals, user stories, and acceptance criteria your team can approve.",
@@ -365,15 +433,32 @@ const CARDS: CardDef[] = [
   },
 ];
 
-function Card({ card, i }: { card: CardDef; i: number }) {
+const CARD_BY_TAG = new Map(CARDS.map((c) => [c.tag, c]));
+
+/**
+ * Column layouts per breakpoint — order reads left-to-right across the top
+ * row, and cards are placed so column bottoms land close together.
+ */
+const COLUMNS_LG: string[][] = [
+  ["agent.byok", "prompt.copy", "ai.router"],
+  ["prd.gen", "tasks.gen", "prd.export"],
+  ["review.score", "npm.reqraft", "gh.sync", "jobs.durable"],
+];
+
+const COLUMNS_SM: string[][] = [
+  ["agent.byok", "review.score", "tasks.gen", "ai.router", "prd.export"],
+  ["prd.gen", "prompt.copy", "npm.reqraft", "gh.sync", "jobs.durable"],
+];
+
+function Card({ card, delay }: { card: CardDef; delay: number }) {
   const Icon = card.icon;
   return (
     <motion.div
       initial={{ opacity: 0, y: 18 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-50px" }}
-      transition={{ duration: 0.5, delay: (i % 3) * 0.06 }}
-      className="neon-card mb-3 break-inside-avoid p-5"
+      transition={{ duration: 0.5, delay }}
+      className="neon-card p-5"
     >
       <div className="flex items-center gap-3">
         <span className="grid size-9 shrink-0 place-items-center border border-border bg-foreground/[0.04] text-primary">
@@ -384,6 +469,21 @@ function Card({ card, i }: { card: CardDef; i: number }) {
       <p className="mt-3 font-mono text-xs leading-relaxed text-muted-foreground">{card.body}</p>
       <Fig tag={card.tag}>{card.viz}</Fig>
     </motion.div>
+  );
+}
+
+function Wall({ columns, className }: { columns: string[][]; className: string }) {
+  return (
+    <div className={cn("mt-10 gap-4", className)}>
+      {columns.map((col, ci) => (
+        <div key={ci} className="flex min-w-0 flex-col gap-4">
+          {col.map((tag) => {
+            const card = CARD_BY_TAG.get(tag);
+            return card ? <Card key={tag} card={card} delay={ci * 0.06} /> : null;
+          })}
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -404,12 +504,14 @@ export function FeatureBento() {
         </p>
       </div>
 
-      {/* masonry wall */}
-      <div className="mt-10 columns-1 gap-3 sm:columns-2 lg:columns-3">
-        {CARDS.map((card, i) => (
-          <Card key={card.tag} card={card} i={i} />
+      {/* masonry wall — one layout per breakpoint so columns stay balanced */}
+      <div className="mt-10 flex flex-col gap-4 sm:hidden">
+        {CARDS.map((card) => (
+          <Card key={card.tag} card={card} delay={0} />
         ))}
       </div>
+      <Wall columns={COLUMNS_SM} className="hidden grid-cols-2 sm:grid lg:hidden" />
+      <Wall columns={COLUMNS_LG} className="hidden grid-cols-3 lg:grid" />
 
       {/* quiet proof line */}
       <div className="mt-4 flex flex-wrap items-center justify-center gap-x-8 gap-y-2 border border-border bg-foreground/[0.02] px-6 py-4 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">

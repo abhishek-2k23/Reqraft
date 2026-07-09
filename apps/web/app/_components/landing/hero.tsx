@@ -14,6 +14,8 @@ import {
   Sparkles,
 } from "lucide-react";
 
+import { HeroFeatureOrbs, HeroFeatureStrip } from "./hero-feature-orbs";
+
 const HeroBackground = dynamic(() => import("./hero-background"), { ssr: false });
 
 const fadeUp: Variants = {
@@ -114,7 +116,15 @@ export function LandingHero() {
             </div>
           ))}
         </motion.div>
+
+        {/* capability chips — compact stand-in for the orb constellation below xl */}
+        <motion.div variants={fadeUp}>
+          <HeroFeatureStrip />
+        </motion.div>
       </motion.div>
+
+      {/* floating capability constellation — flanks the headline on xl+ */}
+      <HeroFeatureOrbs />
     </section>
   );
 }
