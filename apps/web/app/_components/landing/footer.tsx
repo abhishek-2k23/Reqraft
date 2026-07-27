@@ -157,6 +157,9 @@ export function LandingFooter() {
             <Link href="/terms" className="transition-colors hover:text-foreground">
               Terms of service
             </Link>
+            <Link href="/account-deletion" className="transition-colors hover:text-foreground">
+              Account deletion
+            </Link>
           </div>
         </div>
       </div>

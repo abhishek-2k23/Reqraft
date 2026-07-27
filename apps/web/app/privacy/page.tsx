@@ -135,6 +135,14 @@ export default function PrivacyPolicyPage() {
           rights. We will respond consistent with applicable law, including the GDPR and CCPA where
           they apply.
         </p>
+        <p>
+          You can permanently delete your account and its data at any time from Settings inside the
+          app. See our{" "}
+          <Link href="/account-deletion" className="text-primary underline-offset-4 hover:underline">
+            Account Deletion
+          </Link>{" "}
+          page for the exact steps and what is removed.
+        </p>
       </LegalSection>
 
       <LegalSection n={9} heading="International data transfers">

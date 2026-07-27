@@ -2,6 +2,7 @@ import Image from "next/image";
 
 import { getServerSession } from "@/features/auth/session";
 import { CreateOrgForm } from "~/components/shipflow/create-org-form";
+import { DeleteAccountSection } from "~/components/shipflow/delete-account-section";
 import { OrgSettingsForm } from "~/components/shipflow/org-settings-form";
 import { ProjectsSection } from "~/components/shipflow/projects-section";
 import { PageHeader } from "~/components/shipflow/ui-kit";
@@ -69,6 +70,9 @@ export default async function SettingsPage() {
           )}
           <CreateOrgForm />
         </div>
+
+        {/* Danger zone — permanent account deletion */}
+        <DeleteAccountSection email={session?.user.email ?? null} />
 
       </div>
     </div>

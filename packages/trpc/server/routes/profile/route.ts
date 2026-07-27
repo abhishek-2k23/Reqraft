@@ -1,10 +1,11 @@
 import { randomInt, randomUUID } from "node:crypto";
 
-import { and, count, eq } from "@repo/database";
+import { and, count, eq, inArray, ne } from "@repo/database";
 import {
   featureRequests,
   members,
   organizations,
+  projects,
   subscriptions,
   tasks,
   usersTable,
@@ -192,4 +193,134 @@ export const profileRouter = router({
 
     return rows;
   }),
+
+  // Permanently delete the current user's account. Organizations where the
+  // user is the only member are deleted outright (cascades wipe their
+  // projects, features, PRDs, tasks, reviews, keys, …). In shared orgs the
+  // content belongs to the org, so the user's authored projects/features are
+  // reassigned to another member — their created_by FKs are ON DELETE
+  // RESTRICT and would otherwise block the user delete. The only hard stop:
+  // the user is the sole OWNER of an org that still has other members —
+  // ownership must be transferred (or the org deleted) first.
+  deleteAccount: protectedProcedure
+    .input(z.object({ confirmation: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      enforceRateLimit({
+        key: `delete-account:${ctx.session.user.id}`,
+        limit: 5,
+        windowMs: 10 * 60_000,
+        message: "Too many attempts — please wait a few minutes and try again.",
+      });
+
+      const userId = ctx.session.user.id;
+      const [user] = await ctx.db
+        .select({ email: usersTable.email })
+        .from(usersTable)
+        .where(eq(usersTable.id, userId));
+      if (!user) throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
+
+      if (input.confirmation.trim().toLowerCase() !== user.email.toLowerCase()) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Type your account email exactly to confirm deletion.",
+        });
+      }
+
+      const myMemberships = await ctx.db
+        .select({
+          orgId: members.organizationId,
+          orgName: organizations.name,
+          role: members.role,
+        })
+        .from(members)
+        .innerJoin(organizations, eq(organizations.id, members.organizationId))
+        .where(eq(members.userId, userId));
+
+      const ROLE_PRIORITY: Record<string, number> = {
+        owner: 0,
+        admin: 1,
+        manager: 2,
+        developer: 3,
+      };
+
+      const soloOrgIds: string[] = [];
+      const reassignTargets = new Map<string, string>(); // orgId -> new createdBy
+      const blockedOrgs: string[] = [];
+
+      for (const m of myMemberships) {
+        const others = await ctx.db
+          .select({ userId: members.userId, role: members.role })
+          .from(members)
+          .where(and(eq(members.organizationId, m.orgId), ne(members.userId, userId)));
+
+        if (others.length === 0) {
+          soloOrgIds.push(m.orgId);
+          continue;
+        }
+        if (m.role === "owner" && !others.some((o) => o.role === "owner")) {
+          blockedOrgs.push(m.orgName);
+          continue;
+        }
+        others.sort((a, b) => (ROLE_PRIORITY[a.role] ?? 9) - (ROLE_PRIORITY[b.role] ?? 9));
+        reassignTargets.set(m.orgId, others[0]!.userId);
+      }
+
+      if (blockedOrgs.length > 0) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: `You are the only owner of ${blockedOrgs.join(
+            ", ",
+          )}. Transfer ownership to another member (or remove the other members so the organization is deleted with your account) and try again.`,
+        });
+      }
+
+      // Content authored in orgs the user is no longer a member of would still
+      // block the delete via the RESTRICT FKs — sweep those orgs the same way.
+      const authoredOrgIds = new Set<string>();
+      const authoredProjects = await ctx.db
+        .select({ orgId: projects.organizationId })
+        .from(projects)
+        .where(eq(projects.createdBy, userId));
+      const authoredFeatures = await ctx.db
+        .select({ orgId: featureRequests.organizationId })
+        .from(featureRequests)
+        .where(eq(featureRequests.createdBy, userId));
+      for (const row of [...authoredProjects, ...authoredFeatures]) authoredOrgIds.add(row.orgId);
+
+      for (const orgId of authoredOrgIds) {
+        if (soloOrgIds.includes(orgId) || reassignTargets.has(orgId)) continue;
+        const [anyMember] = await ctx.db
+          .select({ userId: members.userId })
+          .from(members)
+          .where(and(eq(members.organizationId, orgId), ne(members.userId, userId)))
+          .limit(1);
+        // An org with no remaining members has nobody left to own the content.
+        if (anyMember) reassignTargets.set(orgId, anyMember.userId);
+        else soloOrgIds.push(orgId);
+      }
+
+      await ctx.db.transaction(async (tx) => {
+        if (soloOrgIds.length > 0) {
+          await tx.delete(organizations).where(inArray(organizations.id, soloOrgIds));
+        }
+        for (const [orgId, targetId] of reassignTargets) {
+          await tx
+            .update(projects)
+            .set({ createdBy: targetId })
+            .where(and(eq(projects.organizationId, orgId), eq(projects.createdBy, userId)));
+          await tx
+            .update(featureRequests)
+            .set({ createdBy: targetId })
+            .where(and(eq(featureRequests.organizationId, orgId), eq(featureRequests.createdBy, userId)));
+        }
+        // The user row cascades to sessions, accounts, memberships, device
+        // codes, GitHub installations, comments, and AI conversations.
+        await tx.delete(usersTable).where(eq(usersTable.id, userId));
+        await tx
+          .delete(verificationsTable)
+          .where(eq(verificationsTable.identifier, verificationIdentifier(userId)));
+      });
+
+      return { deleted: true };
+    }),
 });
